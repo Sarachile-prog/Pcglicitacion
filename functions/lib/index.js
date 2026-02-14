@@ -45,7 +45,7 @@ exports.getBidsByDate = (0, https_1.onRequest)({
     invoker: "public"
 }, async (request, response) => {
     const date = request.query.date;
-    console.log(`>>> [SERVER] Solicitud para fecha: ${date}`);
+    console.log(`>>> [SERVER] Solicitud recibida para fecha: ${date}`);
     if (!date) {
         console.error(">>> [SERVER] Error: Falta parámetro date");
         response.status(400).json({ error: "Missing date parameter" });
@@ -61,21 +61,21 @@ exports.getBidsByDate = (0, https_1.onRequest)({
             const data = docSnap.data();
             const expiresAt = data?.expiresAt;
             if (expiresAt && expiresAt.toMillis() > now) {
-                console.log(`>>> [SERVER] Cache HIT para ${date}`);
+                console.log(`>>> [SERVER] Cache HIT para ${date}. Retornando datos guardados.`);
                 response.json({
                     fromCache: true,
                     data: data?.data || []
                 });
                 return;
             }
-            console.log(`>>> [SERVER] Cache EXPIRED para ${date}`);
+            console.log(`>>> [SERVER] Cache EXPIRED para ${date}. Refrescando...`);
         }
         else {
-            console.log(`>>> [SERVER] Cache MISS para ${date}`);
+            console.log(`>>> [SERVER] Cache MISS para ${date}. Consultando API.`);
         }
         const TICKET = process.env.MERCADO_PUBLICO_TICKET || 'F80640D6-AB32-4757-827D-02589D211564';
         const apiUrl = `https://api.mercadopublico.cl/servicios/v1/publico/licitaciones.json?fecha=${date}&ticket=${TICKET}`;
-        console.log(`>>> [SERVER] Consultando API Oficial: ${apiUrl.replace(TICKET, '***')}`);
+        console.log(`>>> [SERVER] Llamando a API Oficial: ${apiUrl.replace(TICKET, '***')}`);
         const apiResponse = await fetch(apiUrl);
         if (!apiResponse.ok) {
             const errorText = await apiResponse.text();
@@ -84,14 +84,14 @@ exports.getBidsByDate = (0, https_1.onRequest)({
         }
         const apiData = (await apiResponse.json());
         const bidsList = apiData.Listado || [];
-        console.log(`>>> [SERVER] API respondió con ${bidsList.length} licitaciones.`);
+        console.log(`>>> [SERVER] API respondió exitosamente con ${bidsList.length} licitaciones.`);
         const newExpiresAt = admin.firestore.Timestamp.fromMillis(now + TTL_MS);
         await cacheRef.set({
             data: bidsList,
             expiresAt: newExpiresAt,
             updatedAt: admin.firestore.FieldValue.serverTimestamp()
         });
-        console.log(`>>> [SERVER] Firestore actualizado para ${date}`);
+        console.log(`>>> [SERVER] Firestore actualizado para ${date}.`);
         response.json({
             fromCache: false,
             refreshed: true,

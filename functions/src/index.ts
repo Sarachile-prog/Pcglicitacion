@@ -17,7 +17,7 @@ export const healthCheck = onRequest({
 });
 
 /**
- * Obtiene licitaciones reales de Mercado Público con lógica de caché.
+ * Obtiene licitaciones reales de Mercado Público con lógica de caché y logs avanzados.
  */
 export const getBidsByDate = onRequest({
   cors: true,
@@ -78,7 +78,7 @@ export const getBidsByDate = onRequest({
 
     console.log(`>>> [SERVER] API respondió exitosamente con ${bidsList.length} licitaciones.`);
 
-    // Guardamos en caché
+    // Guardamos en caché incluso si la lista es vacía para evitar llamadas innecesarias
     const newExpiresAt = admin.firestore.Timestamp.fromMillis(now + TTL_MS);
     
     await cacheRef.set({

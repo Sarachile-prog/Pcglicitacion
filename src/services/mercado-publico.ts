@@ -4,8 +4,6 @@
  * Llama a la Cloud Function Gen2 desplegada para obtener datos reales.
  */
 
-import { firebaseConfig } from '@/firebase/config';
-
 export interface MercadoPublicoItem {
   CodigoProducto: number;
   CodigoCategoria: number;
@@ -38,34 +36,32 @@ export interface MercadoPublicoBid {
 
 /**
  * Obtiene licitaciones llamando a la Cloud Function Gen2.
- * Nota: Se utiliza la URL específica de Cloud Run detectada en los logs.
  */
 export async function getBidsByDate(date: string): Promise<MercadoPublicoBid[]> {
-  // URL detectada en los logs del usuario para la función Gen2
+  // URL de Cloud Run para la función Gen2 según logs de despliegue
   const functionUrl = `https://getbidsbydate-uusj753vka-uc.a.run.app?date=${date}`;
 
-  console.log(`[Client Service] Llamando a Cloud Function: ${functionUrl}`);
+  console.log(`[Client Service] Consultando Cloud Function: ${functionUrl}`);
 
   try {
     const response = await fetch(functionUrl, {
       method: 'GET',
       headers: {
-        'Content-Type': 'application/json',
+        'Accept': 'application/json',
       },
       cache: 'no-store'
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error(`[Client Service] Error status: ${response.status}. Body: ${errorText}`);
+      console.error(`[Client Service] Error de servidor (${response.status}): ${errorText}`);
       return [];
     }
 
     const result = await response.json();
-    console.log(`[Client Service] Respuesta recibida. Licitaciones: ${result.data?.length || 0}`);
     return result.data || [];
   } catch (error: any) {
-    console.error(`[Client Service] Error fatal en fetch: ${error.message}`);
+    console.error(`[Client Service] Error de red/conexión: ${error.message}`);
     return [];
   }
 }

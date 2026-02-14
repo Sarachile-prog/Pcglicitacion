@@ -92,6 +92,38 @@ const SidebarProvider = React.forwardRef<
         : setOpen((open) => !open)
     }, [isMobile, setOpen, setOpenMobile])
 
+    // Lógica de inactividad: Colapsar después de 5 segundos de inactividad si está abierto
+    React.useEffect(() => {
+      if (!open && !openMobile) return;
+
+      let timer: NodeJS.Timeout;
+      
+      const resetTimer = () => {
+        clearTimeout(timer);
+        timer = setTimeout(() => {
+          if (open) setOpen(false);
+          if (openMobile) setOpenMobile(false);
+        }, 5000);
+      };
+
+      // Escuchar eventos de interacción
+      window.addEventListener("mousemove", resetTimer);
+      window.addEventListener("mousedown", resetTimer);
+      window.addEventListener("keydown", resetTimer);
+      window.addEventListener("touchstart", resetTimer);
+
+      // Iniciar timer
+      resetTimer();
+
+      return () => {
+        clearTimeout(timer);
+        window.removeEventListener("mousemove", resetTimer);
+        window.removeEventListener("mousedown", resetTimer);
+        window.removeEventListener("keydown", resetTimer);
+        window.removeEventListener("touchstart", resetTimer);
+      };
+    }, [open, openMobile, setOpen, setOpenMobile]);
+
     React.useEffect(() => {
       const handleKeyDown = (event: KeyboardEvent) => {
         if (

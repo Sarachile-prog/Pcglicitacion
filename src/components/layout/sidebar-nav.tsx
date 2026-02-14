@@ -9,11 +9,22 @@ import {
   SidebarMenuButton, 
   SidebarGroup, 
   SidebarGroupLabel, 
-  SidebarGroupContent 
+  SidebarGroupContent,
+  useSidebar
 } from "@/components/ui/sidebar"
 
 export function SidebarNav() {
   const pathname = usePathname()
+  const { setOpen, setOpenMobile, isMobile } = useSidebar()
+
+  const handleLinkClick = () => {
+    // Cerrar sidebar al seleccionar algo
+    if (isMobile) {
+      setOpenMobile(false)
+    } else {
+      setOpen(false)
+    }
+  }
 
   const navItems = [
     { name: "Dashboard", href: "/", icon: LayoutDashboard },
@@ -44,6 +55,7 @@ export function SidebarNav() {
                   isActive={pathname === item.href}
                   tooltip={item.name}
                   className="hover:bg-sidebar-accent transition-colors"
+                  onClick={handleLinkClick}
                 >
                   <Link href={item.href} className="flex items-center gap-3">
                     <item.icon className="h-4 w-4" />
@@ -67,6 +79,7 @@ export function SidebarNav() {
                   isActive={pathname === item.href}
                   tooltip={item.name}
                   className="hover:bg-sidebar-accent transition-colors"
+                  onClick={handleLinkClick}
                 >
                   <Link href={item.href} className="flex items-center gap-3">
                     <item.icon className="h-4 w-4" />
@@ -89,6 +102,7 @@ export function SidebarNav() {
                   asChild 
                   isActive={pathname === item.href}
                   tooltip={item.name}
+                  onClick={handleLinkClick}
                 >
                   <Link href={item.href} className="flex items-center gap-3">
                     <item.icon className="h-4 w-4" />

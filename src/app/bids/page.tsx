@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { MOCK_BIDS, CATEGORIES, Bid } from "@/app/lib/mock-data"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -21,10 +21,11 @@ export default function BidsListPage() {
   const [apiError, setApiError] = useState(false)
   const { toast } = useToast()
 
-  const fetchLiveBids = async () => {
+  const fetchLiveBids = useCallback(async () => {
     setIsLoading(true)
     setApiError(false)
     try {
+      // Intentamos con la fecha de hoy
       const now = new Date()
       const formattedDate = `${String(now.getDate()).padStart(2, '0')}${String(now.getMonth() + 1).padStart(2, '0')}${now.getFullYear()}`
       
@@ -46,11 +47,39 @@ export default function BidsListPage() {
         }))
         setBids(mappedBids)
         setIsRealData(true)
+        toast({
+          title: "Datos en vivo",
+          description: `Se han cargado ${mappedBids.length} licitaciones reales de hoy.`,
+        })
       } else {
-        // Si no hay datos, probablemente la API falló (Status 500 u otro)
-        setBids(MOCK_BIDS)
-        setIsRealData(false)
-        setApiError(true)
+        // Si no hay datos hoy, probamos con ayer (a veces la API tarda en actualizar)
+        const yesterday = new Date()
+        yesterday.setDate(yesterday.getDate() - 1)
+        const formattedYesterday = `${String(yesterday.getDate()).padStart(2, '0')}${String(yesterday.getMonth() + 1).padStart(2, '0')}${yesterday.getFullYear()}`
+        
+        const yesterdayBids = await getBidsByDate(formattedYesterday)
+        
+        if (yesterdayBids && yesterdayBids.length > 0) {
+          const mappedBids: Bid[] = yesterdayBids.map((b: MercadoPublicoBid) => ({
+            id: b.CodigoExterno,
+            title: b.Nombre,
+            entity: b.Organismo.NombreOrganismo,
+            category: 'General', 
+            amount: b.MontoEstimado || 0,
+            currency: b.Moneda || 'CLP',
+            deadline: new Date(b.FechaCierre).toLocaleDateString(),
+            status: b.Estado as any,
+            description: b.Nombre,
+            fullText: b.Nombre,
+            location: 'Chile'
+          }))
+          setBids(mappedBids)
+          setIsRealData(true)
+        } else {
+          setBids(MOCK_BIDS)
+          setIsRealData(false)
+          setApiError(true)
+        }
       }
     } catch (error) {
       setBids(MOCK_BIDS)
@@ -59,11 +88,11 @@ export default function BidsListPage() {
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [toast])
 
   useEffect(() => {
     fetchLiveBids()
-  }, [])
+  }, [fetchLiveBids])
 
   const filteredBids = bids.filter(bid => {
     const matchesSearch = bid.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
@@ -120,9 +149,9 @@ export default function BidsListPage() {
           <CardContent className="pt-6 flex items-center gap-4">
             <AlertCircle className="h-10 w-10 text-orange-600 shrink-0" />
             <div>
-              <h4 className="font-bold text-orange-800">Servicio de Mercado Público no disponible</h4>
+              <h4 className="font-bold text-orange-800">Servicio de Mercado Público no disponible o sin resultados</h4>
               <p className="text-sm text-orange-700 leading-relaxed">
-                La API oficial de ChileCompra está experimentando problemas técnicos (Error 500). 
+                La API oficial de ChileCompra no ha devuelto resultados para hoy. 
                 Hemos activado el <strong>Modo Demo</strong> con licitaciones de respaldo para que puedas continuar probando las herramientas de IA.
               </p>
             </div>
@@ -168,7 +197,7 @@ export default function BidsListPage() {
       {isLoading ? (
         <div className="flex flex-col items-center justify-center py-20 space-y-4">
           <Loader2 className="h-12 w-12 text-primary animate-spin" />
-          <p className="text-muted-foreground font-medium">Conectando con api.mercadopublico.cl...</p>
+          <p className="text-muted-foreground font-medium">Conectando con el Servidor (API ChileCompra)...</p>
         </div>
       ) : (
         <div className={viewMode === 'grid' ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6' : 'space-y-4'}>

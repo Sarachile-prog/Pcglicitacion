@@ -1,6 +1,7 @@
+'use server';
 /**
  * @fileOverview Servicio para interactuar con la API de Mercado Público (ChileCompra).
- * Documentación oficial: https://desarrolladores.mercadopublico.cl/
+ * Se ejecuta en el servidor para evitar problemas de CORS.
  */
 
 export interface MercadoPublicoItem {
@@ -35,20 +36,23 @@ export interface MercadoPublicoBid {
 
 const API_BASE_URL = 'https://api.mercadopublico.cl/servicios/v1/publico/licitaciones.json';
 
-// Se prioriza la variable de entorno para producción, usando el ticket proporcionado como fallback.
-const getTicket = () => {
-  return process.env.NEXT_PUBLIC_MERCADO_PUBLICO_TICKET || 'CE1F854E-2ED7-42B9-837B-066A77AED4EB';
-};
+// Ticket oficial proporcionado por el usuario
+const TICKET = 'CE1F854E-2ED7-42B9-837B-066A77AED4EB';
 
 /**
  * Obtiene licitaciones filtradas por fecha.
  * @param date Formato DDMMAAAA
  */
-export async function getBidsByDate(date: string = '01012024'): Promise<MercadoPublicoBid[]> {
+export async function getBidsByDate(date: string): Promise<MercadoPublicoBid[]> {
   try {
-    const ticket = getTicket();
-    const response = await fetch(`${API_BASE_URL}?fecha=${date}&ticket=${ticket}`, {
-      next: { revalidate: 3600 } // Cache de 1 hora
+    const url = `${API_BASE_URL}?fecha=${date}&ticket=${TICKET}`;
+    
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+      },
+      next: { revalidate: 300 } // Cache de 5 minutos para datos frescos
     });
     
     if (!response.ok) {
@@ -56,6 +60,12 @@ export async function getBidsByDate(date: string = '01012024'): Promise<MercadoP
     }
     
     const data = await response.json();
+    
+    // La API devuelve un mensaje de error dentro del JSON si el ticket es inválido o no hay datos
+    if (data.Mensaje) {
+      return [];
+    }
+
     return data.Listado || [];
   } catch (error) {
     return [];
@@ -69,8 +79,13 @@ export async function getBidDetail(codigo: string): Promise<MercadoPublicoBid | 
   if (!codigo) return null;
   
   try {
-    const ticket = getTicket();
-    const response = await fetch(`${API_BASE_URL}?codigo=${codigo}&ticket=${ticket}`, {
+    const url = `${API_BASE_URL}?codigo=${codigo}&ticket=${TICKET}`;
+    
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+      },
       next: { revalidate: 3600 }
     });
     

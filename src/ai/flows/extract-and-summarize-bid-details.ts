@@ -1,73 +1,68 @@
 'use server';
 /**
- * @fileOverview This file defines a Genkit flow for extracting and summarizing key details from bid documents.
- * It also provides a reasoning tool that the LLM can use to enhance comprehension by explaining specific concepts.
- *
- * - extractAndSummarizeBidDetails - A function that handles the extraction and summarization process.
- * - ExtractAndSummarizeBidDetailsInput - The input type for the extractAndSummarizeBidDetails function.
- * - ExtractAndSummarizeBidDetailsOutput - The return type for the extractAndSummarizeBidDetails function.
+ * @fileOverview Flujo de Genkit para asesoría experta en licitaciones.
+ * Extrae detalles, genera alertas de cumplimiento, prepara checklists de formularios y brinda consejos estratégicos.
  */
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 import { getBidDetail } from '@/services/mercado-publico';
 
-// Input Schema
+// Esquema de Hito del Cronograma
+const TimelineEventSchema = z.object({
+  event: z.string().describe('Nombre del hito o evento (ej: Cierre de consultas).'),
+  date: z.string().describe('Fecha y hora del evento.'),
+  criticality: z.enum(['baja', 'media', 'alta']).describe('Nivel de importancia para el postulante.'),
+});
+
+// Esquema de Formulario/Documento
+const FormRequirementSchema = z.object({
+  formName: z.string().describe('Nombre del formulario o anexo.'),
+  purpose: z.string().describe('Para qué sirve este documento.'),
+  dataRequired: z.array(z.string()).describe('Lista de datos específicos que el usuario debe tener a mano.'),
+});
+
+// Output Schema Extendido
+const PostulationAdvisorOutputSchema = z.object({
+  summary: z.string().describe('Resumen ejecutivo de la oportunidad.'),
+  deadline: z.string().describe('Fecha límite fatal de postulación.'),
+  monetaryAmount: z.string().describe('Monto referencial detectado.'),
+  strategicAlerts: z.array(z.string()).describe('Alertas críticas: multas, garantías costosas, plazos irreales o requisitos excluyentes.'),
+  timeline: z.array(TimelineEventSchema).describe('Cronograma clave del proceso.'),
+  formChecklist: z.array(FormRequirementSchema).describe('Guía paso a paso para completar los formularios y anexos.'),
+  strategicAdvice: z.string().describe('Consejo experto sobre cómo ganar esta licitación o si vale la pena el riesgo.'),
+  reasoning: z.string().describe('Explicación del análisis realizado.'),
+});
+
+export type PostulationAdvisorOutput = z.infer<typeof PostulationAdvisorOutputSchema>;
+
 const ExtractAndSummarizeBidDetailsInputSchema = z.object({
-  bidDocumentText: z.string().describe('The full text content of the bid document.'),
-  bidId: z.string().optional().describe('The external code of the bid if available.'),
+  bidDocumentText: z.string().describe('Texto completo de las bases.'),
+  bidId: z.string().optional().describe('ID de Mercado Público.'),
 });
 export type ExtractAndSummarizeBidDetailsInput = z.infer<typeof ExtractAndSummarizeBidDetailsInputSchema>;
 
-// Output Schema
-const ExtractAndSummarizeBidDetailsOutputSchema = z.object({
-  summary: z.string().describe('A concise summary of the bid opportunity, highlighting its main purpose and scope.'),
-  deadline: z.string().describe('The submission deadline for the bid, if explicitly mentioned in the document.'),
-  monetaryAmount: z.string().describe('The estimated or specified monetary value of the bid, including currency, if mentioned.'),
-  keyRequirements: z.array(z.string()).describe('A list of the most important or critical requirements for the bid.'),
-  reasoning: z.string().describe('Your step-by-step reasoning and explanation for why these specific details were extracted, including any clarifications provided by tools, and their importance for a quick understanding.'),
-});
-export type ExtractAndSummarizeBidDetailsOutput = z.infer<typeof ExtractAndSummarizeBidDetailsOutputSchema>;
-
-// Define the 'explainConcept' tool
-const ExplainConceptInputSchema = z.object({
-  term: z.string().describe('The concept or term to explain.'),
-  context: z.string().optional().describe('Optional context from the bid document to help in explaining the term.'),
-});
-
-const ExplainConceptOutputSchema = z.object({
-  explanation: z.string().describe('A clear and concise explanation of the term.'),
-});
-
+// Herramienta de conceptos (mantenida para mejor comprensión)
 const explainConceptTool = ai.defineTool(
   {
     name: 'explainConcept',
-    description: 'Provides a clear and concise explanation of a specific concept or term from a bid document. Use this tool if you encounter specialized or ambiguous terminology that needs clarification for better comprehension.',
-    inputSchema: ExplainConceptInputSchema,
-    outputSchema: ExplainConceptOutputSchema,
+    description: 'Explica términos complejos de las bases.',
+    inputSchema: z.object({ term: z.string(), context: z.string().optional() }),
+    outputSchema: z.object({ explanation: z.string() }),
   },
   async (input) => {
-    const explanationPrompt = `Explain the following term clearly and concisely: "${input.term}".
-    ${input.context ? `Consider this context from the bid document: "${input.context}".` : ''}
-    Focus on relevance to bid documents and general business/legal contexts.`;
-
     const { output } = await ai.generate({
-      prompt: explanationPrompt,
+      prompt: `Explica el término "${input.term}" en el contexto de licitaciones públicas chilenas.`,
       model: 'googleai/gemini-2.5-flash',
-      temperature: 0.2,
     });
-
-    return {
-      explanation: output?.text || `Could not find an explanation for "${input.term}".`,
-    };
+    return { explanation: output?.text || 'Sin explicación.' };
   }
 );
 
-// Define the 'fetchRealBidData' tool
 const fetchRealBidDataTool = ai.defineTool(
   {
     name: 'fetchRealBidData',
-    description: 'Fetches real-time data from Mercado Público API using a bid external code.',
+    description: 'Consulta datos vivos de la API.',
     inputSchema: z.object({ bidId: z.string() }),
     outputSchema: z.any(),
   },
@@ -76,42 +71,38 @@ const fetchRealBidDataTool = ai.defineTool(
   }
 );
 
-
-// Define the prompt
-const extractAndSummarizeBidDetailsPrompt = ai.definePrompt({
-  name: 'extractAndSummarizeBidDetailsPrompt',
+const postulationAdvisorPrompt = ai.definePrompt({
+  name: 'postulationAdvisorPrompt',
   input: { schema: ExtractAndSummarizeBidDetailsInputSchema },
-  output: { schema: ExtractAndSummarizeBidDetailsOutputSchema },
+  output: { schema: PostulationAdvisorOutputSchema },
   tools: [explainConceptTool, fetchRealBidDataTool],
-  prompt: `You are an expert bid analyst in Chile. Your task is to extract and summarize key details from the provided bid document.
-  Pay close attention to submission deadlines, monetary amounts (including currency), and specific requirements.
+  prompt: `Actúa como un Asesor Senior de Postulaciones a Mercado Público Chile. 
+  Tu objetivo es preparar al usuario para ganar la licitación.
 
-  If a 'bidId' is provided, use the 'fetchRealBidData' tool to cross-reference information with the official API.
-  If you encounter any complex, specialized, or ambiguous terms, use the 'explainConcept' tool to clarify them.
-  Integrate any explanations from the tool into your 'reasoning' field to enhance the user's comprehension.
+  1. Analiza las bases adjuntas: {{{bidDocumentText}}}.
+  2. Si hay ID ({{{bidId}}}), valida plazos reales con la API.
+  3. Identifica "Alertas Rojas": ¿Piden una boleta de garantía muy alta? ¿El plazo de entrega es absurdo? ¿Hay multas severas?
+  4. Crea una guía de formularios: ¿Qué anexos son obligatorios? ¿Qué datos de la empresa se deben preparar?
+  5. Define un cronograma de hitos críticos.
+  6. Da un consejo final: "Postular" o "Pasar" basado en la dificultad vs beneficio.
 
-  Bid Document Content:
-  {{{bidDocumentText}}}
-  
-  Bid ID (if any): {{{bidId}}}`,
+  Responde en español chileno profesional.`,
 });
 
-// Define the flow
-const extractAndSummarizeBidDetailsFlow = ai.defineFlow(
+const postulationAdvisorFlow = ai.defineFlow(
   {
-    name: 'extractAndSummarizeBidDetailsFlow',
+    name: 'postulationAdvisorFlow',
     inputSchema: ExtractAndSummarizeBidDetailsInputSchema,
-    outputSchema: ExtractAndSummarizeBidDetailsOutputSchema,
+    outputSchema: PostulationAdvisorOutputSchema,
   },
   async (input) => {
-    const { output } = await extractAndSummarizeBidDetailsPrompt(input);
+    const { output } = await postulationAdvisorPrompt(input);
     return output!;
   }
 );
 
-// Export wrapper function
 export async function extractAndSummarizeBidDetails(
   input: ExtractAndSummarizeBidDetailsInput
-): Promise<ExtractAndSummarizeBidDetailsOutput> {
-  return extractAndSummarizeBidDetailsFlow(input);
+): Promise<PostulationAdvisorOutput> {
+  return postulationAdvisorFlow(input);
 }

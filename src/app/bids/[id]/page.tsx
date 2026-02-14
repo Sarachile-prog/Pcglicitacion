@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { extractAndSummarizeBidDetails, ExtractAndSummarizeBidDetailsOutput } from "@/ai/flows/extract-and-summarize-bid-details"
+import { extractAndSummarizeBidDetails, PostulationAdvisorOutput } from "@/ai/flows/extract-and-summarize-bid-details"
 import { useState } from "react"
 import { 
   Building2, 
@@ -17,18 +17,22 @@ import {
   Sparkles, 
   Loader2, 
   CheckCircle2, 
-  Info,
+  AlertTriangle,
   ChevronLeft,
-  ArrowRight
+  Calendar,
+  ClipboardList,
+  Target,
+  FileSpreadsheet
 } from "lucide-react"
 import Link from "next/link"
 import { useToast } from "@/hooks/use-toast"
+import { cn } from "@/lib/utils"
 
 export default function BidDetailPage() {
   const params = useParams()
   const bid = MOCK_BIDS.find(b => b.id === params.id)
   const [loading, setLoading] = useState(false)
-  const [analysis, setAnalysis] = useState<ExtractAndSummarizeBidDetailsOutput | null>(null)
+  const [analysis, setAnalysis] = useState<PostulationAdvisorOutput | null>(null)
   const { toast } = useToast()
 
   if (!bid) {
@@ -51,15 +55,15 @@ export default function BidDetailPage() {
       })
       setAnalysis(result)
       toast({
-        title: "Análisis Completado",
-        description: "La IA ha procesado el documento y consultado fuentes externas exitosamente.",
+        title: "Asesoría Generada",
+        description: "El reporte estratégico y la guía de formularios están listos.",
       })
     } catch (error) {
       console.error(error)
       toast({
         variant: "destructive",
         title: "Error de Análisis",
-        description: "No se pudo procesar el documento con IA.",
+        description: "No se pudo contactar al asesor inteligente.",
       })
     } finally {
       setLoading(false)
@@ -67,10 +71,10 @@ export default function BidDetailPage() {
   }
 
   return (
-    <div className="space-y-8 max-w-5xl mx-auto">
+    <div className="space-y-8 max-w-6xl mx-auto">
       <Link href="/bids">
         <Button variant="ghost" size="sm" className="mb-4 text-muted-foreground hover:text-primary">
-          <ChevronLeft className="h-4 w-4 mr-1" /> Volver al listado
+          <ChevronLeft className="h-4 w-4 mr-1" /> Volver al explorador
         </Button>
       </Link>
 
@@ -82,73 +86,50 @@ export default function BidDetailPage() {
           </div>
           <h1 className="text-4xl font-black tracking-tight text-primary leading-tight">{bid.title}</h1>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="flex items-center gap-3 text-muted-foreground bg-white p-3 rounded-lg shadow-sm border border-border">
+            <div className="flex items-center gap-3 bg-white p-3 rounded-lg shadow-sm border border-border">
               <Building2 className="h-5 w-5 text-accent" />
               <div>
-                <p className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground/60">Institución</p>
+                <p className="text-[10px] uppercase font-bold text-muted-foreground/60">Institución</p>
                 <p className="text-sm font-semibold text-foreground">{bid.entity}</p>
               </div>
             </div>
-            <div className="flex items-center gap-3 text-muted-foreground bg-white p-3 rounded-lg shadow-sm border border-border">
-              <MapPin className="h-5 w-5 text-accent" />
-              <div>
-                <p className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground/60">Ubicación</p>
-                <p className="text-sm font-semibold text-foreground">{bid.location}</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3 text-muted-foreground bg-white p-3 rounded-lg shadow-sm border border-border">
+            <div className="flex items-center gap-3 bg-white p-3 rounded-lg shadow-sm border border-border">
               <Clock className="h-5 w-5 text-accent" />
               <div>
-                <p className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground/60">Fecha Límite</p>
+                <p className="text-[10px] uppercase font-bold text-muted-foreground/60">Cierre Oficial</p>
                 <p className="text-sm font-semibold text-foreground">{bid.deadline}</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3 text-muted-foreground bg-white p-3 rounded-lg shadow-sm border border-border">
-              <DollarSign className="h-5 w-5 text-accent" />
-              <div>
-                <p className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground/60">Monto Estimado</p>
-                <p className="text-sm font-semibold text-foreground">
-                  {new Intl.NumberFormat('es-CL', { style: 'currency', currency: bid.currency }).format(bid.amount)}
-                </p>
               </div>
             </div>
           </div>
         </div>
         
-        <Card className="w-full md:w-80 border-2 border-accent shadow-xl bg-accent/5 overflow-hidden">
-          <CardHeader className="bg-accent text-white p-6">
+        <Card className="w-full md:w-96 border-2 border-primary shadow-2xl bg-primary/5 overflow-hidden">
+          <CardHeader className="bg-primary text-white p-6">
             <CardTitle className="text-lg flex items-center gap-2">
-              <Sparkles className="h-5 w-5" /> Análisis IA + API
+              <Sparkles className="h-5 w-5 text-accent" /> Modo Asesor Experto
             </CardTitle>
-            <CardDescription className="text-accent-foreground/80">Cruza datos con Mercado Público.</CardDescription>
+            <CardDescription className="text-primary-foreground/80 font-medium">IA especializada en Mercado Público.</CardDescription>
           </CardHeader>
           <CardContent className="p-6">
             {!analysis ? (
               <div className="space-y-4">
-                <p className="text-sm text-muted-foreground">La IA consultará la API oficial para validar plazos y montos reales de esta licitación.</p>
+                <p className="text-sm text-muted-foreground">Analizaremos las bases para detectar alertas de riesgo, cronogramas y preparar tus formularios.</p>
                 <Button 
-                  className="w-full bg-accent hover:bg-accent/90 text-white font-bold" 
+                  className="w-full bg-accent hover:bg-accent/90 text-white font-bold h-12" 
                   onClick={handleAnalyze}
                   disabled={loading}
                 >
-                  {loading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Consultando API...</> : 'Iniciar Análisis Inteligente'}
+                  {loading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Procesando Estrategia...</> : 'Activar Asesor de Postulación'}
                 </Button>
               </div>
             ) : (
               <div className="space-y-4">
-                <div className="p-3 bg-white rounded-md border border-accent/20">
-                  <p className="text-xs font-bold text-accent uppercase mb-1">Puntos Críticos</p>
-                  <ul className="text-sm space-y-1">
-                    {analysis.keyRequirements.slice(0, 3).map((req, i) => (
-                      <li key={i} className="flex items-start gap-2">
-                        <CheckCircle2 className="h-3 w-3 mt-1 text-accent shrink-0" />
-                        <span className="line-clamp-2">{req}</span>
-                      </li>
-                    ))}
-                  </ul>
+                <div className="p-4 bg-white rounded-xl border-l-4 border-l-accent shadow-sm">
+                  <p className="text-xs font-bold text-accent uppercase mb-2">Recomendación Estratégica</p>
+                  <p className="text-sm font-medium leading-relaxed italic">"{analysis.strategicAdvice}"</p>
                 </div>
-                <Button variant="outline" className="w-full border-accent text-accent hover:bg-accent/10" onClick={() => setAnalysis(null)}>
-                  Nuevo Análisis
+                <Button variant="outline" className="w-full border-primary text-primary hover:bg-primary/5" onClick={() => setAnalysis(null)}>
+                  Reiniciar Consultoría
                 </Button>
               </div>
             )}
@@ -157,55 +138,45 @@ export default function BidDetailPage() {
       </div>
 
       <Tabs defaultValue="description" className="space-y-6">
-        <TabsList className="bg-muted p-1">
-          <TabsTrigger value="description" className="data-[state=active]:bg-white">Descripción del Proyecto</TabsTrigger>
-          <TabsTrigger value="bases" className="data-[state=active]:bg-white">Bases de Licitación</TabsTrigger>
-          {analysis && <TabsTrigger value="ai-report" className="data-[state=active]:bg-accent data-[state=active]:text-white">Reporte Inteligente</TabsTrigger>}
+        <TabsList className="bg-muted p-1 gap-1 h-12">
+          <TabsTrigger value="description" className="px-6">Descripción General</TabsTrigger>
+          <TabsTrigger value="bases" className="px-6">Documentación Base</TabsTrigger>
+          {analysis && (
+            <>
+              <TabsTrigger value="ai-advisor" className="px-6 data-[state=active]:bg-primary data-[state=active]:text-white">
+                <Target className="h-4 w-4 mr-2" /> Estrategia de Postulación
+              </TabsTrigger>
+              <TabsTrigger value="ai-forms" className="px-6 data-[state=active]:bg-accent data-[state=active]:text-white">
+                <FileSpreadsheet className="h-4 w-4 mr-2" /> Preparación de Formularios
+              </TabsTrigger>
+            </>
+          )}
         </TabsList>
 
-        <TabsContent value="description" className="animate-in fade-in slide-in-from-top-2 duration-300">
+        <TabsContent value="description" className="animate-in fade-in duration-300">
           <Card>
-            <CardContent className="pt-6 space-y-6">
-              <div>
-                <h3 className="text-xl font-bold text-primary mb-4">Resumen Ejecutivo</h3>
-                <p className="text-lg text-foreground leading-relaxed italic border-l-4 border-accent pl-6 py-2 bg-accent/5">
-                  {bid.description}
-                </p>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-6">
-                <div className="space-y-3">
-                  <h4 className="font-bold text-primary flex items-center gap-2">
-                    <Info className="h-4 w-4 text-accent" /> Requerimientos Generales
-                  </h4>
-                  <ul className="list-disc list-inside text-muted-foreground space-y-2 text-sm">
-                    <li>Experiencia comprobable en proyectos de similar envergadura.</li>
-                    <li>Capacidad financiera para respaldar boletas de garantía.</li>
-                    <li>Cumplimiento con normativas vigentes del sector.</li>
-                    <li>Plazo de ejecución según cronograma adjunto.</li>
-                  </ul>
+            <CardContent className="pt-8 space-y-8">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                <div className="md:col-span-2 space-y-4">
+                  <h3 className="text-2xl font-bold text-primary">Detalle del Proyecto</h3>
+                  <p className="text-lg text-foreground leading-relaxed">
+                    {bid.description}
+                  </p>
                 </div>
-                <div className="space-y-3">
-                  <h4 className="font-bold text-primary flex items-center gap-2">
-                    <CheckCircle2 className="h-4 w-4 text-accent" /> Criterios de Evaluación
+                <div className="bg-muted/30 p-6 rounded-2xl border border-border">
+                  <h4 className="font-bold text-primary mb-4 flex items-center gap-2">
+                    <DollarSign className="h-5 w-5 text-accent" /> Aspectos Económicos
                   </h4>
                   <div className="space-y-4">
-                    <div className="space-y-1">
-                      <div className="flex justify-between text-xs font-bold uppercase">
-                        <span>Oferta Técnica</span>
-                        <span>60%</span>
-                      </div>
-                      <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
-                        <div className="h-full bg-primary w-[60%]" />
-                      </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground uppercase font-bold">Monto Referencial</p>
+                      <p className="text-2xl font-black text-primary">
+                        {new Intl.NumberFormat('es-CL', { style: 'currency', currency: bid.currency }).format(bid.amount)}
+                      </p>
                     </div>
-                    <div className="space-y-1">
-                      <div className="flex justify-between text-xs font-bold uppercase">
-                        <span>Oferta Económica</span>
-                        <span>40%</span>
-                      </div>
-                      <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
-                        <div className="h-full bg-accent w-[40%]" />
-                      </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground uppercase font-bold">Moneda</p>
+                      <p className="text-sm font-semibold">{bid.currency}</p>
                     </div>
                   </div>
                 </div>
@@ -214,93 +185,124 @@ export default function BidDetailPage() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="bases" className="animate-in fade-in slide-in-from-top-2 duration-300">
+        <TabsContent value="bases" className="animate-in fade-in duration-300">
           <Card>
-            <CardContent className="pt-6">
-              <div className="bg-muted/30 p-8 rounded-xl border-2 border-dashed border-border text-center">
-                <FileText className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
-                <h3 className="text-xl font-bold mb-2">Bases Administrativas y Técnicas</h3>
-                <p className="text-muted-foreground mb-6">El documento original contiene toda la normativa, plazos detallados y anexos para la postulación.</p>
-                <Button className="bg-primary px-10">Descargar PDF Original (4.2 MB)</Button>
-              </div>
-              <div className="mt-8">
-                <h4 className="font-bold text-lg mb-4">Texto Extraído del Sistema</h4>
-                <div className="bg-card p-6 rounded-lg border text-sm font-mono text-muted-foreground leading-relaxed max-h-[400px] overflow-y-auto">
-                  {bid.fullText}
-                </div>
+            <CardContent className="pt-8">
+              <div className="bg-card p-8 rounded-2xl border-2 border-dashed border-border text-center space-y-4">
+                <FileText className="h-12 w-12 text-primary mx-auto" />
+                <h3 className="text-xl font-bold">Bases Administrativas y Técnicas Oficiales</h3>
+                <p className="text-muted-foreground max-w-md mx-auto">Este documento contiene los anexos obligatorios y las cláusulas legales que rigen el proceso.</p>
+                <Button className="bg-primary hover:bg-primary/90">Descargar Bases (PDF)</Button>
               </div>
             </CardContent>
           </Card>
         </TabsContent>
 
         {analysis && (
-          <TabsContent value="ai-report" className="animate-in fade-in slide-in-from-top-2 duration-500">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <Card className="lg:col-span-2 shadow-2xl border-accent/20">
-                <CardHeader className="bg-accent/10 border-b border-accent/10">
-                  <CardTitle className="text-2xl flex items-center gap-3 text-primary">
-                    <Sparkles className="h-6 w-6 text-accent" /> Resumen Verificado
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="p-8 space-y-8">
-                  <section>
-                    <h4 className="text-lg font-bold text-primary mb-3">Descripción Sintetizada</h4>
-                    <p className="text-foreground leading-relaxed text-lg">
-                      {analysis.summary}
-                    </p>
-                  </section>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <section className="bg-muted/30 p-5 rounded-xl border border-border">
-                      <h4 className="font-bold text-primary mb-3 flex items-center gap-2">
-                        <Clock className="h-4 w-4 text-accent" /> Plazos Críticos
-                      </h4>
-                      <p className="text-sm font-semibold">{analysis.deadline}</p>
-                    </section>
-                    <section className="bg-muted/30 p-5 rounded-xl border border-border">
-                      <h4 className="font-bold text-primary mb-3 flex items-center gap-2">
-                        <DollarSign className="h-4 w-4 text-accent" /> Análisis Monetario
-                      </h4>
-                      <p className="text-sm font-semibold">{analysis.monetaryAmount}</p>
-                    </section>
-                  </div>
-
-                  <section>
-                    <h4 className="text-lg font-bold text-primary mb-4 flex items-center gap-2">
-                      <ArrowRight className="h-5 w-5 text-accent" /> Requerimientos Clave Extraídos
-                    </h4>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      {analysis.keyRequirements.map((req, i) => (
-                        <div key={i} className="flex gap-3 p-4 bg-white rounded-lg border border-border shadow-sm group hover:border-accent transition-colors">
-                          <div className="h-6 w-6 rounded-full bg-accent/10 text-accent flex items-center justify-center text-xs font-bold shrink-0">{i + 1}</div>
-                          <p className="text-sm text-foreground leading-snug">{req}</p>
+          <>
+            <TabsContent value="ai-advisor" className="animate-in slide-in-from-bottom-4 duration-500">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div className="lg:col-span-2 space-y-6">
+                  {/* Alertas Críticas */}
+                  <Card className="border-red-100 bg-red-50/30">
+                    <CardHeader>
+                      <CardTitle className="text-red-700 flex items-center gap-2">
+                        <AlertTriangle className="h-6 w-6" /> Alertas Críticas y Riesgos
+                      </CardTitle>
+                      <CardDescription>Puntos que podrían invalidar tu oferta o generar pérdidas.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="grid gap-3">
+                      {analysis.strategicAlerts.map((alert, i) => (
+                        <div key={i} className="flex gap-3 p-4 bg-white rounded-xl border border-red-100 shadow-sm">
+                          <div className="h-6 w-6 rounded-full bg-red-100 text-red-600 flex items-center justify-center text-xs font-bold shrink-0">!</div>
+                          <p className="text-sm font-medium text-red-900">{alert}</p>
                         </div>
                       ))}
-                    </div>
-                  </section>
-                </CardContent>
-              </Card>
+                    </CardContent>
+                  </Card>
 
-              <Card className="bg-primary text-primary-foreground border-none h-fit sticky top-24">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-xl">
-                    <Info className="h-5 w-5 text-accent" /> Razonamiento IA
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                  <p className="text-sm text-primary-foreground/80 leading-relaxed italic">
-                    "{analysis.reasoning}"
-                  </p>
-                  <div className="pt-6 border-t border-white/10">
-                    <p className="text-xs font-bold uppercase tracking-widest text-accent mb-4">Recomendación Estratégica</p>
-                    <p className="text-sm">
-                      La IA ha cruzado estos datos con la API de Mercado Público para asegurar que los montos y plazos coinciden con la ficha oficial.
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
+                  {/* Cronograma Inteligente */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-primary flex items-center gap-2">
+                        <Calendar className="h-6 w-6 text-accent" /> Hoja de Ruta (Cronograma)
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="relative space-y-4 before:absolute before:inset-0 before:ml-5 before:-translate-x-px before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-border before:to-transparent">
+                        {analysis.timeline.map((item, i) => (
+                          <div key={i} className="relative flex items-center justify-between p-4 bg-white border border-border rounded-xl ml-10 shadow-sm">
+                            <div className={cn(
+                              "absolute -left-10 h-3 w-3 rounded-full border-2 border-white",
+                              item.criticality === 'alta' ? 'bg-red-500' : 'bg-primary'
+                            )} />
+                            <div>
+                              <p className="font-bold text-sm text-primary">{item.event}</p>
+                              <p className="text-xs text-muted-foreground">{item.date}</p>
+                            </div>
+                            <Badge variant={item.criticality === 'alta' ? 'destructive' : 'outline'} className="uppercase text-[10px]">
+                              {item.criticality}
+                            </Badge>
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* Resumen del Asesor */}
+                <div className="space-y-6">
+                  <Card className="bg-primary text-white border-none shadow-xl h-fit">
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2 text-xl">
+                        <Target className="h-6 w-6 text-accent" /> Veredicto IA
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-6">
+                      <p className="text-primary-foreground/90 leading-relaxed font-medium">
+                        {analysis.strategicAdvice}
+                      </p>
+                      <div className="pt-6 border-t border-white/10">
+                        <p className="text-xs font-bold uppercase tracking-widest text-accent mb-2">Razonamiento del Asesor</p>
+                        <p className="text-sm text-primary-foreground/70 italic">"{analysis.reasoning}"</p>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="ai-forms" className="animate-in slide-in-from-bottom-4 duration-500">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div className="lg:col-span-full mb-4">
+                  <h3 className="text-2xl font-bold text-primary">Guía de Preparación de Formularios</h3>
+                  <p className="text-muted-foreground">Prepara estos datos antes de ingresar a Mercado Público para evitar errores de último minuto.</p>
+                </div>
+                {analysis.formChecklist.map((form, i) => (
+                  <Card key={i} className="hover:border-accent transition-all group">
+                    <CardHeader className="bg-muted/20 pb-4">
+                      <div className="h-10 w-10 rounded-lg bg-accent/10 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
+                        <ClipboardList className="h-5 w-5 text-accent" />
+                      </div>
+                      <CardTitle className="text-lg font-bold">{form.formName}</CardTitle>
+                      <CardDescription className="text-xs font-medium leading-relaxed">{form.purpose}</CardDescription>
+                    </CardHeader>
+                    <CardContent className="pt-6">
+                      <p className="text-[10px] font-bold text-muted-foreground uppercase mb-3 tracking-widest">Datos a Preparar:</p>
+                      <ul className="space-y-2">
+                        {form.dataRequired.map((data, j) => (
+                          <li key={j} className="flex items-start gap-2 text-sm text-foreground/80">
+                            <CheckCircle2 className="h-4 w-4 mt-0.5 text-accent shrink-0" />
+                            <span>{data}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </TabsContent>
+          </>
         )}
       </Tabs>
     </div>

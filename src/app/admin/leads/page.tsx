@@ -1,35 +1,43 @@
+
 "use client"
 
 import { useState } from "react"
-import { useCollection, useMemoFirebase } from "@/firebase"
+import { useCollection, useMemoFirebase, useUser, useFirestore } from "@/firebase"
 import { collection } from "firebase/firestore"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Users, Mail, ExternalLink, UserPlus, Filter, Search as SearchIcon, Building2 } from "lucide-react"
+import { Users, Mail, ExternalLink, UserPlus, Filter, Search as SearchIcon, Building2, ShieldAlert } from "lucide-react"
 import { Input } from "@/components/ui/input"
-import { useFirestore } from "@/firebase"
+import Link from "next/link"
 
 export default function LeadsManagementPage() {
   const db = useFirestore()
+  const { user, isUserLoading } = useUser()
   const [searchTerm, setSearchTerm] = useState("")
   
+  // Solo intentamos crear la referencia si hay un usuario
   const companiesRef = useMemoFirebase(() => {
-    if (!db) return null
+    if (!db || !user) return null
     return collection(db, "companies")
-  }, [db])
+  }, [db, user])
 
-  const { data: companies, isLoading } = useCollection(companiesRef)
+  const { data: companies, isLoading: isCollectionLoading, error } = useCollection(companiesRef)
 
-  // Datos simulados si no hay en Firebase para demostración
+  // Datos mock para cuando no hay permisos o estamos en modo demo
   const mockLeads = [
-    { id: "1", name: "Construcciones Alfa S.A.", taxId: "76.123.456-0", address: "Av. Providencia 1234", lastIdentifiedAt: "2024-03-20" },
-    { id: "2", name: "TecnoSalud SpA", taxId: "77.987.654-K", address: "Huerfanos 800", lastIdentifiedAt: "2024-03-18" },
-    { id: "3", name: "Servicios Integrales Omega", taxId: "76.444.222-1", address: "El Golf 50", lastIdentifiedAt: "2024-03-15" }
+    { id: "1", name: "Construcciones Alfa S.A.", taxId: "76.123.456-0", address: "Av. Providencia 1234", lastIdentifiedAt: new Date().toISOString() },
+    { id: "2", name: "TecnoSalud SpA", taxId: "77.987.654-K", address: "Huerfanos 800", lastIdentifiedAt: new Date().toISOString() },
+    { id: "3", name: "Servicios Integrales Omega", taxId: "76.444.222-1", address: "El Golf 50", lastIdentifiedAt: new Date().toISOString() }
   ]
 
-  const displayLeads = companies && companies.length > 0 ? companies : mockLeads
+  const isRestricted = error && (error as any).request?.method === 'list';
+  const displayLeads = companies && companies.length > 0 ? companies : (isRestricted || !user ? mockLeads : [])
+
+  if (isUserLoading) {
+    return <div className="flex items-center justify-center py-20">Verificando credenciales...</div>
+  }
 
   return (
     <div className="space-y-8 animate-in fade-in duration-700">
@@ -38,10 +46,32 @@ export default function LeadsManagementPage() {
           <h2 className="text-3xl font-extrabold tracking-tight text-primary">Gestión de Leads</h2>
           <p className="text-muted-foreground">Empresas identificadas a través de procesos de licitación para outreach estratégico.</p>
         </div>
-        <Button className="bg-accent hover:bg-accent/90">
-          <UserPlus className="h-4 w-4 mr-2" /> Agregar Lead Manual
-        </Button>
+        <div className="flex gap-2">
+           {!user && (
+            <Link href="/login">
+              <Button variant="outline" className="border-accent text-accent">Iniciar Sesión</Button>
+            </Link>
+          )}
+          <Button className="bg-accent hover:bg-accent/90">
+            <UserPlus className="h-4 w-4 mr-2" /> Agregar Lead Manual
+          </Button>
+        </div>
       </div>
+
+      {isRestricted && (
+        <Card className="bg-orange-50 border-orange-200">
+          <CardContent className="pt-6 flex items-center gap-4">
+            <ShieldAlert className="h-10 w-10 text-orange-600 shrink-0" />
+            <div>
+              <h4 className="font-bold text-orange-800">Vista de Previsualización (Modo Demo)</h4>
+              <p className="text-sm text-orange-700 leading-relaxed">
+                No tienes permisos de administrador para leer la base de datos real. Estás viendo datos de ejemplo. 
+                Contacta al administrador para habilitar tu UID: <code className="bg-orange-100 px-1 rounded">{user?.uid}</code>
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card className="bg-primary/5 border-primary/10">
@@ -106,9 +136,9 @@ export default function LeadsManagementPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {isLoading ? (
+                {isCollectionLoading ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center py-10">Cargando base de datos...</TableCell>
+                    <TableCell colSpan={5} className="text-center py-10">Conectando con base de datos...</TableCell>
                   </TableRow>
                 ) : displayLeads.length > 0 ? (
                   displayLeads.map((lead) => (

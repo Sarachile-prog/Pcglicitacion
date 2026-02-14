@@ -1,9 +1,19 @@
-
 "use client"
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Building2, Landmark, Globe, ExternalLink, ShieldCheck, HelpCircle } from "lucide-react"
+import { 
+  Building2, 
+  Landmark, 
+  Globe, 
+  ExternalLink, 
+  ShieldCheck, 
+  HelpCircle,
+  Database,
+  ListChecks,
+  FileSearch,
+  CalendarDays
+} from "lucide-react"
 import { Button } from "@/components/ui/button"
 
 export default function StateInfoPage() {
@@ -28,12 +38,35 @@ export default function StateInfoPage() {
     }
   ]
 
+  const dataFields = [
+    {
+      title: "Identificación de Procesos",
+      icon: FileSearch,
+      items: ["ID de Licitación (Código Externo)", "Nombre y Descripción", "Estado (Publicada, Adjudicada, etc.)"]
+    },
+    {
+      title: "Información Financiera",
+      icon: Database,
+      items: ["Monto Estimado", "Tipo de Moneda (CLP, USD)", "Presupuesto Asignado"]
+    },
+    {
+      title: "Cronograma Oficial",
+      icon: CalendarDays,
+      items: ["Fecha de Publicación", "Fecha de Cierre de Ofertas", "Fecha de Adjudicación Estimada"]
+    },
+    {
+      title: "Detalles Técnicos",
+      icon: ListChecks,
+      items: ["Listado de Ítems (UNSPSC)", "Criterios de Evaluación", "Bases Administrativas"]
+    }
+  ]
+
   return (
     <div className="space-y-10 animate-in fade-in duration-700">
       <div className="max-w-3xl">
         <h2 className="text-3xl font-extrabold tracking-tight text-primary">Información del Estado</h2>
         <p className="text-muted-foreground mt-2 text-lg">
-          Conoce las entidades y marcos regulatorios que rigen las compras públicas en Chile.
+          Conoce las entidades y los datos abiertos que rigen las compras públicas en Chile.
         </p>
       </div>
 
@@ -58,6 +91,35 @@ export default function StateInfoPage() {
             </CardContent>
           </Card>
         ))}
+      </div>
+
+      <div className="space-y-6">
+        <div className="flex items-center gap-3">
+          <Database className="h-6 w-6 text-accent" />
+          <h3 className="text-2xl font-bold text-primary">¿Qué información entrega la plataforma?</h3>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          {dataFields.map((field) => (
+            <Card key={field.title} className="border-border/50">
+              <CardHeader className="pb-2">
+                <div className="h-8 w-8 rounded-lg bg-accent/10 flex items-center justify-center mb-2">
+                  <field.icon className="h-4 w-4 text-accent" />
+                </div>
+                <CardTitle className="text-sm font-bold">{field.title}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ul className="text-xs text-muted-foreground space-y-2">
+                  {field.items.map((item, i) => (
+                    <li key={i} className="flex items-start gap-2">
+                      <div className="h-1 w-1 rounded-full bg-accent mt-1.5 shrink-0" />
+                      {item}
+                    </li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 pt-6">

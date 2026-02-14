@@ -1,7 +1,8 @@
+
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
-import { MOCK_BIDS, CATEGORIES, Bid } from "@/app/lib/mock-data"
+import { CATEGORIES, Bid } from "@/app/lib/mock-data"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -15,7 +16,7 @@ export default function BidsListPage() {
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
-  const [bids, setBids] = useState<Bid[]>(MOCK_BIDS)
+  const [bids, setBids] = useState<Bid[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [isRealData, setIsRealData] = useState(false)
   const [apiError, setApiError] = useState(false)
@@ -40,7 +41,7 @@ export default function BidsListPage() {
           amount: b.MontoEstimado || 0,
           currency: b.Moneda || 'CLP',
           deadline: new Date(b.FechaCierre).toLocaleDateString(),
-          status: b.Estado as any,
+          status: (b.Estado as any) || 'Abierta',
           description: b.Nombre,
           fullText: b.Nombre,
           location: 'Chile'
@@ -52,7 +53,7 @@ export default function BidsListPage() {
           description: `Se han cargado ${mappedBids.length} licitaciones reales de hoy.`,
         })
       } else {
-        // Si no hay datos hoy, probamos con ayer (a veces la API tarda en actualizar)
+        // Si no hay datos hoy, probamos con ayer
         const yesterday = new Date()
         yesterday.setDate(yesterday.getDate() - 1)
         const formattedYesterday = `${String(yesterday.getDate()).padStart(2, '0')}${String(yesterday.getMonth() + 1).padStart(2, '0')}${yesterday.getFullYear()}`
@@ -68,7 +69,7 @@ export default function BidsListPage() {
             amount: b.MontoEstimado || 0,
             currency: b.Moneda || 'CLP',
             deadline: new Date(b.FechaCierre).toLocaleDateString(),
-            status: b.Estado as any,
+            status: (b.Estado as any) || 'Abierta',
             description: b.Nombre,
             fullText: b.Nombre,
             location: 'Chile'
@@ -76,13 +77,13 @@ export default function BidsListPage() {
           setBids(mappedBids)
           setIsRealData(true)
         } else {
-          setBids(MOCK_BIDS)
+          setBids([])
           setIsRealData(false)
           setApiError(true)
         }
       }
     } catch (error) {
-      setBids(MOCK_BIDS)
+      setBids([])
       setIsRealData(false)
       setApiError(true)
     } finally {
@@ -107,8 +108,8 @@ export default function BidsListPage() {
         <div className="space-y-1">
           <div className="flex items-center gap-2">
             <h2 className="text-3xl font-extrabold tracking-tight text-primary">Explorador de Licitaciones</h2>
-            <Badge variant={isRealData ? "default" : "secondary"} className={isRealData ? "bg-green-500" : ""}>
-              {isRealData ? "LIVE DATA" : "MODO DEMO"}
+            <Badge variant={isRealData ? "default" : "secondary"} className={isRealData ? "bg-green-500 text-white" : ""}>
+              {isRealData ? "LIVE DATA" : "SIN DATOS"}
             </Badge>
           </div>
           <p className="text-muted-foreground">Explora oportunidades reales de Mercado Público en tiempo real.</p>
@@ -149,10 +150,9 @@ export default function BidsListPage() {
           <CardContent className="pt-6 flex items-center gap-4">
             <AlertCircle className="h-10 w-10 text-orange-600 shrink-0" />
             <div>
-              <h4 className="font-bold text-orange-800">Servicio de Mercado Público no disponible o sin resultados</h4>
+              <h4 className="font-bold text-orange-800">Servicio de Mercado Público no disponible</h4>
               <p className="text-sm text-orange-700 leading-relaxed">
-                La API oficial de ChileCompra no ha devuelto resultados para hoy. 
-                Hemos activado el <strong>Modo Demo</strong> con licitaciones de respaldo para que puedas continuar probando las herramientas de IA.
+                No se han podido recuperar licitaciones. Esto puede deberse a que la API oficial no tiene registros para la fecha consultada o a un problema de conexión.
               </p>
             </div>
           </CardContent>
@@ -197,7 +197,7 @@ export default function BidsListPage() {
       {isLoading ? (
         <div className="flex flex-col items-center justify-center py-20 space-y-4">
           <Loader2 className="h-12 w-12 text-primary animate-spin" />
-          <p className="text-muted-foreground font-medium">Conectando con el Servidor (API ChileCompra)...</p>
+          <p className="text-muted-foreground font-medium">Sincronizando con Mercado Público...</p>
         </div>
       ) : (
         <div className={viewMode === 'grid' ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6' : 'space-y-4'}>
@@ -250,8 +250,8 @@ export default function BidsListPage() {
               <div className="mx-auto h-20 w-20 rounded-full bg-muted flex items-center justify-center mb-4">
                 <Search className="h-10 w-10 text-muted-foreground" />
               </div>
-              <h3 className="text-xl font-bold">No se encontraron licitaciones</h3>
-              <p className="text-muted-foreground">Prueba ajustando tus filtros de búsqueda.</p>
+              <h3 className="text-xl font-bold">Sin resultados reales</h3>
+              <p className="text-muted-foreground">Haz clic en "Sincronizar" para buscar datos en vivo.</p>
             </div>
           )}
         </div>

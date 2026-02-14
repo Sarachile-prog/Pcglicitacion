@@ -33,18 +33,21 @@ export interface MercadoPublicoBid {
   };
 }
 
-// Usamos la URL base de tu proyecto desplegado
+// URL base de las Cloud Functions Gen 2
 const BASE_URL = 'https://us-central1-studio-4126028826-31b2f.cloudfunctions.net';
 
 export async function getBidsByDate(date: string): Promise<MercadoPublicoBid[]> {
   const functionUrl = `${BASE_URL}/getBidsByDate?date=${date}`;
 
   try {
-    const response = await fetch(functionUrl, { cache: 'no-store' });
+    const response = await fetch(functionUrl, { 
+      next: { revalidate: 600 } // Cache en Next.js por 10 minutos
+    });
+    
     const result = await response.json();
     
     if (!response.ok) {
-      throw new Error(result.message || result.error || "Error de conexión con el servidor");
+      throw new Error(result.message || result.error || "API de Mercado Público saturada");
     }
     
     return result.data || [];
@@ -58,7 +61,10 @@ export async function getBidDetail(code: string): Promise<MercadoPublicoBid | nu
   const functionUrl = `${BASE_URL}/getBidDetail?code=${code}`;
 
   try {
-    const response = await fetch(functionUrl, { cache: 'no-store' });
+    const response = await fetch(functionUrl, { 
+      next: { revalidate: 3600 } // Cache en Next.js por 1 hora para detalles (rara vez cambian)
+    });
+    
     if (!response.ok) return null;
     const result = await response.json();
     return result.data || null;

@@ -51,12 +51,11 @@ export async function getBidsByDate(date: string = '01012024'): Promise<MercadoP
       next: { revalidate: 3600 } // Cache de 1 hora
     });
     
-    if (!response.ok) throw new Error(`Error API: ${response.status}`);
+    if (!response.ok) return [];
     
     const data = await response.json();
     return data.Listado || [];
   } catch (error) {
-    console.error('MercadoPublico Service Error:', error);
     return [];
   }
 }
@@ -73,13 +72,12 @@ export async function getBidDetail(codigo: string): Promise<MercadoPublicoBid | 
       next: { revalidate: 3600 }
     });
     
-    if (!response.ok) throw new Error(`Error API: ${response.status}`);
+    if (!response.ok) return null;
     
     const data = await response.json();
     // La API devuelve un array en 'Listado', tomamos el primero.
     return data.Listado?.[0] || null;
   } catch (error) {
-    console.error('MercadoPublico Detail Error:', error);
     return null;
   }
 }

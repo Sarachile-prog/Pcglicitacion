@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useEffect } from "react"
@@ -50,8 +49,8 @@ export default function BidsListPage() {
         setIsRealData(false)
       }
     } catch (error) {
-      console.error("Error fetching live bids:", error)
       setBids(MOCK_BIDS)
+      setIsRealData(false)
     } finally {
       setIsLoading(false)
     }

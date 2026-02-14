@@ -59,7 +59,6 @@ export default function BidDetailPage() {
         description: "El reporte estratégico y la guía de formularios están listos.",
       })
     } catch (error) {
-      console.error(error)
       toast({
         variant: "destructive",
         title: "Error de Análisis",

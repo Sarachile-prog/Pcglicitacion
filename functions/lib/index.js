@@ -42,7 +42,7 @@ exports.healthCheck = (0, https_1.onRequest)({
 exports.getBidsByDate = (0, https_1.onRequest)({
     cors: true,
     region: "us-central1"
-}, (request, response) => {
+}, async (request, response) => {
     const date = request.query.date;
     if (!date) {
         response.status(400).json({
@@ -50,8 +50,19 @@ exports.getBidsByDate = (0, https_1.onRequest)({
         });
         return;
     }
-    response.json({
-        receivedDate: date
-    });
+    try {
+        const db = admin.firestore();
+        const docRef = db.collection("mp_cache").doc(`test_${date}`);
+        const docSnap = await docRef.get();
+        response.json({
+            fromCache: docSnap.exists
+        });
+    }
+    catch (error) {
+        response.status(500).json({
+            error: "Firestore operation failed",
+            message: error.message
+        });
+    }
 });
 //# sourceMappingURL=index.js.map

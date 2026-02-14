@@ -21,8 +21,7 @@ export const healthCheck = onRequest({
 });
 
 /**
- * Función para obtener licitaciones por fecha.
- * Valida la existencia del parámetro 'date' e intenta leer un documento de prueba en Firestore.
+ * Función para obtener licitaciones por fecha con lógica de caché (TTL).
  */
 export const getBidsByDate = onRequest({
   cors: true,
@@ -39,13 +38,39 @@ export const getBidsByDate = onRequest({
 
   try {
     const db = admin.firestore();
-    // Referencia al documento de prueba solicitado: test_<date>
-    const docRef = db.collection("mp_cache").doc(`test_${date}`);
-    const docSnap = await docRef.get();
+    const cacheRef = db.collection("mp_cache").doc(`bids_${date}`);
+    const docSnap = await cacheRef.get();
+    
+    const now = Date.now();
+    const TTL_MS = 10 * 60 * 1000; // 10 minutos
+
+    if (docSnap.exists) {
+      const data = docSnap.data();
+      const expiresAt = data?.expiresAt;
+
+      // Si el documento tiene un campo expiresAt y aún no ha expirado
+      if (expiresAt && expiresAt.toMillis() > now) {
+        response.json({
+          fromCache: true
+        });
+        return;
+      }
+    }
+
+    // Si no existe o está expirado, creamos/actualizamos el caché
+    const newExpiresAt = admin.firestore.Timestamp.fromMillis(now + TTL_MS);
+    
+    await cacheRef.set({
+      data: [], // Aún no integramos Mercado Público
+      expiresAt: newExpiresAt,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    });
 
     response.json({
-      fromCache: docSnap.exists
+      fromCache: false,
+      refreshed: true
     });
+
   } catch (error: any) {
     response.status(500).json({
       error: "Firestore operation failed",

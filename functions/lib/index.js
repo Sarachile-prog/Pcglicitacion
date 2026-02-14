@@ -36,7 +36,7 @@ exports.healthCheck = (0, https_1.onRequest)({
     response.json({
         status: "ok",
         timestamp: new Date().toISOString(),
-        service: "Licitaciones Globales - Backend Functions Gen2"
+        service: "Licitaciones Globales - Backend"
     });
 });
 exports.getBidsByDate = (0, https_1.onRequest)({
@@ -45,22 +45,50 @@ exports.getBidsByDate = (0, https_1.onRequest)({
 }, async (request, response) => {
     const date = request.query.date;
     if (!date) {
-        response.status(400).json({
-            error: "Missing date parameter"
-        });
+        response.status(400).json({ error: "Missing date parameter" });
         return;
     }
     try {
         const db = admin.firestore();
-        const docRef = db.collection("mp_cache").doc(`test_${date}`);
-        const docSnap = await docRef.get();
+        const cacheRef = db.collection("mp_cache").doc(`bids_${date}`);
+        const docSnap = await cacheRef.get();
+        const now = Date.now();
+        const TTL_MS = 10 * 60 * 1000;
+        if (docSnap.exists) {
+            const data = docSnap.data();
+            const expiresAt = data?.expiresAt;
+            if (expiresAt && expiresAt.toMillis() > now) {
+                response.json({
+                    fromCache: true,
+                    data: data?.data || []
+                });
+                return;
+            }
+        }
+        const TICKET = process.env.MERCADO_PUBLICO_TICKET || 'F80640D6-AB32-4757-827D-02589D211564';
+        const apiUrl = `https://api.mercadopublico.cl/servicios/v1/publico/licitaciones.json?fecha=${date}&ticket=${TICKET}`;
+        const apiResponse = await fetch(apiUrl);
+        if (!apiResponse.ok) {
+            throw new Error(`API responded with status: ${apiResponse.status}`);
+        }
+        const apiData = await apiResponse.json();
+        const bidsList = apiData.Listado || [];
+        const newExpiresAt = admin.firestore.Timestamp.fromMillis(now + TTL_MS);
+        await cacheRef.set({
+            data: bidsList,
+            expiresAt: newExpiresAt,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        });
         response.json({
-            fromCache: docSnap.exists
+            fromCache: false,
+            refreshed: true,
+            data: bidsList
         });
     }
     catch (error) {
+        console.error("Error en getBidsByDate:", error);
         response.status(500).json({
-            error: "Firestore operation failed",
+            error: "External API or Firestore error",
             message: error.message
         });
     }

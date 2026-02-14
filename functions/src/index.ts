@@ -52,7 +52,6 @@ export const getBidsByDate = onRequest({
     }
 
     // --- INTEGRACIÓN CON API MERCADO PÚBLICO ---
-    // Usamos un ticket de prueba por defecto. Lo ideal es configurarlo en variables de entorno.
     const TICKET = process.env.MERCADO_PUBLICO_TICKET || 'F80640D6-AB32-4757-827D-02589D211564';
     const apiUrl = `https://api.mercadopublico.cl/servicios/v1/publico/licitaciones.json?fecha=${date}&ticket=${TICKET}`;
     
@@ -62,7 +61,7 @@ export const getBidsByDate = onRequest({
       throw new Error(`API responded with status: ${apiResponse.status}`);
     }
 
-    const apiData = await apiResponse.json();
+    const apiData = (await apiResponse.json()) as any;
     const bidsList = apiData.Listado || [];
 
     // Guardamos en caché para los próximos 10 minutos

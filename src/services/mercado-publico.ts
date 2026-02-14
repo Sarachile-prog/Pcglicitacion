@@ -36,8 +36,12 @@ export interface MercadoPublicoBid {
 
 const API_BASE_URL = 'https://api.mercadopublico.cl/servicios/v1/publico/licitaciones.json';
 
-// Ticket oficial proporcionado por el usuario
-const TICKET = 'CE1F854E-2ED7-42B9-837B-066A77AED4EB';
+// Se obtiene el ticket desde las variables de entorno del servidor.
+const TICKET = process.env.MERCADO_PUBLICO_TICKET;
+
+if (!TICKET) {
+  throw new Error("Missing MERCADO_PUBLICO_TICKET environment variable");
+}
 
 /**
  * Obtiene licitaciones filtradas por fecha.

@@ -21,8 +21,9 @@ import { useToast } from "@/hooks/use-toast"
 
 export default function SettingsPage() {
   const { toast } = useToast()
-  const [apiKey, setApiKey] = useState("CE1F854E-2ED7-42B9-837B-066A77AED4EB") // Ticket actualizado
-  const [isLive, setIsLive] = useState(true) // Activado por defecto con el nuevo ticket
+  // Se elimina el ticket hardcodeado del estado inicial por seguridad.
+  const [apiKey, setApiKey] = useState("") 
+  const [isLive, setIsLive] = useState(true) 
   const [isLoading, setIsLoading] = useState(false)
 
   const handleSave = () => {

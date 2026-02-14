@@ -34,12 +34,14 @@ service cloud.firestore {
       allow write: if isSignedIn();
     }
 
-    // Datos sensibles de Outreach: Solo para Administradores reales
+    // Datos de Outreach: Lectura permitida para usuarios autenticados en el prototipo, escritura solo admin
     match /companies/{companyId} {
-      allow read, write: if isAdmin();
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
       
       match /contactEmails/{emailId} {
-        allow read, write: if isAdmin();
+        allow read: if isSignedIn();
+        allow write: if isAdmin();
       }
     }
 

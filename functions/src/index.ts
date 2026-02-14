@@ -16,25 +16,21 @@ export const healthCheck = onRequest({
   });
 });
 
-/**
- * Función auxiliar para esperar N milisegundos
- */
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 /**
- * Obtiene licitaciones reales de Mercado Público con lógica de reintentos para error 10500.
+ * Obtiene licitaciones reales de Mercado Público con lógica de reintentos robusta.
  */
 export const getBidsByDate = onRequest({
   cors: true,
   region: "us-central1",
   invoker: "public"
 }, async (request: any, response: any) => {
-  const date = request.query.date; // Formato DDMMYYYY
+  const date = request.query.date;
 
   console.log(`>>> [SERVER] Solicitud recibida para fecha: ${date}`);
 
   if (!date) {
-    console.error(">>> [SERVER] Error: Falta parámetro date");
     response.status(400).json({ error: "Missing date parameter" });
     return;
   }
@@ -45,7 +41,7 @@ export const getBidsByDate = onRequest({
     const docSnap = await cacheRef.get();
     
     const now = Date.now();
-    const TTL_MS = 10 * 60 * 1000; // 10 minutos de cache
+    const TTL_MS = 10 * 60 * 1000;
 
     if (docSnap.exists) {
       const data = docSnap.data();
@@ -59,17 +55,15 @@ export const getBidsByDate = onRequest({
         });
         return;
       }
-      console.log(`>>> [SERVER] Cache EXPIRED para ${date}. Refrescando...`);
     }
 
-    // --- INTEGRACIÓN CON API MERCADO PÚBLICO CON REINTENTOS ---
     const TICKET = process.env.MERCADO_PUBLICO_TICKET || 'F80640D6-AB32-4757-827D-02589D211564';
     const apiUrl = `https://api.mercadopublico.cl/servicios/v1/publico/licitaciones.json?fecha=${date}&ticket=${TICKET}`;
     
     let bidsList: any[] = [];
     let apiSuccess = false;
     let attempts = 0;
-    const maxAttempts = 3;
+    const maxAttempts = 5; // Aumentado para mayor robustez
 
     while (attempts < maxAttempts && !apiSuccess) {
       attempts++;
@@ -78,25 +72,25 @@ export const getBidsByDate = onRequest({
       const apiResponse = await fetch(apiUrl);
       const apiData = (await apiResponse.json()) as any;
 
-      if (apiResponse.ok) {
-        bidsList = apiData.Listado || [];
+      if (apiResponse.ok && apiData.Listado) {
+        bidsList = apiData.Listado;
         apiSuccess = true;
-        console.log(`>>> [SERVER] Éxito en intento ${attempts}. Bids encontrados: ${bidsList.length}`);
+        console.log(`>>> [SERVER] Éxito. Bids encontrados: ${bidsList.length}`);
       } else if (apiData.Codigo === 10500) {
-        console.warn(`>>> [SERVER] Error 10500 (Simultaneidad). Esperando reintento...`);
-        // Espera incremental: 2s, 4s, 6s...
-        await sleep(2000 * attempts);
+        console.warn(`>>> [SERVER] Error 10500 (Simultaneidad). Intento ${attempts}.`);
+        // Espera más larga y aleatoria para romper el ciclo de simultaneidad
+        await sleep(3000 * attempts + Math.random() * 2000);
       } else {
         console.error(`>>> [SERVER] API Error ${apiResponse.status}:`, apiData);
-        throw new Error(`API Error ${apiResponse.status}: ${JSON.stringify(apiData)}`);
+        // Si no es simultaneidad, fallamos rápido
+        throw new Error(apiData.Mensaje || `Error ${apiResponse.status}`);
       }
     }
 
     if (!apiSuccess) {
-      throw new Error("Máximo de reintentos alcanzado para la API de Mercado Público (Error 10500).");
+      throw new Error("La API de Mercado Público está saturada (Error 10500).");
     }
 
-    // Guardar en caché incluso si está vacío (para evitar llamadas infinitas a la API hoy)
     const newExpiresAt = admin.firestore.Timestamp.fromMillis(now + TTL_MS);
     await cacheRef.set({
       data: bidsList,
@@ -104,8 +98,6 @@ export const getBidsByDate = onRequest({
       updatedAt: admin.firestore.FieldValue.serverTimestamp()
     });
     
-    console.log(`>>> [SERVER] Firestore actualizado para ${date}.`);
-
     response.json({
       fromCache: false,
       refreshed: true,
@@ -113,7 +105,7 @@ export const getBidsByDate = onRequest({
     });
 
   } catch (error: any) {
-    console.error(">>> [SERVER] ERROR FATAL:", error);
+    console.error(">>> [SERVER] ERROR:", error.message);
     response.status(500).json({
       error: "Internal Server Error",
       message: error.message

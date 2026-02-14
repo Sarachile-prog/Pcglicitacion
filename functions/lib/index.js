@@ -69,6 +69,7 @@ exports.getBidsByDate = (0, https_1.onRequest)({
                 });
                 return;
             }
+            console.log(`>>> [SERVER] Cache EXPIRED para ${date}. Refrescando...`);
         }
         const TICKET = process.env.MERCADO_PUBLICO_TICKET || 'F80640D6-AB32-4757-827D-02589D211564';
         const apiUrl = `https://api.mercadopublico.cl/servicios/v1/publico/licitaciones.json?fecha=${date}&ticket=${TICKET}`;
@@ -91,11 +92,12 @@ exports.getBidsByDate = (0, https_1.onRequest)({
                 await sleep(2000 * attempts);
             }
             else {
+                console.error(`>>> [SERVER] API Error ${apiResponse.status}:`, apiData);
                 throw new Error(`API Error ${apiResponse.status}: ${JSON.stringify(apiData)}`);
             }
         }
         if (!apiSuccess) {
-            throw new Error("Máximo de reintentos alcanzado para la API.");
+            throw new Error("Máximo de reintentos alcanzado para la API de Mercado Público (Error 10500).");
         }
         const newExpiresAt = admin.firestore.Timestamp.fromMillis(now + TTL_MS);
         await cacheRef.set({

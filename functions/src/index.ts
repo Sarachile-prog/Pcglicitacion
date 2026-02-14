@@ -45,34 +45,45 @@ export const getBidsByDate = onRequest({
     const cacheRef = db.collection("mp_cache").doc(`sync_${date}`);
     const cacheSnap = await cacheRef.get();
     
+    // Si el cache existe y es reciente (menos de 1 hora), lo retornamos.
     if (cacheSnap.exists && cacheSnap.data()?.status === 'success') {
-      console.log(`>>> [SERVER] Cache HIT para ${date}. Retornando datos guardados.`);
-      return response.json({ success: true, count: cacheSnap.data()?.count, message: "Datos desde cache." });
+      const lastSync = cacheSnap.data()?.lastSync?.toDate();
+      const now = new Date();
+      if (lastSync && (now.getTime() - lastSync.getTime() < 3600000)) {
+        console.log(`>>> [SERVER] Cache HIT para ${date}. Retornando datos guardados.`);
+        return response.json({ success: true, count: cacheSnap.data()?.count, message: "Datos desde cache." });
+      }
+      console.log(`>>> [SERVER] Cache EXPIRED para ${date}. Refrescando...`);
     }
 
     const apiUrl = `https://api.mercadopublico.cl/servicios/v1/publico/licitaciones.json?fecha=${date}&ticket=${TICKET}`;
-    console.log(`>>> [SERVER] Llamando a API Oficial con ticket tipo: ${source}`);
+    console.log(`>>> [SERVER] Llamando a API Oficial: ${apiUrl.replace(TICKET, '***')}`);
     
     let apiResponse = await fetch(apiUrl);
+    
+    if (!apiResponse.ok) {
+        throw new Error(`API responded with status: ${apiResponse.status}`);
+    }
+
     let apiData = (await apiResponse.json()) as any;
 
     // Manejo de Error de Saturación (10500) con reintentos
     let attempts = 0;
     while (apiData.Codigo === 10500 && attempts < 5) {
       attempts++;
-      const waitTime = 2000 * attempts;
+      const waitTime = 3000 * attempts;
       console.warn(`>>> [SERVER] API Saturada (10500). Reintento ${attempts} en ${waitTime}ms...`);
       await sleep(waitTime);
       apiResponse = await fetch(apiUrl);
       apiData = (await apiResponse.json()) as any;
     }
 
-    // Si después de reintentos sigue habiendo error de ticket o similar
-    if (apiData.Codigo && apiData.Codigo !== 10500) {
-      console.error(`>>> [SERVER] Error API Mercado Público. Código: ${apiData.Codigo}. Mensaje: ${apiData.Mensaje}`);
-      return response.status(401).json({ 
+    // Si después de reintentos sigue habiendo error
+    if (apiData.Codigo) {
+      console.error(`>>> [SERVER] Error API Mercado Público. Status: ${apiResponse.status}. Body: ${JSON.stringify(apiData)}`);
+      return response.status(200).json({ 
         success: false, 
-        message: apiData.Mensaje || "Ticket inválido",
+        message: apiData.Mensaje || "Error en la API oficial",
         code: apiData.Codigo
       });
     }
@@ -81,31 +92,33 @@ export const getBidsByDate = onRequest({
     console.log(`>>> [SERVER] API respondió exitosamente con ${bidsList.length} licitaciones.`);
 
     const batch = db.batch();
-    const now = admin.firestore.FieldValue.serverTimestamp();
+    const nowServer = admin.firestore.FieldValue.serverTimestamp();
 
     bidsList.forEach((bid: any) => {
+      if (!bid.CodigoExterno) return;
+      
       const bidRef = db.collection("bids").doc(bid.CodigoExterno);
       batch.set(bidRef, {
         id: bid.CodigoExterno,
-        title: bid.Nombre,
-        entity: bid.Organismo.NombreOrganismo,
-        status: bid.Estado,
+        title: bid.Nombre || "Sin título",
+        entity: bid.Organismo?.NombreOrganismo || "Institución no especificada",
+        status: bid.Estado || "No definido",
         deadlineDate: bid.FechaCierre || null,
         amount: bid.MontoEstimado || 0,
         currency: bid.Moneda || 'CLP',
-        scrapedAt: now,
+        scrapedAt: nowServer,
         sourceUrl: `https://www.mercadopublico.cl/Procurement/Modules/RFB/DetailsAcquisition.aspx?idLicitacion=${bid.CodigoExterno}`
       }, { merge: true });
     });
 
-    batch.set(cacheRef, { lastSync: now, count: bidsList.length, status: 'success' });
+    batch.set(cacheRef, { lastSync: nowServer, count: bidsList.length, status: 'success' });
     await batch.commit();
 
     console.log(`>>> [SERVER] Firestore actualizado para ${date}.`);
     response.json({ success: true, count: bidsList.length, message: "Sincronización exitosa." });
   } catch (error: any) {
-    console.error(`>>> [SERVER] ERROR FATAL: ${error.message}`);
-    response.status(500).json({ error: error.message });
+    console.error(`>>> [SERVER] ERROR FATAL: ${error.stack || error.message}`);
+    response.status(500).json({ success: false, error: error.message });
   }
 });
 
@@ -126,7 +139,7 @@ export const getBidDetail = onRequest({
     if (apiData.Listado && apiData.Listado.length > 0) {
       const detail = apiData.Listado[0];
       await admin.firestore().collection("bids").doc(code).update({
-        description: detail.Descripcion,
+        description: detail.Descripcion || "Sin descripción adicional.",
         items: detail.Items?.Listado || [],
         fullDetailAt: admin.firestore.FieldValue.serverTimestamp()
       });

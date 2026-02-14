@@ -34,15 +34,14 @@ export interface MercadoPublicoBid {
   };
 }
 
-// URLs directas de Cloud Run para Gen 2 Functions (obtenidas de los logs del usuario)
-const SYNC_URL = 'https://getbidsbydate-uusj753vka-uc.a.run.app';
-const DETAIL_URL = 'https://getbiddetail-uusj753vka-uc.a.run.app';
+// URLs directas de Cloud Run para Gen 2 Functions (obtenidas del log de despliegue del usuario)
+const BASE_URL = 'https://us-central1-studio-4126028826-31b2f.cloudfunctions.net';
 
 /**
  * Llama a la función de ingesta masiva.
  */
 export async function getBidsByDate(date: string): Promise<{ success: boolean; count: number; message: string }> {
-  const url = `${SYNC_URL}?date=${date}`;
+  const url = `${BASE_URL}/getBidsByDate?date=${date}`;
 
   try {
     const response = await fetch(url, { 
@@ -53,7 +52,11 @@ export async function getBidsByDate(date: string): Promise<{ success: boolean; c
     const result = await response.json();
     
     if (!response.ok) {
-      throw new Error(result.message || result.error || "Error de conexión con la API");
+      throw new Error(result.error || result.message || "Error de conexión con el servidor");
+    }
+    
+    if (result.success === false) {
+      throw new Error(result.message || "Error en la sincronización");
     }
     
     return result;
@@ -67,7 +70,7 @@ export async function getBidsByDate(date: string): Promise<{ success: boolean; c
  * Obtiene el detalle profundo y actualiza Firestore.
  */
 export async function getBidDetail(code: string): Promise<MercadoPublicoBid | null> {
-  const url = `${DETAIL_URL}?code=${code}`;
+  const url = `${BASE_URL}/getBidDetail?code=${code}`;
 
   try {
     const response = await fetch(url, { 

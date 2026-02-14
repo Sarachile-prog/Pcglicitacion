@@ -1,7 +1,8 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
-import { Bid } from "@/app/lib/mock-data"
+import { useState, useEffect } from "react"
+import { useCollection, useMemoFirebase, useFirestore } from "@/firebase"
+import { collection, query, orderBy, limit, where } from "firebase/firestore"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -13,10 +14,12 @@ import {
   AlertCircle, 
   Info,
   Calendar as CalendarIcon,
-  ChevronRight
+  ChevronRight,
+  Database,
+  Zap
 } from "lucide-react"
 import Link from "next/link"
-import { getBidsByDate, MercadoPublicoBid } from "@/services/mercado-publico"
+import { getBidsByDate } from "@/services/mercado-publico"
 import { useToast } from "@/hooks/use-toast"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Calendar } from "@/components/ui/calendar"
@@ -25,73 +28,62 @@ import { es } from "date-fns/locale"
 import { cn } from "@/lib/utils"
 
 export default function BidsListPage() {
+  const db = useFirestore()
   const [searchTerm, setSearchTerm] = useState("")
-  // Iniciamos con el último día hábil (viernes) si hoy es fin de semana
+  const [isSyncing, setIsSyncing] = useState(false)
   const [selectedDate, setSelectedDate] = useState<Date>(() => {
     const today = new Date();
     const day = today.getDay();
-    if (day === 0) return subDays(today, 2); // Domingo -> Viernes
-    if (day === 6) return subDays(today, 1); // Sábado -> Viernes
+    if (day === 0) return subDays(today, 2); 
+    if (day === 6) return subDays(today, 1);
     return today;
   })
-  const [bids, setBids] = useState<Bid[]>([])
-  const [isLoading, setIsLoading] = useState(false)
-  const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const { toast } = useToast()
 
-  const mapBids = (liveBidsData: MercadoPublicoBid[]): Bid[] => {
-    return liveBidsData.map((b: MercadoPublicoBid) => ({
-      id: b.CodigoExterno,
-      title: b.Nombre,
-      entity: b.Organismo.NombreOrganismo,
-      category: 'General', 
-      amount: b.MontoEstimado || 0,
-      currency: b.Moneda || 'CLP',
-      deadline: b.FechaCierre ? new Date(b.FechaCierre).toLocaleDateString() : 'N/A',
-      status: (b.Estado as any) || 'Desconocido',
-      description: b.Nombre,
-      fullText: b.Nombre,
-      location: 'Chile'
-    }))
-  }
+  // MEMOIZACIÓN EXPERTA: Leemos directamente de NUESTRA base de datos
+  const bidsQuery = useMemoFirebase(() => {
+    if (!db) return null;
+    return query(
+      collection(db, "bids"),
+      orderBy("scrapedAt", "desc"),
+      limit(50)
+    )
+  }, [db])
 
-  const fetchLiveBids = useCallback(async (dateToFetch: Date) => {
-    setIsLoading(true)
-    setErrorMessage(null)
+  const { data: bids, isLoading: isDbLoading, error: dbError } = useCollection(bidsQuery)
+
+  const handleSync = async () => {
+    setIsSyncing(true)
+    const formattedDate = format(selectedDate, "ddMMyyyy")
     
     try {
-      const formattedDate = format(dateToFetch, "ddMMyyyy")
-      const liveBidsData = await getBidsByDate(formattedDate)
+      toast({
+        title: "Iniciando Sincronización",
+        description: `Conectando con ChileCompra para el ${format(selectedDate, "dd/MM")}...`,
+      })
       
-      setBids(mapBids(liveBidsData))
+      const result = await getBidsByDate(formattedDate)
       
-      if (liveBidsData.length === 0) {
-        toast({
-          title: "Sin resultados",
-          description: `No hay registros oficiales para el ${format(dateToFetch, "PPP", { locale: es })}.`,
-        })
-      }
+      toast({
+        title: "Sincronización Exitosa",
+        description: `${result.count} licitaciones nuevas añadidas a tu base de datos.`,
+      })
     } catch (error: any) {
-      setErrorMessage(error.message || "Error de conexión con la API")
-      setBids([])
       toast({
         variant: "destructive",
-        title: "Error de Servidor",
-        description: "La API oficial está saturada. Reintenta en unos segundos.",
+        title: "Error de API",
+        description: error.message || "Mercado Público está saturado. Intenta en 10 segundos.",
       })
     } finally {
-      setIsLoading(false)
+      setIsSyncing(false)
     }
-  }, [toast])
+  }
 
-  useEffect(() => {
-    fetchLiveBids(selectedDate)
-  }, [selectedDate, fetchLiveBids])
-
-  const filteredBids = bids.filter(bid => {
-    const matchesSearch = bid.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                          bid.entity.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          bid.id.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredBids = (bids || []).filter(bid => {
+    const matchesSearch = 
+      bid.title?.toLowerCase().includes(searchTerm.toLowerCase()) || 
+      bid.entity?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      bid.id?.toLowerCase().includes(searchTerm.toLowerCase())
     return matchesSearch
   })
 
@@ -99,8 +91,11 @@ export default function BidsListPage() {
     <div className="space-y-8 animate-in fade-in duration-500">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="space-y-1">
-          <h2 className="text-3xl font-extrabold tracking-tight text-primary">Explorador Histórico</h2>
-          <p className="text-muted-foreground">Consulta cualquier fecha para ver aperturas, cierres y adjudicaciones.</p>
+          <div className="flex items-center gap-2">
+            <Database className="h-5 w-5 text-accent" />
+            <h2 className="text-3xl font-extrabold tracking-tight text-primary">Base de Datos Local</h2>
+          </div>
+          <p className="text-muted-foreground">Explora las licitaciones ya sincronizadas desde ChileCompra.</p>
         </div>
         <div className="flex items-center gap-2">
           <Popover>
@@ -121,41 +116,29 @@ export default function BidsListPage() {
             </PopoverContent>
           </Popover>
           <Button 
-            variant="outline" 
-            size="icon" 
-            className="border-primary/20"
-            onClick={() => fetchLiveBids(selectedDate)} 
-            disabled={isLoading}
+            className="bg-accent hover:bg-accent/90 gap-2 font-bold shadow-lg"
+            onClick={handleSync} 
+            disabled={isSyncing}
           >
-            <RefreshCw className={isLoading ? "h-4 w-4 animate-spin text-primary" : "h-4 w-4 text-primary"} />
+            <RefreshCw className={isSyncing ? "h-4 w-4 animate-spin" : "h-4 w-4"} />
+            {isSyncing ? "Sincronizando..." : "Sincronizar Fecha"}
           </Button>
         </div>
       </div>
 
-      {errorMessage && (
-        <Card className="bg-red-50 border-red-200 shadow-sm">
-          <CardContent className="pt-6 flex items-center gap-4">
-            <AlertCircle className="h-10 w-10 text-red-600 shrink-0" />
-            <div>
-              <h4 className="font-bold text-red-800 uppercase text-xs tracking-widest mb-1">API Mercado Público Saturada</h4>
-              <p className="text-sm text-red-700 leading-relaxed">
-                El servidor oficial (10500) ha rechazado la conexión por exceso de tráfico. 
-                Espera 5 segundos y pulsa el botón de refrescar.
-              </p>
-              <Button size="sm" variant="outline" className="mt-3 border-red-200 text-red-700 hover:bg-red-100" onClick={() => fetchLiveBids(selectedDate)}>
-                Reintentar Ahora
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      <div className="flex items-center gap-4 bg-primary/5 p-4 rounded-xl border border-primary/10">
+        <Zap className="h-5 w-5 text-primary" />
+        <p className="text-sm text-primary font-medium">
+          <span className="font-bold">Modo Experto:</span> Estás leyendo datos locales. Para ver licitaciones de una fecha específica, selecciónala arriba y presiona sincronizar.
+        </p>
+      </div>
 
       <Card className="bg-muted/30 border-none">
-        <CardContent className="p-4 flex flex-col md:flex-row gap-4">
-          <div className="relative flex-1">
+        <CardContent className="p-4">
+          <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input 
-              placeholder="Filtrar resultados por nombre, institución o ID..." 
+              placeholder="Filtrar por nombre, institución o ID..." 
               className="pl-10 bg-card border-none shadow-sm h-12"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
@@ -164,16 +147,10 @@ export default function BidsListPage() {
         </CardContent>
       </Card>
 
-      {isLoading ? (
-        <div className="flex flex-col items-center justify-center py-24 space-y-6">
-          <div className="relative">
-            <Loader2 className="h-16 w-16 text-primary animate-spin opacity-20" />
-            <RefreshCw className="h-8 w-8 text-accent animate-spin absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
-          </div>
-          <div className="text-center">
-            <p className="text-primary font-bold text-lg">Conectando con ChileCompra...</p>
-            <p className="text-muted-foreground text-sm">Esto puede tardar unos segundos si la API está lenta.</p>
-          </div>
+      {isDbLoading ? (
+        <div className="flex flex-col items-center justify-center py-24 space-y-4">
+          <RefreshCw className="h-12 w-12 text-primary animate-spin opacity-20" />
+          <p className="text-muted-foreground font-medium">Consultando base de datos local...</p>
         </div>
       ) : filteredBids.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -184,10 +161,10 @@ export default function BidsListPage() {
                   <div className="flex justify-between items-start mb-4">
                     <Badge variant="outline" className="text-[10px] uppercase border-primary/20 text-primary font-bold">ID: {bid.id}</Badge>
                     <Badge className={cn(
-                      "text-[10px] uppercase font-bold",
-                      bid.status === 'Publicada' ? 'bg-emerald-500 text-white' : 
-                      bid.status === 'Adjudicada' ? 'bg-blue-600 text-white' :
-                      bid.status === 'Cerrada' ? 'bg-gray-500 text-white' : 'bg-orange-500 text-white'
+                      "text-[10px] uppercase font-bold text-white",
+                      bid.status === 'Publicada' ? 'bg-emerald-500' : 
+                      bid.status === 'Adjudicada' ? 'bg-blue-600' :
+                      bid.status === 'Cerrada' ? 'bg-gray-500' : 'bg-orange-500'
                     )}>
                       {bid.status}
                     </Badge>
@@ -213,39 +190,19 @@ export default function BidsListPage() {
             </Link>
           ))}
         </div>
-      ) : !isLoading && (
+      ) : (
         <Card className="bg-primary/5 border-dashed border-2 border-primary/20">
           <CardContent className="py-24 flex flex-col items-center justify-center text-center space-y-4">
             <div className="h-16 w-16 rounded-full bg-white flex items-center justify-center shadow-sm">
               <Info className="h-8 w-8 text-primary/40" />
             </div>
-            <h3 className="text-xl font-bold text-primary">No se encontraron registros</h3>
+            <h3 className="text-xl font-bold text-primary">Tu base de datos está vacía</h3>
             <p className="text-muted-foreground max-w-sm">
-              Para ver licitaciones activas, prueba seleccionando un día hábil reciente (ej. el miércoles pasado).
+              Selecciona una fecha (ej. el miércoles pasado) y pulsa "Sincronizar Fecha" para importar licitaciones reales.
             </p>
-            <Button variant="outline" className="mt-4" onClick={() => setSelectedDate(subDays(new Date(), 2))}>
-              Ver Miércoles Pasado
-            </Button>
           </CardContent>
         </Card>
       )}
     </div>
   )
 }
-
-const Loader2 = ({ className }: { className?: string }) => (
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    width="24"
-    height="24"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    className={className}
-  >
-    <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-  </svg>
-)

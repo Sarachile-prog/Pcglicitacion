@@ -1,6 +1,6 @@
 'use server';
 /**
- * @fileOverview Servicio para interactuar con la API de Mercado Público a través de Cloud Functions.
+ * @fileOverview Servicio para interactuar con la API de Mercado Público a través de Cloud Functions Gen 2.
  */
 
 export interface MercadoPublicoItem {
@@ -33,43 +33,51 @@ export interface MercadoPublicoBid {
   };
 }
 
-// URL base de las Cloud Functions Gen 2
+// URL base de las Cloud Functions Gen 2 obtenidas de los logs
 const BASE_URL = 'https://us-central1-studio-4126028826-31b2f.cloudfunctions.net';
 
-export async function getBidsByDate(date: string): Promise<MercadoPublicoBid[]> {
+/**
+ * Llama a la función de ingesta masiva.
+ * No devuelve la lista completa (para ahorrar ancho de banda), 
+ * ya que la UI lee de Firestore.
+ */
+export async function getBidsByDate(date: string): Promise<{ success: boolean; count: number; message: string }> {
   const functionUrl = `${BASE_URL}/getBidsByDate?date=${date}`;
 
   try {
     const response = await fetch(functionUrl, { 
-      next: { revalidate: 600 } // Cache en Next.js por 10 minutos
+      cache: 'no-store'
     });
     
     const result = await response.json();
     
     if (!response.ok) {
-      throw new Error(result.message || result.error || "API de Mercado Público saturada");
+      throw new Error(result.message || result.error || "Servidor saturado");
     }
     
-    return result.data || [];
+    return result;
   } catch (error: any) {
-    console.error(`[Service] Error fetching list: ${error.message}`);
+    console.error(`[Service] Error en sincronización: ${error.message}`);
     throw error;
   }
 }
 
+/**
+ * Obtiene el detalle profundo y actualiza Firestore.
+ */
 export async function getBidDetail(code: string): Promise<MercadoPublicoBid | null> {
   const functionUrl = `${BASE_URL}/getBidDetail?code=${code}`;
 
   try {
     const response = await fetch(functionUrl, { 
-      next: { revalidate: 3600 } // Cache en Next.js por 1 hora para detalles (rara vez cambian)
+      cache: 'no-store'
     });
     
     if (!response.ok) return null;
     const result = await response.json();
     return result.data || null;
   } catch (error: any) {
-    console.error(`[Service] Error fetching detail: ${error.message}`);
+    console.error(`[Service] Error en detalle: ${error.message}`);
     return null;
   }
 }

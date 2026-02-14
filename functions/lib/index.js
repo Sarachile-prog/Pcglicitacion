@@ -23,7 +23,7 @@ var __importStar = (this && this.__importStar) || function (mod) {
     return result;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.healthCheck = void 0;
+exports.getBidsByDate = exports.healthCheck = void 0;
 const https_1 = require("firebase-functions/v2/https");
 const admin = __importStar(require("firebase-admin"));
 if (admin.apps.length === 0) {
@@ -37,6 +37,21 @@ exports.healthCheck = (0, https_1.onRequest)({
         status: "ok",
         timestamp: new Date().toISOString(),
         service: "Licitaciones Globales - Backend Functions Gen2"
+    });
+});
+exports.getBidsByDate = (0, https_1.onRequest)({
+    cors: true,
+    region: "us-central1"
+}, (request, response) => {
+    const date = request.query.date;
+    if (!date) {
+        response.status(400).json({
+            error: "Missing date parameter"
+        });
+        return;
+    }
+    response.json({
+        receivedDate: date
     });
 });
 //# sourceMappingURL=index.js.map

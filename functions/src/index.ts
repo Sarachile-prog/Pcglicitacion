@@ -1,4 +1,3 @@
-
 import { onRequest } from "firebase-functions/v2/https";
 import * as admin from "firebase-admin";
 
@@ -23,12 +22,12 @@ export const healthCheck = onRequest({
 
 /**
  * Función para obtener licitaciones por fecha.
- * Valida la existencia del parámetro 'date' en la query.
+ * Valida la existencia del parámetro 'date' e intenta leer un documento de prueba en Firestore.
  */
 export const getBidsByDate = onRequest({
   cors: true,
   region: "us-central1"
-}, (request: any, response: any) => {
+}, async (request: any, response: any) => {
   const date = request.query.date;
 
   if (!date) {
@@ -38,7 +37,19 @@ export const getBidsByDate = onRequest({
     return;
   }
 
-  response.json({
-    receivedDate: date
-  });
+  try {
+    const db = admin.firestore();
+    // Referencia al documento de prueba solicitado: test_<date>
+    const docRef = db.collection("mp_cache").doc(`test_${date}`);
+    const docSnap = await docRef.get();
+
+    response.json({
+      fromCache: docSnap.exists
+    });
+  } catch (error: any) {
+    response.status(500).json({
+      error: "Firestore operation failed",
+      message: error.message
+    });
+  }
 });

@@ -11,7 +11,7 @@ service cloud.firestore {
       return isSignedIn() && exists(/databases/$(database)/documents/admin_roles/$(request.auth.uid));
     }
 
-    // Configuración del sistema (solo lectura para usuarios, escritura para admins)
+    // Configuración del sistema (Lectura pública, escritura para cualquier usuario autenticado en el prototipo)
     match /settings/{settingId} {
       allow read: if true;
       allow write: if isSignedIn();
@@ -34,7 +34,7 @@ service cloud.firestore {
       allow write: if isSignedIn();
     }
 
-    // Datos sensibles de Outreach: Solo para Administradores
+    // Datos sensibles de Outreach: Solo para Administradores reales
     match /companies/{companyId} {
       allow read, write: if isAdmin();
       

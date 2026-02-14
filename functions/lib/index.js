@@ -35,13 +35,15 @@ async function getActiveTicket() {
     try {
         const configDoc = await admin.firestore().collection("settings").doc("mercado_publico").get();
         if (configDoc.exists && configDoc.data()?.ticket) {
-            return configDoc.data()?.ticket;
+            console.log(">>> [SERVER] Usando ticket personalizado desde Firestore.");
+            return { ticket: configDoc.data()?.ticket, source: 'custom' };
         }
     }
     catch (e) {
-        console.error(">>> [SERVER] Error leyendo ticket de Firestore, usando default.");
+        console.error(">>> [SERVER] Error leyendo ticket de Firestore.");
     }
-    return DEFAULT_TICKET;
+    console.log(">>> [SERVER] Usando ticket predeterminado (posiblemente inválido).");
+    return { ticket: DEFAULT_TICKET, source: 'default' };
 }
 exports.getBidsByDate = (0, https_1.onRequest)({
     cors: true,
@@ -53,32 +55,39 @@ exports.getBidsByDate = (0, https_1.onRequest)({
     const date = request.query.date;
     if (!date)
         return response.status(400).json({ error: "Missing date" });
-    console.log(`>>> [SERVER] Solicitud para fecha: ${date}`);
+    console.log(`>>> [SERVER] Solicitud recibida para fecha: ${date}`);
     try {
         const db = admin.firestore();
-        const TICKET = await getActiveTicket();
+        const { ticket: TICKET, source } = await getActiveTicket();
         const cacheRef = db.collection("mp_cache").doc(`sync_${date}`);
         const cacheSnap = await cacheRef.get();
         if (cacheSnap.exists && cacheSnap.data()?.status === 'success') {
-            console.log(`>>> [SERVER] Cache HIT para ${date}`);
+            console.log(`>>> [SERVER] Cache HIT para ${date}. Retornando datos guardados.`);
             return response.json({ success: true, count: cacheSnap.data()?.count, message: "Datos desde cache." });
         }
         const apiUrl = `https://api.mercadopublico.cl/servicios/v1/publico/licitaciones.json?fecha=${date}&ticket=${TICKET}`;
+        console.log(`>>> [SERVER] Llamando a API Oficial con ticket tipo: ${source}`);
         let apiResponse = await fetch(apiUrl);
         let apiData = (await apiResponse.json());
         let attempts = 0;
-        while (apiData.Codigo === 10500 && attempts < 3) {
+        while (apiData.Codigo === 10500 && attempts < 5) {
             attempts++;
-            console.warn(`>>> [SERVER] API Saturada. Intento ${attempts}...`);
-            await sleep(3000 * attempts);
+            const waitTime = 2000 * attempts;
+            console.warn(`>>> [SERVER] API Saturada (10500). Reintento ${attempts} en ${waitTime}ms...`);
+            await sleep(waitTime);
             apiResponse = await fetch(apiUrl);
             apiData = (await apiResponse.json());
         }
         if (apiData.Codigo && apiData.Codigo !== 10500) {
-            return response.status(401).json({ success: false, message: apiData.Mensaje || "Ticket inválido" });
+            console.error(`>>> [SERVER] Error API Mercado Público. Código: ${apiData.Codigo}. Mensaje: ${apiData.Mensaje}`);
+            return response.status(401).json({
+                success: false,
+                message: apiData.Mensaje || "Ticket inválido",
+                code: apiData.Codigo
+            });
         }
         const bidsList = apiData.Listado || [];
-        console.log(`>>> [SERVER] API respondió con ${bidsList.length} licitaciones.`);
+        console.log(`>>> [SERVER] API respondió exitosamente con ${bidsList.length} licitaciones.`);
         const batch = db.batch();
         const now = admin.firestore.FieldValue.serverTimestamp();
         bidsList.forEach((bid) => {
@@ -97,10 +106,11 @@ exports.getBidsByDate = (0, https_1.onRequest)({
         });
         batch.set(cacheRef, { lastSync: now, count: bidsList.length, status: 'success' });
         await batch.commit();
+        console.log(`>>> [SERVER] Firestore actualizado para ${date}.`);
         response.json({ success: true, count: bidsList.length, message: "Sincronización exitosa." });
     }
     catch (error) {
-        console.error(`>>> [SERVER] ERROR: ${error.message}`);
+        console.error(`>>> [SERVER] ERROR FATAL: ${error.message}`);
         response.status(500).json({ error: error.message });
     }
 });
@@ -113,7 +123,7 @@ exports.getBidDetail = (0, https_1.onRequest)({
     if (!code)
         return response.status(400).json({ error: "Missing code" });
     try {
-        const TICKET = await getActiveTicket();
+        const { ticket: TICKET } = await getActiveTicket();
         const apiUrl = `https://api.mercadopublico.cl/servicios/v1/publico/licitaciones.json?codigo=${code}&ticket=${TICKET}`;
         const apiResponse = await fetch(apiUrl);
         const apiData = (await apiResponse.json());

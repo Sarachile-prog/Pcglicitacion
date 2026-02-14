@@ -17,15 +17,19 @@ import {
   Save, 
   RefreshCw,
   AlertCircle,
-  Loader2
+  Loader2,
+  Lock,
+  Unlock
 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
-import { useFirestore, useDoc, useMemoFirebase } from "@/firebase"
+import { useFirestore, useDoc, useMemoFirebase, useUser } from "@/firebase"
 import { doc, setDoc } from "firebase/firestore"
+import Link from "next/link"
 
 export default function SettingsPage() {
   const { toast } = useToast()
   const db = useFirestore()
+  const { user } = useUser()
   const [apiKey, setApiKey] = useState("") 
   const [isLive, setIsLive] = useState(true) 
   const [isSaving, setIsSaving] = useState(false)
@@ -41,7 +45,7 @@ export default function SettingsPage() {
   }, [config])
 
   const handleSave = async () => {
-    if (!db) return
+    if (!db || !user) return
     setIsSaving(true)
     
     try {
@@ -53,85 +57,98 @@ export default function SettingsPage() {
 
       toast({
         title: "Configuración guardada",
-        description: "El ticket de API se ha actualizado en la base de datos segura.",
+        description: "El ticket de API se ha actualizado correctamente.",
       })
     } catch (error: any) {
       toast({
         variant: "destructive",
-        title: "Error al guardar",
-        description: "No tienes permisos para actualizar la configuración. Contacta al admin.",
+        title: "Error de permisos",
+        description: "Debes estar autenticado para realizar cambios.",
       })
     } finally {
       setIsSaving(false)
     }
   }
 
-  const handleTestConnection = () => {
-    toast({
-      title: "Prueba de conexión",
-      description: "Conectando con api.mercadopublico.cl... Respuesta: 200 OK",
-    })
-  }
-
   if (isConfigLoading) {
-    return <div className="flex items-center justify-center py-20"><Loader2 className="animate-spin mr-2" /> Cargando configuración...</div>
+    return (
+      <div className="flex flex-col items-center justify-center py-20 gap-4">
+        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+        <p className="text-muted-foreground">Cargando configuración segura...</p>
+      </div>
+    )
   }
 
   return (
     <div className="space-y-8 animate-in fade-in duration-700">
-      <div>
-        <h2 className="text-3xl font-extrabold tracking-tight text-primary">Configuración del Sistema</h2>
-        <p className="text-muted-foreground">Administra las llaves de API y conexiones externas.</p>
+      <div className="flex justify-between items-end">
+        <div>
+          <h2 className="text-3xl font-extrabold tracking-tight text-primary">Configuración</h2>
+          <p className="text-muted-foreground">Administra las llaves de acceso al ecosistema de Mercado Público.</p>
+        </div>
+        {!user && (
+          <Link href="/login">
+            <Button variant="outline" className="border-accent text-accent">
+              <Lock className="h-4 w-4 mr-2" /> Iniciar Sesión para Editar
+            </Button>
+          </Link>
+        )}
       </div>
+
+      {!user && (
+        <Card className="bg-orange-50 border-orange-200">
+          <CardContent className="pt-6 flex items-center gap-4 text-orange-800">
+            <AlertCircle className="h-8 w-8 shrink-0" />
+            <p className="text-sm font-medium">
+              Actualmente estás en modo lectura. Para actualizar el ticket de la API, haz clic en el botón <b>Acceso Admin</b> y selecciona <b>Acceso Rápido</b>.
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-6">
-          <Card className="border-2 border-primary/10 shadow-sm">
+          <Card className={!user ? "opacity-60 pointer-events-none" : ""}>
             <CardHeader className="bg-primary/5 border-b">
               <div className="flex items-center justify-between">
                 <div className="space-y-1">
                   <CardTitle className="text-xl flex items-center gap-2">
-                    <Key className="h-5 w-5 text-primary" /> API Mercado Público
+                    <Key className="h-5 w-5 text-primary" /> Credenciales API
                   </CardTitle>
-                  <CardDescription>Configura tu ticket de acceso oficial.</CardDescription>
+                  <CardDescription>Usa tu ticket de desarrollador para sincronizar datos reales.</CardDescription>
                 </div>
-                <Badge variant={isLive ? "default" : "secondary"} className={isLive ? "bg-green-500" : ""}>
-                  {isLive ? "LIVE DATA" : "SANDBOX / MOCK"}
+                <Badge className={isLive ? "bg-green-500" : "bg-muted"}>
+                  {isLive ? "PRODUCCIÓN" : "DESARROLLO"}
                 </Badge>
               </div>
             </CardHeader>
             <CardContent className="pt-6 space-y-6">
-              <div className="space-y-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="api-ticket">Ticket de Acceso (API Key)</Label>
-                  <div className="flex gap-2">
-                    <Input 
-                      id="api-ticket" 
-                      type="password" 
-                      value={apiKey}
-                      onChange={(e) => setApiKey(e.target.value)}
-                      placeholder="Ingrese su ticket oficial..." 
-                      className="font-mono"
-                    />
-                    <Button variant="outline" onClick={handleTestConnection}>
-                      <RefreshCw className="h-4 w-4 mr-2" /> Probar
-                    </Button>
-                  </div>
-                  <p className="text-[10px] text-muted-foreground italic">
-                    Obtén tu ticket en <a href="https://desarrolladores.mercadopublico.cl/" target="_blank" className="text-primary underline">desarrolladores.mercadopublico.cl</a>
-                  </p>
-                </div>
-
-                <div className="flex items-center justify-between p-4 bg-muted/30 rounded-lg border border-border">
-                  <div className="space-y-0.5">
-                    <Label className="text-base">Modo Producción</Label>
-                    <p className="text-xs text-muted-foreground">Activa el uso de datos reales.</p>
-                  </div>
-                  <Switch 
-                    checked={isLive}
-                    onCheckedChange={setIsLive}
+              <div className="grid gap-2">
+                <Label htmlFor="api-ticket">Ticket Oficial (ChileCompra)</Label>
+                <div className="flex gap-2">
+                  <Input 
+                    id="api-ticket" 
+                    type="password" 
+                    value={apiKey}
+                    onChange={(e) => setApiKey(e.target.value)}
+                    placeholder="Pega aquí tu ticket..." 
+                    className="font-mono"
                   />
                 </div>
+                <p className="text-[10px] text-muted-foreground italic">
+                  Puedes obtenerlo registrándote en <a href="https://desarrolladores.mercadopublico.cl/" target="_blank" className="text-primary underline">desarrolladores.mercadopublico.cl</a>
+                </p>
+              </div>
+
+              <div className="flex items-center justify-between p-4 bg-muted/30 rounded-lg border border-border">
+                <div className="space-y-0.5">
+                  <Label className="text-base font-bold">Modo Conectado</Label>
+                  <p className="text-xs text-muted-foreground">Activa las llamadas automáticas a la API oficial.</p>
+                </div>
+                <Switch 
+                  checked={isLive}
+                  onCheckedChange={setIsLive}
+                />
               </div>
             </CardContent>
           </Card>
@@ -139,49 +156,44 @@ export default function SettingsPage() {
           <Card>
             <CardHeader>
               <CardTitle className="text-lg flex items-center gap-2">
-                <Database className="h-5 w-5 text-accent" /> Servicios Conectados
+                <Database className="h-5 w-5 text-accent" /> Base de Datos
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between py-2 border-b border-border/50">
-                  <div className="flex items-center gap-3">
-                    <div className="h-8 w-8 rounded bg-primary/10 flex items-center justify-center">
-                      <ShieldCheck className="h-4 w-4 text-primary" />
-                    </div>
-                    <span className="text-sm font-medium">Firebase Firestore</span>
-                  </div>
-                  <Badge className="bg-green-500 text-white border-none">Conectado</Badge>
+              <div className="flex items-center justify-between py-2">
+                <div className="flex items-center gap-3">
+                  <ShieldCheck className="h-4 w-4 text-green-600" />
+                  <span className="text-sm font-medium">Firestore Cloud Storage</span>
                 </div>
+                <Badge variant="outline" className="text-green-600 border-green-200">Activo</Badge>
               </div>
             </CardContent>
           </Card>
         </div>
 
         <div className="space-y-6">
-          <Card className="bg-accent text-white border-none shadow-xl">
+          <Button 
+            className="w-full h-14 text-lg font-bold bg-primary hover:bg-primary/90 gap-2 shadow-xl" 
+            onClick={handleSave}
+            disabled={isSaving || !user}
+          >
+            {!user ? (
+              <><Lock className="h-5 w-5" /> Inicia Sesión Primero</>
+            ) : isSaving ? (
+              <><Loader2 className="h-5 w-5 animate-spin" /> Guardando...</>
+            ) : (
+              <><Save className="h-5 w-5" /> Guardar Configuración</>
+            )}
+          </Button>
+
+          <Card className="bg-primary text-white border-none shadow-lg">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-white">
-                <AlertCircle className="h-5 w-5" /> Importante
-              </CardTitle>
+              <CardTitle className="text-sm uppercase tracking-widest text-accent">Soporte</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4 text-white/90">
-              <p className="text-sm leading-relaxed">
-                El Ticket de API es personal. Guardarlo aquí permitirá que las Cloud Functions realicen la sincronización en segundo plano.
-              </p>
-              <Button variant="secondary" className="w-full font-bold text-accent">
-                Soporte Técnico
-              </Button>
+            <CardContent className="text-sm text-primary-foreground/80 leading-relaxed">
+              El ticket de API es vital para la sincronización. Si lo cambias, todas las búsquedas futuras usarán el nuevo ticket inmediatamente.
             </CardContent>
           </Card>
-
-          <Button 
-            className="w-full h-12 text-lg font-bold bg-primary hover:bg-primary/90 gap-2 shadow-lg" 
-            onClick={handleSave}
-            disabled={isSaving}
-          >
-            {isSaving ? <Loader2 className="h-5 w-5 animate-spin" /> : <><Save className="h-5 w-5" /> Guardar Cambios</>}
-          </Button>
         </div>
       </div>
     </div>

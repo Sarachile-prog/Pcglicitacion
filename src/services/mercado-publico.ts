@@ -1,6 +1,7 @@
+
 'use server';
 /**
- * @fileOverview Servicio para interactuar con la API de Mercado Público a través de Cloud Functions Gen 2.
+ * @fileOverview Servicio para interactuar con la API de Mercado Público a través de Cloud Run / Gen 2 Functions.
  */
 
 export interface MercadoPublicoItem {
@@ -33,26 +34,26 @@ export interface MercadoPublicoBid {
   };
 }
 
-// URL base de las Cloud Functions Gen 2 obtenidas de los logs
-const BASE_URL = 'https://us-central1-studio-4126028826-31b2f.cloudfunctions.net';
+// URLs directas de Cloud Run para Gen 2 Functions (obtenidas de los logs del usuario)
+const SYNC_URL = 'https://getbidsbydate-uusj753vka-uc.a.run.app';
+const DETAIL_URL = 'https://getbiddetail-uusj753vka-uc.a.run.app';
 
 /**
  * Llama a la función de ingesta masiva.
- * No devuelve la lista completa (para ahorrar ancho de banda), 
- * ya que la UI lee de Firestore.
  */
 export async function getBidsByDate(date: string): Promise<{ success: boolean; count: number; message: string }> {
-  const functionUrl = `${BASE_URL}/getBidsByDate?date=${date}`;
+  const url = `${SYNC_URL}?date=${date}`;
 
   try {
-    const response = await fetch(functionUrl, { 
-      cache: 'no-store'
+    const response = await fetch(url, { 
+      cache: 'no-store',
+      headers: { 'Accept': 'application/json' }
     });
     
     const result = await response.json();
     
     if (!response.ok) {
-      throw new Error(result.message || result.error || "Servidor saturado");
+      throw new Error(result.message || result.error || "Error de conexión con la API");
     }
     
     return result;
@@ -66,11 +67,12 @@ export async function getBidsByDate(date: string): Promise<{ success: boolean; c
  * Obtiene el detalle profundo y actualiza Firestore.
  */
 export async function getBidDetail(code: string): Promise<MercadoPublicoBid | null> {
-  const functionUrl = `${BASE_URL}/getBidDetail?code=${code}`;
+  const url = `${DETAIL_URL}?code=${code}`;
 
   try {
-    const response = await fetch(functionUrl, { 
-      cache: 'no-store'
+    const response = await fetch(url, { 
+      cache: 'no-store',
+      headers: { 'Accept': 'application/json' }
     });
     
     if (!response.ok) return null;

@@ -17,7 +17,12 @@ export const healthCheck = onRequest({
 });
 
 /**
- * Obtiene licitaciones reales de Mercado Público con lógica de caché y logs avanzados.
+ * Función auxiliar para esperar N milisegundos
+ */
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+/**
+ * Obtiene licitaciones reales de Mercado Público con lógica de reintentos para error 10500.
  */
 export const getBidsByDate = onRequest({
   cors: true,
@@ -47,40 +52,49 @@ export const getBidsByDate = onRequest({
       const expiresAt = data?.expiresAt;
 
       if (expiresAt && expiresAt.toMillis() > now) {
-        console.log(`>>> [SERVER] Cache HIT para ${date}. Retornando datos guardados.`);
+        console.log(`>>> [SERVER] Cache HIT para ${date}.`);
         response.json({
           fromCache: true,
           data: data?.data || []
         });
         return;
       }
-      console.log(`>>> [SERVER] Cache EXPIRED para ${date}. Refrescando...`);
-    } else {
-      console.log(`>>> [SERVER] Cache MISS para ${date}. Consultando API.`);
     }
 
-    // --- INTEGRACIÓN CON API MERCADO PÚBLICO ---
+    // --- INTEGRACIÓN CON API MERCADO PÚBLICO CON REINTENTOS ---
     const TICKET = process.env.MERCADO_PUBLICO_TICKET || 'F80640D6-AB32-4757-827D-02589D211564';
     const apiUrl = `https://api.mercadopublico.cl/servicios/v1/publico/licitaciones.json?fecha=${date}&ticket=${TICKET}`;
     
-    console.log(`>>> [SERVER] Llamando a API Oficial: ${apiUrl.replace(TICKET, '***')}`);
-    
-    const apiResponse = await fetch(apiUrl);
-    
-    if (!apiResponse.ok) {
-      const errorText = await apiResponse.text();
-      console.error(`>>> [SERVER] Error API Mercado Público. Status: ${apiResponse.status}. Body: ${errorText}`);
-      throw new Error(`API responded with status: ${apiResponse.status}`);
+    let bidsList: any[] = [];
+    let apiSuccess = false;
+    let attempts = 0;
+    const maxAttempts = 3;
+
+    while (attempts < maxAttempts && !apiSuccess) {
+      attempts++;
+      console.log(`>>> [SERVER] Intento ${attempts} para fecha ${date}...`);
+      
+      const apiResponse = await fetch(apiUrl);
+      const apiData = (await apiResponse.json()) as any;
+
+      if (apiResponse.ok) {
+        bidsList = apiData.Listado || [];
+        apiSuccess = true;
+        console.log(`>>> [SERVER] Éxito en intento ${attempts}. Bids encontrados: ${bidsList.length}`);
+      } else if (apiData.Codigo === 10500) {
+        console.warn(`>>> [SERVER] Error 10500 (Simultaneidad). Esperando reintento...`);
+        await sleep(2000 * attempts); // Espera incremental
+      } else {
+        throw new Error(`API Error ${apiResponse.status}: ${JSON.stringify(apiData)}`);
+      }
     }
 
-    const apiData = (await apiResponse.json()) as any;
-    const bidsList = apiData.Listado || [];
+    if (!apiSuccess) {
+      throw new Error("Máximo de reintentos alcanzado para la API.");
+    }
 
-    console.log(`>>> [SERVER] API respondió exitosamente con ${bidsList.length} licitaciones.`);
-
-    // Guardamos en caché incluso si la lista es vacía para evitar llamadas innecesarias
+    // Guardar en caché
     const newExpiresAt = admin.firestore.Timestamp.fromMillis(now + TTL_MS);
-    
     await cacheRef.set({
       data: bidsList,
       expiresAt: newExpiresAt,

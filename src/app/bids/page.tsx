@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
@@ -26,8 +25,8 @@ export default function BidsListPage() {
     setIsLoading(true)
     setApiError(false)
     try {
-      // Intentamos con la fecha de hoy
       const now = new Date()
+      // Fecha actual
       const formattedDate = `${String(now.getDate()).padStart(2, '0')}${String(now.getMonth() + 1).padStart(2, '0')}${now.getFullYear()}`
       
       const liveBidsData = await getBidsByDate(formattedDate)
@@ -48,12 +47,10 @@ export default function BidsListPage() {
         }))
         setBids(mappedBids)
         setIsRealData(true)
-        toast({
-          title: "Datos en vivo",
-          description: `Se han cargado ${mappedBids.length} licitaciones reales de hoy.`,
-        })
       } else {
-        // Si no hay datos hoy, probamos con ayer
+        // Si hoy está vacío, esperamos un momento para no saturar la API y probamos ayer
+        await new Promise(r => setTimeout(r, 1500))
+        
         const yesterday = new Date()
         yesterday.setDate(yesterday.getDate() - 1)
         const formattedYesterday = `${String(yesterday.getDate()).padStart(2, '0')}${String(yesterday.getMonth() + 1).padStart(2, '0')}${yesterday.getFullYear()}`

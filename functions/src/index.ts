@@ -45,7 +45,6 @@ export const getBidsByDate = onRequest({
     const cacheRef = db.collection("mp_cache").doc(`sync_${date}`);
     const cacheSnap = await cacheRef.get();
     
-    // Si el cache existe y es reciente (menos de 1 hora), lo retornamos.
     if (cacheSnap.exists && cacheSnap.data()?.status === 'success') {
       const lastSync = cacheSnap.data()?.lastSync?.toDate();
       const now = new Date();
@@ -67,7 +66,6 @@ export const getBidsByDate = onRequest({
 
     let apiData = (await apiResponse.json()) as any;
 
-    // Manejo de Error de Saturación (10500) con reintentos
     let attempts = 0;
     while (apiData.Codigo === 10500 && attempts < 5) {
       attempts++;
@@ -78,7 +76,6 @@ export const getBidsByDate = onRequest({
       apiData = (await apiResponse.json()) as any;
     }
 
-    // Si después de reintentos sigue habiendo error
     if (apiData.Codigo) {
       console.error(`>>> [SERVER] Error API Mercado Público. Status: ${apiResponse.status}. Body: ${JSON.stringify(apiData)}`);
       return response.status(200).json({ 
@@ -138,11 +135,17 @@ export const getBidDetail = onRequest({
 
     if (apiData.Listado && apiData.Listado.length > 0) {
       const detail = apiData.Listado[0];
+      
+      // ACTUALIZACIÓN CRÍTICA: Capturamos el monto y la entidad real que usualmente vienen en el detalle pero no en el listado
       await admin.firestore().collection("bids").doc(code).update({
         description: detail.Descripcion || "Sin descripción adicional.",
         items: detail.Items?.Listado || [],
+        amount: detail.MontoEstimado || 0,
+        currency: detail.Moneda || 'CLP',
+        entity: detail.Organismo?.NombreOrganismo || "Institución no especificada",
         fullDetailAt: admin.firestore.FieldValue.serverTimestamp()
       });
+      
       response.json({ success: true, data: detail });
     } else {
       response.status(404).json({ error: "Not found" });

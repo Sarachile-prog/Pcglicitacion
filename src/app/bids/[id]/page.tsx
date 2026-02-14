@@ -47,7 +47,7 @@ export default function BidDetailPage() {
 
   const { data: bid, isLoading: isDocLoading } = useDoc(bidRef)
 
-  // Intentar refrescar datos detallados (ítems, descripción larga) en segundo plano
+  // Intentar refrescar datos detallados (ítems, descripción larga, monto real) en segundo plano
   useEffect(() => {
     if (bidId && !isDocLoading && bid && !bid.fullDetailAt) {
       handleRefreshData(false)
@@ -61,7 +61,7 @@ export default function BidDetailPage() {
       if (liveData && showToast) {
         toast({
           title: "Datos Actualizados",
-          description: "Se han sincronizado los detalles extendidos desde ChileCompra.",
+          description: "Se han sincronizado los detalles extendidos y montos reales.",
         })
       }
     } catch (error) {
@@ -81,7 +81,7 @@ export default function BidDetailPage() {
     if (!bid) return
     setLoadingAI(true)
     try {
-      const fullText = `Título: ${bid.title}. Descripción: ${bid.description || bid.title}. Estado: ${bid.status}. Entidad: ${bid.entity}.`
+      const fullText = `Título: ${bid.title}. Descripción: ${bid.description || bid.title}. Estado: ${bid.status}. Entidad: ${bid.entity}. Monto: ${bid.amount}.`
       const result = await extractAndSummarizeBidDetails({ 
         bidDocumentText: fullText,
         bidId: bid.id 

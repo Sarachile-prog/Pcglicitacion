@@ -29,8 +29,20 @@ const admin = __importStar(require("firebase-admin"));
 if (admin.apps.length === 0) {
     admin.initializeApp();
 }
-const TICKET = process.env.MERCADO_PUBLICO_TICKET || 'F80640D6-AB32-4757-827D-02589D211564';
-const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms + Math.random() * 1000));
+const DEFAULT_TICKET = 'F80640D6-AB32-4757-827D-02589D211564';
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+async function getActiveTicket() {
+    try {
+        const configDoc = await admin.firestore().collection("settings").doc("mercado_publico").get();
+        if (configDoc.exists && configDoc.data()?.ticket) {
+            return configDoc.data()?.ticket;
+        }
+    }
+    catch (e) {
+        console.error(">>> [SERVER] Error leyendo ticket de Firestore, usando default.");
+    }
+    return DEFAULT_TICKET;
+}
 exports.getBidsByDate = (0, https_1.onRequest)({
     cors: true,
     region: "us-central1",
@@ -39,38 +51,34 @@ exports.getBidsByDate = (0, https_1.onRequest)({
     timeoutSeconds: 120
 }, async (request, response) => {
     const date = request.query.date;
-    if (!date) {
-        response.status(400).json({ error: "Missing date parameter" });
-        return;
-    }
-    console.log(`>>> [SERVER] Iniciando ingesta masiva para fecha: ${date}`);
+    if (!date)
+        return response.status(400).json({ error: "Missing date" });
+    console.log(`>>> [SERVER] Solicitud para fecha: ${date}`);
     try {
         const db = admin.firestore();
-        const apiUrl = `https://api.mercadopublico.cl/servicios/v1/publico/licitaciones.json?fecha=${date}&ticket=${TICKET}`;
-        let bidsList = [];
-        let apiSuccess = false;
-        let attempts = 0;
-        const maxAttempts = 3;
-        while (attempts < maxAttempts && !apiSuccess) {
-            attempts++;
-            console.log(`>>> [SERVER] Intento API ${attempts} para ${date}...`);
-            const apiResponse = await fetch(apiUrl);
-            const apiData = (await apiResponse.json());
-            if (apiResponse.ok && apiData.Listado) {
-                bidsList = apiData.Listado;
-                apiSuccess = true;
-            }
-            else if (apiData.Codigo === 10500) {
-                console.warn(`>>> [SERVER] API Saturada. Reintentando en ${2000 * attempts}ms...`);
-                await sleep(2000 * attempts);
-            }
-            else {
-                throw new Error(apiData.Mensaje || `Error ${apiResponse.status}`);
-            }
+        const TICKET = await getActiveTicket();
+        const cacheRef = db.collection("mp_cache").doc(`sync_${date}`);
+        const cacheSnap = await cacheRef.get();
+        if (cacheSnap.exists && cacheSnap.data()?.status === 'success') {
+            console.log(`>>> [SERVER] Cache HIT para ${date}`);
+            return response.json({ success: true, count: cacheSnap.data()?.count, message: "Datos desde cache." });
         }
-        if (!apiSuccess)
-            throw new Error("API Mercado Público no disponible tras reintentos.");
-        console.log(`>>> [SERVER] Procesando ${bidsList.length} licitaciones para Firestore...`);
+        const apiUrl = `https://api.mercadopublico.cl/servicios/v1/publico/licitaciones.json?fecha=${date}&ticket=${TICKET}`;
+        let apiResponse = await fetch(apiUrl);
+        let apiData = (await apiResponse.json());
+        let attempts = 0;
+        while (apiData.Codigo === 10500 && attempts < 3) {
+            attempts++;
+            console.warn(`>>> [SERVER] API Saturada. Intento ${attempts}...`);
+            await sleep(3000 * attempts);
+            apiResponse = await fetch(apiUrl);
+            apiData = (await apiResponse.json());
+        }
+        if (apiData.Codigo && apiData.Codigo !== 10500) {
+            return response.status(401).json({ success: false, message: apiData.Mensaje || "Ticket inválido" });
+        }
+        const bidsList = apiData.Listado || [];
+        console.log(`>>> [SERVER] API respondió con ${bidsList.length} licitaciones.`);
         const batch = db.batch();
         const now = admin.firestore.FieldValue.serverTimestamp();
         bidsList.forEach((bid) => {
@@ -84,56 +92,42 @@ exports.getBidsByDate = (0, https_1.onRequest)({
                 amount: bid.MontoEstimado || 0,
                 currency: bid.Moneda || 'CLP',
                 scrapedAt: now,
-                sourceUrl: `https://www.mercadopublico.cl/Procurement/Modules/RFB/DetailsAcquisition.aspx?idLicitacion=${bid.CodigoExterno}`,
-                rawResponse: bid
+                sourceUrl: `https://www.mercadopublico.cl/Procurement/Modules/RFB/DetailsAcquisition.aspx?idLicitacion=${bid.CodigoExterno}`
             }, { merge: true });
         });
-        const cacheRef = db.collection("mp_cache").doc(`sync_${date}`);
-        batch.set(cacheRef, {
-            lastSync: now,
-            count: bidsList.length,
-            status: 'success'
-        });
+        batch.set(cacheRef, { lastSync: now, count: bidsList.length, status: 'success' });
         await batch.commit();
-        response.json({
-            success: true,
-            count: bidsList.length,
-            message: `Ingesta completada: ${bidsList.length} licitaciones sincronizadas.`
-        });
+        response.json({ success: true, count: bidsList.length, message: "Sincronización exitosa." });
     }
     catch (error) {
-        console.error(`>>> [SERVER] ERROR FATAL: ${error.message}`);
-        response.status(500).json({ error: "Internal Server Error", message: error.message });
+        console.error(`>>> [SERVER] ERROR: ${error.message}`);
+        response.status(500).json({ error: error.message });
     }
 });
 exports.getBidDetail = (0, https_1.onRequest)({
     cors: true,
     region: "us-central1",
-    invoker: "public",
-    maxInstances: 10
+    invoker: "public"
 }, async (request, response) => {
     const code = request.query.code;
-    if (!code) {
-        response.status(400).json({ error: "Missing code parameter" });
-        return;
-    }
+    if (!code)
+        return response.status(400).json({ error: "Missing code" });
     try {
-        const db = admin.firestore();
+        const TICKET = await getActiveTicket();
         const apiUrl = `https://api.mercadopublico.cl/servicios/v1/publico/licitaciones.json?codigo=${code}&ticket=${TICKET}`;
         const apiResponse = await fetch(apiUrl);
         const apiData = (await apiResponse.json());
-        if (apiResponse.ok && apiData.Listado && apiData.Listado.length > 0) {
+        if (apiData.Listado && apiData.Listado.length > 0) {
             const detail = apiData.Listado[0];
-            await db.collection("bids").doc(code).update({
+            await admin.firestore().collection("bids").doc(code).update({
                 description: detail.Descripcion,
                 items: detail.Items?.Listado || [],
-                fullDetailAt: admin.firestore.FieldValue.serverTimestamp(),
-                rawDetail: detail
+                fullDetailAt: admin.firestore.FieldValue.serverTimestamp()
             });
             response.json({ success: true, data: detail });
         }
         else {
-            response.status(404).json({ error: "Not Found" });
+            response.status(404).json({ error: "Not found" });
         }
     }
     catch (error) {

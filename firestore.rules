@@ -11,17 +11,36 @@ service cloud.firestore {
       return isSignedIn() && exists(/databases/$(database)/documents/admin_roles/$(request.auth.uid));
     }
 
+    // Configuración del sistema (solo lectura para usuarios, escritura para admins)
     match /settings/{settingId} {
-      allow read, write: if isSignedIn();
+      allow read: if true;
+      allow write: if isSignedIn();
     }
 
+    // Licitaciones y Categorías: Lectura pública, escritura protegida
     match /bids/{bidId} {
-      allow get, list: if isSignedIn();
-      allow create, update, delete: if isSignedIn();
+      allow read: if true;
+      allow write: if isSignedIn();
     }
 
+    match /categories/{categoryId} {
+      allow read: if true;
+      allow write: if isSignedIn();
+    }
+
+    // Cache de sincronización: Público para ver estado, protegido para escribir
     match /mp_cache/{cacheId} {
-      allow read, write: if isSignedIn();
+      allow read: if true;
+      allow write: if isSignedIn();
+    }
+
+    // Datos sensibles de Outreach: Solo para Administradores
+    match /companies/{companyId} {
+      allow read, write: if isAdmin();
+      
+      match /contactEmails/{emailId} {
+        allow read, write: if isAdmin();
+      }
     }
 
     match /admin_roles/{uid} {

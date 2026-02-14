@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Search, Filter, MapPin, Building2, Clock, DollarSign, LayoutGrid, List, Loader2, RefreshCw, AlertCircle } from "lucide-react"
+import { Search, Filter, MapPin, Building2, Clock, DollarSign, LayoutGrid, List, Loader2, RefreshCw, AlertCircle, Info } from "lucide-react"
 import Link from "next/link"
 import { getBidsByDate, MercadoPublicoBid } from "@/services/mercado-publico"
 import { useToast } from "@/hooks/use-toast"
@@ -21,65 +21,58 @@ export default function BidsListPage() {
   const [apiError, setApiError] = useState(false)
   const { toast } = useToast()
 
+  const mapBids = (liveBidsData: MercadoPublicoBid[]): Bid[] => {
+    return liveBidsData.map((b: MercadoPublicoBid) => ({
+      id: b.CodigoExterno,
+      title: b.Nombre,
+      entity: b.Organismo.NombreOrganismo,
+      category: 'General', 
+      amount: b.MontoEstimado || 0,
+      currency: b.Moneda || 'CLP',
+      deadline: new Date(b.FechaCierre).toLocaleDateString(),
+      status: (b.Estado as any) || 'Abierta',
+      description: b.Nombre,
+      fullText: b.Nombre,
+      location: 'Chile'
+    }))
+  }
+
   const fetchLiveBids = useCallback(async () => {
     setIsLoading(true)
     setApiError(false)
     try {
       const now = new Date()
-      // Fecha actual
       const formattedDate = `${String(now.getDate()).padStart(2, '0')}${String(now.getMonth() + 1).padStart(2, '0')}${now.getFullYear()}`
       
+      console.log(`[UI] Solicitando licitaciones para hoy: ${formattedDate}`)
       const liveBidsData = await getBidsByDate(formattedDate)
       
       if (liveBidsData && liveBidsData.length > 0) {
-        const mappedBids: Bid[] = liveBidsData.map((b: MercadoPublicoBid) => ({
-          id: b.CodigoExterno,
-          title: b.Nombre,
-          entity: b.Organismo.NombreOrganismo,
-          category: 'General', 
-          amount: b.MontoEstimado || 0,
-          currency: b.Moneda || 'CLP',
-          deadline: new Date(b.FechaCierre).toLocaleDateString(),
-          status: (b.Estado as any) || 'Abierta',
-          description: b.Nombre,
-          fullText: b.Nombre,
-          location: 'Chile'
-        }))
-        setBids(mappedBids)
+        setBids(mapBids(liveBidsData))
         setIsRealData(true)
       } else {
-        // Si hoy está vacío, esperamos un momento para no saturar la API y probamos ayer
-        await new Promise(r => setTimeout(r, 1500))
-        
+        // Si hoy está vacío (común en fines de semana), intentamos ayer
+        console.log(`[UI] Hoy no hay licitaciones. Intentando ayer...`)
         const yesterday = new Date()
         yesterday.setDate(yesterday.getDate() - 1)
         const formattedYesterday = `${String(yesterday.getDate()).padStart(2, '0')}${String(yesterday.getMonth() + 1).padStart(2, '0')}${yesterday.getFullYear()}`
         
+        // Pequeña pausa para evitar 10500 por simultaneidad en el servidor
+        await new Promise(r => setTimeout(r, 1000))
+        
         const yesterdayBids = await getBidsByDate(formattedYesterday)
         
         if (yesterdayBids && yesterdayBids.length > 0) {
-          const mappedBids: Bid[] = yesterdayBids.map((b: MercadoPublicoBid) => ({
-            id: b.CodigoExterno,
-            title: b.Nombre,
-            entity: b.Organismo.NombreOrganismo,
-            category: 'General', 
-            amount: b.MontoEstimado || 0,
-            currency: b.Moneda || 'CLP',
-            deadline: new Date(b.FechaCierre).toLocaleDateString(),
-            status: (b.Estado as any) || 'Abierta',
-            description: b.Nombre,
-            fullText: b.Nombre,
-            location: 'Chile'
-          }))
-          setBids(mappedBids)
+          setBids(mapBids(yesterdayBids))
           setIsRealData(true)
         } else {
+          // Si ayer también está vacío, simplemente mostramos lista vacía sin error
           setBids([])
-          setIsRealData(false)
-          setApiError(true)
+          setIsRealData(true) 
         }
       }
     } catch (error) {
+      console.error("[UI] Error al obtener licitaciones:", error)
       setBids([])
       setIsRealData(false)
       setApiError(true)
@@ -106,10 +99,10 @@ export default function BidsListPage() {
           <div className="flex items-center gap-2">
             <h2 className="text-3xl font-extrabold tracking-tight text-primary">Explorador de Licitaciones</h2>
             <Badge variant={isRealData ? "default" : "secondary"} className={isRealData ? "bg-green-500 text-white" : ""}>
-              {isRealData ? "LIVE DATA" : "SIN DATOS"}
+              {isRealData ? (bids.length > 0 ? "LIVE DATA" : "SINCRO OK") : "SIN DATOS"}
             </Badge>
           </div>
-          <p className="text-muted-foreground">Explora oportunidades reales de Mercado Público en tiempo real.</p>
+          <p className="text-muted-foreground">Oportunidades reales de Mercado Público sincronizadas en tiempo real.</p>
         </div>
         <div className="flex items-center gap-2">
           <Button 
@@ -147,9 +140,23 @@ export default function BidsListPage() {
           <CardContent className="pt-6 flex items-center gap-4">
             <AlertCircle className="h-10 w-10 text-orange-600 shrink-0" />
             <div>
-              <h4 className="font-bold text-orange-800">Servicio de Mercado Público no disponible</h4>
+              <h4 className="font-bold text-orange-800">Error de conexión</h4>
               <p className="text-sm text-orange-700 leading-relaxed">
-                No se han podido recuperar licitaciones. Esto puede deberse a que la API oficial no tiene registros para la fecha consultada o a un problema de conexión.
+                Hubo un problema al contactar con el servidor. Por favor, intenta sincronizar de nuevo en unos momentos.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {isRealData && bids.length === 0 && !isLoading && (
+        <Card className="bg-primary/5 border-primary/10">
+          <CardContent className="pt-6 flex items-center gap-4">
+            <Info className="h-10 w-10 text-primary shrink-0" />
+            <div>
+              <h4 className="font-bold text-primary">Sin licitaciones recientes</h4>
+              <p className="text-sm text-muted-foreground leading-relaxed">
+                No se encontraron licitaciones nuevas para hoy ni ayer. Esto es normal en fines de semana o días festivos en ChileCompra.
               </p>
             </div>
           </CardContent>

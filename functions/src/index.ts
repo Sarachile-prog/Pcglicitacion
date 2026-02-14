@@ -45,7 +45,7 @@ export const getBidsByDate = onRequest({
     const docSnap = await cacheRef.get();
     
     const now = Date.now();
-    const TTL_MS = 10 * 60 * 1000;
+    const TTL_MS = 10 * 60 * 1000; // 10 minutos de cache
 
     if (docSnap.exists) {
       const data = docSnap.data();
@@ -59,6 +59,7 @@ export const getBidsByDate = onRequest({
         });
         return;
       }
+      console.log(`>>> [SERVER] Cache EXPIRED para ${date}. Refrescando...`);
     }
 
     // --- INTEGRACIÓN CON API MERCADO PÚBLICO CON REINTENTOS ---
@@ -83,17 +84,19 @@ export const getBidsByDate = onRequest({
         console.log(`>>> [SERVER] Éxito en intento ${attempts}. Bids encontrados: ${bidsList.length}`);
       } else if (apiData.Codigo === 10500) {
         console.warn(`>>> [SERVER] Error 10500 (Simultaneidad). Esperando reintento...`);
-        await sleep(2000 * attempts); // Espera incremental
+        // Espera incremental: 2s, 4s, 6s...
+        await sleep(2000 * attempts);
       } else {
+        console.error(`>>> [SERVER] API Error ${apiResponse.status}:`, apiData);
         throw new Error(`API Error ${apiResponse.status}: ${JSON.stringify(apiData)}`);
       }
     }
 
     if (!apiSuccess) {
-      throw new Error("Máximo de reintentos alcanzado para la API.");
+      throw new Error("Máximo de reintentos alcanzado para la API de Mercado Público (Error 10500).");
     }
 
-    // Guardar en caché
+    // Guardar en caché incluso si está vacío (para evitar llamadas infinitas a la API hoy)
     const newExpiresAt = admin.firestore.Timestamp.fromMillis(now + TTL_MS);
     await cacheRef.set({
       data: bidsList,

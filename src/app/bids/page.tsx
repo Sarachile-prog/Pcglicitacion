@@ -6,9 +6,10 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Search, Filter, MapPin, Building2, Clock, DollarSign, LayoutGrid, List, Loader2, RefreshCw } from "lucide-react"
+import { Search, Filter, MapPin, Building2, Clock, DollarSign, LayoutGrid, List, Loader2, RefreshCw, AlertCircle } from "lucide-react"
 import Link from "next/link"
 import { getBidsByDate, MercadoPublicoBid } from "@/services/mercado-publico"
+import { useToast } from "@/hooks/use-toast"
 
 export default function BidsListPage() {
   const [searchTerm, setSearchTerm] = useState("")
@@ -17,11 +18,13 @@ export default function BidsListPage() {
   const [bids, setBids] = useState<Bid[]>(MOCK_BIDS)
   const [isLoading, setIsLoading] = useState(false)
   const [isRealData, setIsRealData] = useState(false)
+  const [apiError, setApiError] = useState(false)
+  const { toast } = useToast()
 
   const fetchLiveBids = async () => {
     setIsLoading(true)
+    setApiError(false)
     try {
-      // Formato DDMMAAAA para hoy
       const now = new Date()
       const formattedDate = `${String(now.getDate()).padStart(2, '0')}${String(now.getMonth() + 1).padStart(2, '0')}${now.getFullYear()}`
       
@@ -44,13 +47,15 @@ export default function BidsListPage() {
         setBids(mappedBids)
         setIsRealData(true)
       } else {
-        // Si no hay datos (ej: fin de semana o error de API), mantenemos los mocks
+        // Si no hay datos, probablemente la API falló (Status 500 u otro)
         setBids(MOCK_BIDS)
         setIsRealData(false)
+        setApiError(true)
       }
     } catch (error) {
       setBids(MOCK_BIDS)
       setIsRealData(false)
+      setApiError(true)
     } finally {
       setIsLoading(false)
     }
@@ -109,6 +114,21 @@ export default function BidsListPage() {
           </Button>
         </div>
       </div>
+
+      {apiError && (
+        <Card className="bg-orange-50 border-orange-200">
+          <CardContent className="pt-6 flex items-center gap-4">
+            <AlertCircle className="h-10 w-10 text-orange-600 shrink-0" />
+            <div>
+              <h4 className="font-bold text-orange-800">Servicio de Mercado Público no disponible</h4>
+              <p className="text-sm text-orange-700 leading-relaxed">
+                La API oficial de ChileCompra está experimentando problemas técnicos (Error 500). 
+                Hemos activado el <strong>Modo Demo</strong> con licitaciones de respaldo para que puedas continuar probando las herramientas de IA.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Card className="bg-muted/30 border-none shadow-none">
         <CardContent className="p-4 flex flex-col md:flex-row gap-4">

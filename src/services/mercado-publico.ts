@@ -51,11 +51,15 @@ export async function getBidsByDate(date: string = '01012024'): Promise<MercadoP
       next: { revalidate: 3600 } // Cache de 1 hora
     });
     
-    if (!response.ok) return [];
+    if (!response.ok) {
+      // Manejamos el error sin lanzar una excepción para evitar romper el flujo
+      return [];
+    }
     
     const data = await response.json();
     return data.Listado || [];
   } catch (error) {
+    // Error de red o parseo
     return [];
   }
 }
@@ -75,7 +79,6 @@ export async function getBidDetail(codigo: string): Promise<MercadoPublicoBid | 
     if (!response.ok) return null;
     
     const data = await response.json();
-    // La API devuelve un array en 'Listado', tomamos el primero.
     return data.Listado?.[0] || null;
   } catch (error) {
     return null;

@@ -16,7 +16,8 @@ import {
   BarChart3,
   Bookmark,
   Loader2,
-  TrendingUp
+  TrendingUp,
+  Mail
 } from "lucide-react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"

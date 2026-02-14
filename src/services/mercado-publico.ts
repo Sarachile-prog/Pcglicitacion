@@ -33,6 +33,7 @@ export interface MercadoPublicoBid {
   };
 }
 
+// Usamos la URL base de tu proyecto desplegado
 const BASE_URL = 'https://us-central1-studio-4126028826-31b2f.cloudfunctions.net';
 
 export async function getBidsByDate(date: string): Promise<MercadoPublicoBid[]> {
@@ -40,11 +41,12 @@ export async function getBidsByDate(date: string): Promise<MercadoPublicoBid[]> 
 
   try {
     const response = await fetch(functionUrl, { cache: 'no-store' });
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.message || `Error ${response.status}`);
-    }
     const result = await response.json();
+    
+    if (!response.ok) {
+      throw new Error(result.message || result.error || "Error de conexión con el servidor");
+    }
+    
     return result.data || [];
   } catch (error: any) {
     console.error(`[Service] Error fetching list: ${error.message}`);

@@ -10,10 +10,12 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
+import { getBidDetail } from '@/services/mercado-publico';
 
 // Input Schema
 const ExtractAndSummarizeBidDetailsInputSchema = z.object({
   bidDocumentText: z.string().describe('The full text content of the bid document.'),
+  bidId: z.string().optional().describe('The external code of the bid if available.'),
 });
 export type ExtractAndSummarizeBidDetailsInput = z.infer<typeof ExtractAndSummarizeBidDetailsInputSchema>;
 
@@ -45,25 +47,32 @@ const explainConceptTool = ai.defineTool(
     outputSchema: ExplainConceptOutputSchema,
   },
   async (input) => {
-    // In a real application, this tool would typically query an external knowledge base,
-    // a specialized glossary API, or an internal database of definitions.
-    // For this example, we simulate an explanation using the LLM itself,
-    // demonstrating how a tool's output would be structured.
-    // In a production scenario, you might replace this with a more efficient lookup.
-
     const explanationPrompt = `Explain the following term clearly and concisely: "${input.term}".
     ${input.context ? `Consider this context from the bid document: "${input.context}".` : ''}
     Focus on relevance to bid documents and general business/legal contexts.`;
 
     const { output } = await ai.generate({
       prompt: explanationPrompt,
-      model: 'googleai/gemini-2.5-flash', // Using the default Genkit model for consistency.
-      temperature: 0.2, // Keep explanations concise and factual
+      model: 'googleai/gemini-2.5-flash',
+      temperature: 0.2,
     });
 
     return {
       explanation: output?.text || `Could not find an explanation for "${input.term}".`,
     };
+  }
+);
+
+// Define the 'fetchRealBidData' tool
+const fetchRealBidDataTool = ai.defineTool(
+  {
+    name: 'fetchRealBidData',
+    description: 'Fetches real-time data from Mercado Público API using a bid external code.',
+    inputSchema: z.object({ bidId: z.string() }),
+    outputSchema: z.any(),
+  },
+  async (input) => {
+    return await getBidDetail(input.bidId);
   }
 );
 
@@ -73,16 +82,18 @@ const extractAndSummarizeBidDetailsPrompt = ai.definePrompt({
   name: 'extractAndSummarizeBidDetailsPrompt',
   input: { schema: ExtractAndSummarizeBidDetailsInputSchema },
   output: { schema: ExtractAndSummarizeBidDetailsOutputSchema },
-  tools: [explainConceptTool], // Make the explainConcept tool available to the LLM
-  prompt: `You are an expert bid analyst. Your task is to extract and summarize key details from the provided bid document.
+  tools: [explainConceptTool, fetchRealBidDataTool],
+  prompt: `You are an expert bid analyst in Chile. Your task is to extract and summarize key details from the provided bid document.
   Pay close attention to submission deadlines, monetary amounts (including currency), and specific requirements.
 
+  If a 'bidId' is provided, use the 'fetchRealBidData' tool to cross-reference information with the official API.
   If you encounter any complex, specialized, or ambiguous terms, use the 'explainConcept' tool to clarify them.
   Integrate any explanations from the tool into your 'reasoning' field to enhance the user's comprehension.
-  Your 'reasoning' should explain your thought process for extraction and highlight the importance of the extracted details.
 
-  Bid Document:
-  {{{bidDocumentText}}}`,
+  Bid Document Content:
+  {{{bidDocumentText}}}
+  
+  Bid ID (if any): {{{bidId}}}`,
 });
 
 // Define the flow

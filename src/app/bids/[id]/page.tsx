@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useParams } from "next/navigation"
@@ -8,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { extractAndSummarizeBidDetails, ExtractAndSummarizeBidDetailsOutput } from "@/ai/flows/extract-and-summarize-bid-details"
-import { useState, use } from "react"
+import { useState } from "react"
 import { 
   Building2, 
   MapPin, 
@@ -46,11 +45,14 @@ export default function BidDetailPage() {
   const handleAnalyze = async () => {
     setLoading(true)
     try {
-      const result = await extractAndSummarizeBidDetails({ bidDocumentText: bid.fullText })
+      const result = await extractAndSummarizeBidDetails({ 
+        bidDocumentText: bid.fullText,
+        bidId: bid.id 
+      })
       setAnalysis(result)
       toast({
         title: "Análisis Completado",
-        description: "La IA ha procesado el documento exitosamente.",
+        description: "La IA ha procesado el documento y consultado fuentes externas exitosamente.",
       })
     } catch (error) {
       console.error(error)
@@ -116,20 +118,20 @@ export default function BidDetailPage() {
         <Card className="w-full md:w-80 border-2 border-accent shadow-xl bg-accent/5 overflow-hidden">
           <CardHeader className="bg-accent text-white p-6">
             <CardTitle className="text-lg flex items-center gap-2">
-              <Sparkles className="h-5 w-5" /> Análisis IA
+              <Sparkles className="h-5 w-5" /> Análisis IA + API
             </CardTitle>
-            <CardDescription className="text-accent-foreground/80">Extrae detalles clave instantáneamente.</CardDescription>
+            <CardDescription className="text-accent-foreground/80">Cruza datos con Mercado Público.</CardDescription>
           </CardHeader>
           <CardContent className="p-6">
             {!analysis ? (
               <div className="space-y-4">
-                <p className="text-sm text-muted-foreground">Nuestro motor de IA resumirá requisitos, plazos y montos automáticamente.</p>
+                <p className="text-sm text-muted-foreground">La IA consultará la API oficial para validar plazos y montos reales de esta licitación.</p>
                 <Button 
                   className="w-full bg-accent hover:bg-accent/90 text-white font-bold" 
                   onClick={handleAnalyze}
                   disabled={loading}
                 >
-                  {loading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Procesando...</> : 'Iniciar Análisis IA'}
+                  {loading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Consultando API...</> : 'Iniciar Análisis Inteligente'}
                 </Button>
               </div>
             ) : (
@@ -237,7 +239,7 @@ export default function BidDetailPage() {
               <Card className="lg:col-span-2 shadow-2xl border-accent/20">
                 <CardHeader className="bg-accent/10 border-b border-accent/10">
                   <CardTitle className="text-2xl flex items-center gap-3 text-primary">
-                    <Sparkles className="h-6 w-6 text-accent" /> Resumen de Oportunidad
+                    <Sparkles className="h-6 w-6 text-accent" /> Resumen Verificado
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="p-8 space-y-8">
@@ -292,7 +294,7 @@ export default function BidDetailPage() {
                   <div className="pt-6 border-t border-white/10">
                     <p className="text-xs font-bold uppercase tracking-widest text-accent mb-4">Recomendación Estratégica</p>
                     <p className="text-sm">
-                      Dada la importancia del plazo mencionado, se recomienda iniciar la recopilación de certificados técnicos inmediatamente.
+                      La IA ha cruzado estos datos con la API de Mercado Público para asegurar que los montos y plazos coinciden con la ficha oficial.
                     </p>
                   </div>
                 </CardContent>

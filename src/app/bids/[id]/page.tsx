@@ -39,7 +39,7 @@ export default function BidDetailPage() {
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [analysis, setAnalysis] = useState<PostulationAdvisorOutput | null>(null)
 
-  // CARGA LOCAL FIRST: Obtenemos lo que ya tenemos en nuestra base de datos
+  // CARGA LOCAL FIRST: Obtenemos los datos desde nuestra base de datos Firestore
   const bidRef = useMemoFirebase(() => {
     if (!db || !bidId) return null
     return doc(db, "bids", bidId)
@@ -47,12 +47,12 @@ export default function BidDetailPage() {
 
   const { data: bid, isLoading: isDocLoading } = useDoc(bidRef)
 
-  // Intentar refrescar datos en segundo plano al entrar
+  // Intentar refrescar datos detallados (ítems, descripción larga) en segundo plano
   useEffect(() => {
-    if (bidId && !isDocLoading) {
+    if (bidId && !isDocLoading && bid && !bid.fullDetailAt) {
       handleRefreshData(false)
     }
-  }, [bidId, isDocLoading])
+  }, [bidId, isDocLoading, bid])
 
   const handleRefreshData = async (showToast = true) => {
     setIsRefreshing(true)
@@ -61,7 +61,7 @@ export default function BidDetailPage() {
       if (liveData && showToast) {
         toast({
           title: "Datos Actualizados",
-          description: "Se han obtenido los últimos detalles de ChileCompra.",
+          description: "Se han sincronizado los detalles extendidos desde ChileCompra.",
         })
       }
     } catch (error) {
@@ -69,7 +69,7 @@ export default function BidDetailPage() {
         toast({
           variant: "destructive",
           title: "Error de Sincronización",
-          description: "No se pudo conectar con la API oficial, mostrando datos locales.",
+          description: "No se pudo conectar con la API oficial.",
         })
       }
     } finally {
@@ -106,7 +106,7 @@ export default function BidDetailPage() {
     return (
       <div className="flex flex-col items-center justify-center py-20 space-y-4">
         <Loader2 className="h-12 w-12 text-primary animate-spin" />
-        <p className="text-muted-foreground">Consultando base de datos local...</p>
+        <p className="text-muted-foreground">Cargando licitación...</p>
       </div>
     )
   }
@@ -123,6 +123,10 @@ export default function BidDetailPage() {
       </div>
     )
   }
+
+  const formattedAmount = bid.amount > 0 
+    ? new Intl.NumberFormat('es-CL', { style: 'currency', currency: bid.currency || 'CLP' }).format(bid.amount) 
+    : 'Por Definir';
 
   return (
     <div className="space-y-8 max-w-6xl mx-auto animate-in fade-in duration-500">
@@ -157,9 +161,9 @@ export default function BidDetailPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="flex items-center gap-3 bg-white p-3 rounded-lg shadow-sm border border-border">
               <Building2 className="h-5 w-5 text-accent" />
-              <div>
+              <div className="min-w-0">
                 <p className="text-[10px] uppercase font-bold text-muted-foreground/60">Institución</p>
-                <p className="text-sm font-semibold text-foreground">{bid.entity || "No especificada"}</p>
+                <p className="text-sm font-semibold text-foreground truncate">{bid.entity || "No especificada"}</p>
               </div>
             </div>
             <div className="flex items-center gap-3 bg-white p-3 rounded-lg shadow-sm border border-border">
@@ -208,7 +212,7 @@ export default function BidDetailPage() {
       </div>
 
       <Tabs defaultValue="description" className="space-y-6">
-        <TabsList className="bg-muted p-1 gap-1 h-12">
+        <TabsList className="bg-muted p-1 gap-1 h-12 overflow-x-auto">
           <TabsTrigger value="description" className="px-6">Detalle Público</TabsTrigger>
           <TabsTrigger value="items" className="px-6">Ítems Solicitados</TabsTrigger>
           {analysis && (
@@ -225,11 +229,11 @@ export default function BidDetailPage() {
                 <div className="md:col-span-2 space-y-6">
                   <h3 className="text-2xl font-bold text-primary">Descripción del Proceso</h3>
                   <div className="text-lg text-foreground leading-relaxed whitespace-pre-wrap">
-                    {bid.description || "Estamos obteniendo la descripción extendida desde la API oficial. Por favor, pulsa 'Refrescar desde API' si no aparece en unos segundos."}
+                    {bid.description || "La descripción extendida se cargará automáticamente al finalizar la sincronización en segundo plano."}
                   </div>
                   <div className="pt-4 flex gap-4">
                     <Button asChild variant="outline" className="gap-2">
-                      <a href={bid.sourceUrl} target="_blank">
+                      <a href={bid.sourceUrl} target="_blank" rel="noopener noreferrer">
                         Ver Ficha en Mercado Público <ExternalLink className="h-4 w-4" />
                       </a>
                     </Button>
@@ -243,7 +247,7 @@ export default function BidDetailPage() {
                     <div>
                       <p className="text-[10px] text-muted-foreground uppercase font-bold">Monto Estimado</p>
                       <p className="text-2xl font-black text-primary">
-                        {bid.amount > 0 ? new Intl.NumberFormat('es-CL', { style: 'currency', currency: bid.currency || 'CLP' }).format(bid.amount) : 'Por Definir'}
+                        {formattedAmount}
                       </p>
                     </div>
                     <div>

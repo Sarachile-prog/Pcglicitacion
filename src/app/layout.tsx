@@ -27,8 +27,8 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
                 <Globe className="h-6 w-6 text-sidebar-primary-foreground" />
               </div>
               <div className="flex flex-col group-data-[collapsible=icon]:hidden">
-                <span className="font-bold text-lg tracking-tight text-sidebar-foreground">Licitaciones</span>
-                <span className="text-xs font-medium text-sidebar-foreground/70 uppercase tracking-widest">Globales</span>
+                <span className="font-bold text-lg tracking-tight text-sidebar-foreground">PCG</span>
+                <span className="text-xs font-medium text-sidebar-foreground/70 uppercase tracking-widest">LICITACIÓN</span>
               </div>
             </Link>
           </SidebarHeader>

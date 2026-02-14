@@ -28,7 +28,7 @@ export default function LoginPage() {
             <Globe className="h-10 w-10 text-white" />
           </div>
           <div className="space-y-1">
-            <CardTitle className="text-3xl font-black tracking-tight text-primary">Licitaciones Globales</CardTitle>
+            <CardTitle className="text-3xl font-black tracking-tight text-primary">PCGLICITACIÓN</CardTitle>
             <CardDescription className="text-muted-foreground font-medium">Plataforma Inteligente de Inteligencia de Mercado</CardDescription>
           </div>
         </CardHeader>

@@ -165,7 +165,7 @@
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "ContactEmail",
       "type": "object",
-      "description": "Stores individual email addresses associated with companies, primarily for sending invitations to use the Licitaciones Globales app.",
+      "description": "Stores individual email addresses associated with companies, primarily for sending invitations to use the PCGLICITACIÓN app.",
       "properties": {
         "id": {
           "type": "string",
@@ -190,7 +190,7 @@
         },
         "isInvitationSent": {
           "type": "boolean",
-          "description": "A flag indicating whether an invitation email to use the Licitaciones Globales app has been sent to this address."
+          "description": "A flag indicating whether an invitation email to use the PCGLICITACIÓN app has been sent to this address."
         },
         "invitationSentDate": {
           "type": "string",

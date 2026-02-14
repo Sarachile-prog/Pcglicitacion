@@ -1,4 +1,3 @@
-
 'use server';
 /**
  * @fileOverview Servicio para interactuar con la API de Mercado Público a través de Cloud Run / Gen 2 Functions.
@@ -24,17 +23,16 @@ export interface MercadoPublicoBid {
   Descripcion?: string;
   MontoEstimado?: number;
   Moneda?: string;
-  Organismo: {
-    CodigoOrganismo: string;
-    NombreOrganismo: string;
-    RutUnidad: string;
+  Organismo?: {
+    CodigoOrganismo?: string;
+    NombreOrganismo?: string;
+    RutUnidad?: string;
   };
   Items?: {
     Listado: MercadoPublicoItem[];
   };
 }
 
-// URLs directas de Cloud Run para Gen 2 Functions (obtenidas del log de despliegue del usuario)
 const BASE_URL = 'https://us-central1-studio-4126028826-31b2f.cloudfunctions.net';
 
 /**

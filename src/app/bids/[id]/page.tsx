@@ -51,7 +51,6 @@ export default function BidDetailPage() {
     if (!liveBid) return
     setLoadingAI(true)
     try {
-      // Usamos la descripción y el nombre como texto base si no hay documentos extraídos aún
       const fullText = `Título: ${liveBid.Nombre}. Descripción: ${liveBid.Descripcion || liveBid.Nombre}. Estado: ${liveBid.Estado}.`
       const result = await extractAndSummarizeBidDetails({ 
         bidDocumentText: fullText,
@@ -118,7 +117,7 @@ export default function BidDetailPage() {
               <Building2 className="h-5 w-5 text-accent" />
               <div>
                 <p className="text-[10px] uppercase font-bold text-muted-foreground/60">Institución</p>
-                <p className="text-sm font-semibold text-foreground">{liveBid.Organismo.NombreOrganismo}</p>
+                <p className="text-sm font-semibold text-foreground">{liveBid.Organismo?.NombreOrganismo || "Institución no especificada"}</p>
               </div>
             </div>
             <div className="flex items-center gap-3 bg-white p-3 rounded-lg shadow-sm border border-border">

@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useParams } from "next/navigation"
@@ -11,50 +12,79 @@ import {
   Building2, 
   Clock, 
   DollarSign, 
-  FileText, 
   Sparkles, 
   Loader2, 
   AlertTriangle,
   ChevronLeft,
   Calendar,
-  ClipboardList,
   Target,
-  FileSpreadsheet,
-  Info,
-  ExternalLink
+  ExternalLink,
+  RefreshCw,
+  Info
 } from "lucide-react"
 import Link from "next/link"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
-import { getBidDetail, MercadoPublicoBid } from "@/services/mercado-publico"
+import { getBidDetail } from "@/services/mercado-publico"
+import { useDoc, useFirestore, useMemoFirebase } from "@/firebase"
+import { doc } from "firebase/firestore"
 
 export default function BidDetailPage() {
   const params = useParams()
   const bidId = params.id as string
-  const [liveBid, setLiveBid] = useState<MercadoPublicoBid | null>(null)
-  const [loadingBid, setLoadingBid] = useState(true)
-  const [loadingAI, setLoadingAI] = useState(false)
-  const [analysis, setAnalysis] = useState<PostulationAdvisorOutput | null>(null)
+  const db = useFirestore()
   const { toast } = useToast()
+  
+  const [loadingAI, setLoadingAI] = useState(false)
+  const [isRefreshing, setIsRefreshing] = useState(false)
+  const [analysis, setAnalysis] = useState<PostulationAdvisorOutput | null>(null)
 
+  // CARGA LOCAL FIRST: Obtenemos lo que ya tenemos en nuestra base de datos
+  const bidRef = useMemoFirebase(() => {
+    if (!db || !bidId) return null
+    return doc(db, "bids", bidId)
+  }, [db, bidId])
+
+  const { data: bid, isLoading: isDocLoading } = useDoc(bidRef)
+
+  // Intentar refrescar datos en segundo plano al entrar
   useEffect(() => {
-    async function loadDetail() {
-      setLoadingBid(true)
-      const data = await getBidDetail(bidId)
-      setLiveBid(data)
-      setLoadingBid(false)
+    if (bidId && !isDocLoading) {
+      handleRefreshData(false)
     }
-    loadDetail()
-  }, [bidId])
+  }, [bidId, isDocLoading])
+
+  const handleRefreshData = async (showToast = true) => {
+    setIsRefreshing(true)
+    try {
+      const liveData = await getBidDetail(bidId)
+      if (liveData && showToast) {
+        toast({
+          title: "Datos Actualizados",
+          description: "Se han obtenido los últimos detalles de ChileCompra.",
+        })
+      }
+    } catch (error) {
+      if (showToast) {
+        toast({
+          variant: "destructive",
+          title: "Error de Sincronización",
+          description: "No se pudo conectar con la API oficial, mostrando datos locales.",
+        })
+      }
+    } finally {
+      setIsRefreshing(false)
+    }
+  }
 
   const handleAnalyze = async () => {
-    if (!liveBid) return
+    if (!bid) return
     setLoadingAI(true)
     try {
-      const fullText = `Título: ${liveBid.Nombre}. Descripción: ${liveBid.Descripcion || liveBid.Nombre}. Estado: ${liveBid.Estado}.`
+      const fullText = `Título: ${bid.title}. Descripción: ${bid.description || bid.title}. Estado: ${bid.status}. Entidad: ${bid.entity}.`
       const result = await extractAndSummarizeBidDetails({ 
         bidDocumentText: fullText,
-        bidId: liveBid.CodigoExterno 
+        bidId: bid.id 
       })
       setAnalysis(result)
       toast({
@@ -72,21 +102,21 @@ export default function BidDetailPage() {
     }
   }
 
-  if (loadingBid) {
+  if (isDocLoading) {
     return (
       <div className="flex flex-col items-center justify-center py-20 space-y-4">
         <Loader2 className="h-12 w-12 text-primary animate-spin" />
-        <p className="text-muted-foreground">Obteniendo detalles oficiales desde ChileCompra...</p>
+        <p className="text-muted-foreground">Consultando base de datos local...</p>
       </div>
     )
   }
 
-  if (!liveBid) {
+  if (!bid) {
     return (
-      <div className="text-center py-20 space-y-4">
+      <div className="text-center py-20 space-y-4 animate-in fade-in">
         <AlertTriangle className="h-12 w-12 text-orange-500 mx-auto" />
         <h2 className="text-2xl font-bold">Licitación no encontrada</h2>
-        <p className="text-muted-foreground">El ID {bidId} no existe o no es público en este momento.</p>
+        <p className="text-muted-foreground">El ID {bidId} no existe en nuestra base de datos.</p>
         <Link href="/bids">
           <Button variant="outline">Volver al explorador</Button>
         </Link>
@@ -95,36 +125,50 @@ export default function BidDetailPage() {
   }
 
   return (
-    <div className="space-y-8 max-w-6xl mx-auto">
-      <Link href="/bids">
-        <Button variant="ghost" size="sm" className="mb-4 text-muted-foreground hover:text-primary">
-          <ChevronLeft className="h-4 w-4 mr-1" /> Volver al explorador
+    <div className="space-y-8 max-w-6xl mx-auto animate-in fade-in duration-500">
+      <div className="flex justify-between items-center">
+        <Link href="/bids">
+          <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-primary">
+            <ChevronLeft className="h-4 w-4 mr-1" /> Volver al explorador
+          </Button>
+        </Link>
+        <Button 
+          variant="outline" 
+          size="sm" 
+          onClick={() => handleRefreshData(true)}
+          disabled={isRefreshing}
+          className="gap-2 border-primary/20 text-primary"
+        >
+          <RefreshCw className={cn("h-4 w-4", isRefreshing && "animate-spin")} />
+          {isRefreshing ? "Actualizando..." : "Refrescar desde API"}
         </Button>
-      </Link>
+      </div>
 
       <div className="flex flex-col md:flex-row justify-between items-start gap-6">
         <div className="space-y-4 flex-1">
           <div className="flex items-center gap-2">
-            <Badge variant="outline" className="text-primary border-primary/20">ID: {liveBid.CodigoExterno}</Badge>
+            <Badge variant="outline" className="text-primary border-primary/20">ID: {bid.id}</Badge>
             <Badge className={cn(
                "text-white",
-               liveBid.Estado === 'Publicada' ? 'bg-green-500' : 'bg-blue-500'
-            )}>{liveBid.Estado}</Badge>
+               bid.status === 'Publicada' ? 'bg-emerald-500' : 'bg-blue-600'
+            )}>{bid.status}</Badge>
           </div>
-          <h1 className="text-4xl font-black tracking-tight text-primary leading-tight">{liveBid.Nombre}</h1>
+          <h1 className="text-4xl font-black tracking-tight text-primary leading-tight">{bid.title}</h1>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="flex items-center gap-3 bg-white p-3 rounded-lg shadow-sm border border-border">
               <Building2 className="h-5 w-5 text-accent" />
               <div>
                 <p className="text-[10px] uppercase font-bold text-muted-foreground/60">Institución</p>
-                <p className="text-sm font-semibold text-foreground">{liveBid.Organismo?.NombreOrganismo || "Institución no especificada"}</p>
+                <p className="text-sm font-semibold text-foreground">{bid.entity || "No especificada"}</p>
               </div>
             </div>
             <div className="flex items-center gap-3 bg-white p-3 rounded-lg shadow-sm border border-border">
               <Clock className="h-5 w-5 text-accent" />
               <div>
                 <p className="text-[10px] uppercase font-bold text-muted-foreground/60">Cierre Oficial</p>
-                <p className="text-sm font-semibold text-foreground">{liveBid.FechaCierre ? new Date(liveBid.FechaCierre).toLocaleDateString() : 'No definido'}</p>
+                <p className="text-sm font-semibold text-foreground">
+                  {bid.deadlineDate ? new Date(bid.deadlineDate).toLocaleDateString() : 'No definido'}
+                </p>
               </div>
             </div>
           </div>
@@ -143,7 +187,7 @@ export default function BidDetailPage() {
                 <Button 
                   className="w-full bg-accent hover:bg-accent/90 text-white font-bold h-12" 
                   onClick={handleAnalyze}
-                  disabled={loadingAI}
+                  disabled={loadingAI || isRefreshing}
                 >
                   {loadingAI ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Analizando...</> : 'Activar Asesor IA'}
                 </Button>
@@ -168,11 +212,9 @@ export default function BidDetailPage() {
           <TabsTrigger value="description" className="px-6">Detalle Público</TabsTrigger>
           <TabsTrigger value="items" className="px-6">Ítems Solicitados</TabsTrigger>
           {analysis && (
-            <>
-              <TabsTrigger value="ai-advisor" className="px-6 data-[state=active]:bg-primary data-[state=active]:text-white">
-                <Target className="h-4 w-4 mr-2" /> Estrategia
-              </TabsTrigger>
-            </>
+            <TabsTrigger value="ai-advisor" className="px-6 data-[state=active]:bg-primary data-[state=active]:text-white">
+              <Target className="h-4 w-4 mr-2" /> Estrategia
+            </TabsTrigger>
           )}
         </TabsList>
 
@@ -182,31 +224,31 @@ export default function BidDetailPage() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                 <div className="md:col-span-2 space-y-6">
                   <h3 className="text-2xl font-bold text-primary">Descripción del Proceso</h3>
-                  <p className="text-lg text-foreground leading-relaxed">
-                    {liveBid.Descripcion || "Sin descripción detallada disponible en el resumen público."}
-                  </p>
-                  <div className="pt-4">
+                  <div className="text-lg text-foreground leading-relaxed whitespace-pre-wrap">
+                    {bid.description || "Estamos obteniendo la descripción extendida desde la API oficial. Por favor, pulsa 'Refrescar desde API' si no aparece en unos segundos."}
+                  </div>
+                  <div className="pt-4 flex gap-4">
                     <Button asChild variant="outline" className="gap-2">
-                      <a href={`https://www.mercadopublico.cl/Procurement/Modules/RFB/DetailsAcquisition.aspx?idLicitacion=${liveBid.CodigoExterno}`} target="_blank">
+                      <a href={bid.sourceUrl} target="_blank">
                         Ver Ficha en Mercado Público <ExternalLink className="h-4 w-4" />
                       </a>
                     </Button>
                   </div>
                 </div>
-                <div className="bg-muted/30 p-6 rounded-2xl border border-border">
+                <div className="bg-muted/30 p-6 rounded-2xl border border-border h-fit">
                   <h4 className="font-bold text-primary mb-4 flex items-center gap-2">
                     <DollarSign className="h-5 w-5 text-accent" /> Aspectos Económicos
                   </h4>
                   <div className="space-y-4">
                     <div>
-                      <p className="text-xs text-muted-foreground uppercase font-bold">Monto Estimado</p>
+                      <p className="text-[10px] text-muted-foreground uppercase font-bold">Monto Estimado</p>
                       <p className="text-2xl font-black text-primary">
-                        {liveBid.MontoEstimado ? new Intl.NumberFormat('es-CL', { style: 'currency', currency: liveBid.Moneda || 'CLP' }).format(liveBid.MontoEstimado) : 'Monto no definido'}
+                        {bid.amount > 0 ? new Intl.NumberFormat('es-CL', { style: 'currency', currency: bid.currency || 'CLP' }).format(bid.amount) : 'Por Definir'}
                       </p>
                     </div>
                     <div>
-                      <p className="text-xs text-muted-foreground uppercase font-bold">Moneda</p>
-                      <p className="text-sm font-semibold">{liveBid.Moneda || 'CLP'}</p>
+                      <p className="text-[10px] text-muted-foreground uppercase font-bold">Moneda</p>
+                      <p className="text-sm font-semibold">{bid.currency || 'CLP'}</p>
                     </div>
                   </div>
                 </div>
@@ -222,9 +264,9 @@ export default function BidDetailPage() {
               <CardDescription>Ítems específicos que la institución requiere adquirir.</CardDescription>
             </CardHeader>
             <CardContent>
-              {liveBid.Items?.Listado && liveBid.Items.Listado.length > 0 ? (
+              {bid.items && bid.items.length > 0 ? (
                 <div className="grid gap-4">
-                  {liveBid.Items.Listado.map((item, i) => (
+                  {bid.items.map((item: any, i: number) => (
                     <div key={i} className="p-4 bg-muted/20 rounded-xl border flex justify-between items-center">
                       <div className="space-y-1">
                         <p className="font-bold text-primary">{item.NombreProducto}</p>
@@ -238,8 +280,11 @@ export default function BidDetailPage() {
                   ))}
                 </div>
               ) : (
-                <div className="text-center py-10 text-muted-foreground italic">
-                  No hay ítems detallados disponibles en esta vista rápida.
+                <div className="text-center py-10 space-y-4">
+                   <div className="h-12 w-12 bg-muted rounded-full flex items-center justify-center mx-auto">
+                    <Info className="h-6 w-6 text-muted-foreground" />
+                   </div>
+                  <p className="text-muted-foreground italic">No hay ítems detallados guardados. Pulsa 'Refrescar desde API' para intentar obtenerlos.</p>
                 </div>
               )}
             </CardContent>

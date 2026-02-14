@@ -48,7 +48,6 @@ exports.getBidsByDate = (0, https_1.onRequest)({
     const date = request.query.date;
     console.log(`>>> [SERVER] Solicitud recibida para fecha: ${date}`);
     if (!date) {
-        console.error(">>> [SERVER] Error: Falta parámetro date");
         response.status(400).json({ error: "Missing date parameter" });
         return;
     }
@@ -69,35 +68,34 @@ exports.getBidsByDate = (0, https_1.onRequest)({
                 });
                 return;
             }
-            console.log(`>>> [SERVER] Cache EXPIRED para ${date}. Refrescando...`);
         }
         const TICKET = process.env.MERCADO_PUBLICO_TICKET || 'F80640D6-AB32-4757-827D-02589D211564';
         const apiUrl = `https://api.mercadopublico.cl/servicios/v1/publico/licitaciones.json?fecha=${date}&ticket=${TICKET}`;
         let bidsList = [];
         let apiSuccess = false;
         let attempts = 0;
-        const maxAttempts = 3;
+        const maxAttempts = 5;
         while (attempts < maxAttempts && !apiSuccess) {
             attempts++;
             console.log(`>>> [SERVER] Intento ${attempts} para fecha ${date}...`);
             const apiResponse = await fetch(apiUrl);
             const apiData = (await apiResponse.json());
-            if (apiResponse.ok) {
-                bidsList = apiData.Listado || [];
+            if (apiResponse.ok && apiData.Listado) {
+                bidsList = apiData.Listado;
                 apiSuccess = true;
-                console.log(`>>> [SERVER] Éxito en intento ${attempts}. Bids encontrados: ${bidsList.length}`);
+                console.log(`>>> [SERVER] Éxito. Bids encontrados: ${bidsList.length}`);
             }
             else if (apiData.Codigo === 10500) {
-                console.warn(`>>> [SERVER] Error 10500 (Simultaneidad). Esperando reintento...`);
-                await sleep(2000 * attempts);
+                console.warn(`>>> [SERVER] Error 10500 (Simultaneidad). Intento ${attempts}.`);
+                await sleep(3000 * attempts + Math.random() * 2000);
             }
             else {
                 console.error(`>>> [SERVER] API Error ${apiResponse.status}:`, apiData);
-                throw new Error(`API Error ${apiResponse.status}: ${JSON.stringify(apiData)}`);
+                throw new Error(apiData.Mensaje || `Error ${apiResponse.status}`);
             }
         }
         if (!apiSuccess) {
-            throw new Error("Máximo de reintentos alcanzado para la API de Mercado Público (Error 10500).");
+            throw new Error("La API de Mercado Público está saturada (Error 10500).");
         }
         const newExpiresAt = admin.firestore.Timestamp.fromMillis(now + TTL_MS);
         await cacheRef.set({
@@ -105,7 +103,6 @@ exports.getBidsByDate = (0, https_1.onRequest)({
             expiresAt: newExpiresAt,
             updatedAt: admin.firestore.FieldValue.serverTimestamp()
         });
-        console.log(`>>> [SERVER] Firestore actualizado para ${date}.`);
         response.json({
             fromCache: false,
             refreshed: true,
@@ -113,7 +110,7 @@ exports.getBidsByDate = (0, https_1.onRequest)({
         });
     }
     catch (error) {
-        console.error(">>> [SERVER] ERROR FATAL:", error);
+        console.error(">>> [SERVER] ERROR:", error.message);
         response.status(500).json({
             error: "Internal Server Error",
             message: error.message

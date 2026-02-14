@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState } from "react"
@@ -22,13 +21,12 @@ import { useToast } from "@/hooks/use-toast"
 
 export default function SettingsPage() {
   const { toast } = useToast()
-  const [apiKey, setApiKey] = useState("F8069D13-DEC1-4AD3-BB3D-88229F6F505D") // Ticket por defecto
-  const [isLive, setIsLive] = useState(false)
+  const [apiKey, setApiKey] = useState("CE1F854E-2ED7-42B9-837B-066A77AED4EB") // Ticket actualizado
+  const [isLive, setIsLive] = useState(true) // Activado por defecto con el nuevo ticket
   const [isLoading, setIsLoading] = useState(false)
 
   const handleSave = () => {
     setIsLoading(true)
-    // Simulamos guardado. En una app real esto iría a Firestore o a un servicio de configuración.
     setTimeout(() => {
       setIsLoading(false)
       toast({
@@ -54,7 +52,6 @@ export default function SettingsPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-6">
-          {/* Mercado Público API Config */}
           <Card className="border-2 border-primary/10 shadow-sm">
             <CardHeader className="bg-primary/5 border-b">
               <div className="flex items-center justify-between">
@@ -105,7 +102,6 @@ export default function SettingsPage() {
             </CardContent>
           </Card>
 
-          {/* Infrastructure status */}
           <Card>
             <CardHeader>
               <CardTitle className="text-lg flex items-center gap-2">
@@ -149,7 +145,7 @@ export default function SettingsPage() {
                 El Ticket de API es personal e intransferible. La plataforma de Mercado Público impone límites de cuota (Rate Limits) según el tipo de ticket.
               </p>
               <p className="text-sm text-accent-foreground/90 leading-relaxed">
-                Se recomienda habilitar el <strong>"Caché de Datos"</strong> para evitar el agotamiento de la cuota durante el análisis de bases administrativas extensas.
+                Se ha configurado tu ticket oficial para que la plataforma opere con datos vivos de ChileCompra.
               </p>
               <Button variant="secondary" className="w-full font-bold text-accent">
                 Solicitar Soporte Técnico

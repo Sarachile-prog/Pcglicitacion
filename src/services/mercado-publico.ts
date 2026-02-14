@@ -35,9 +35,9 @@ export interface MercadoPublicoBid {
 
 const API_BASE_URL = 'https://api.mercadopublico.cl/servicios/v1/publico/licitaciones.json';
 
-// Se prioriza la variable de entorno para producción, usando un ticket de prueba como fallback.
+// Se prioriza la variable de entorno para producción, usando el ticket proporcionado como fallback.
 const getTicket = () => {
-  return process.env.NEXT_PUBLIC_MERCADO_PUBLICO_TICKET || 'F8069D13-DEC1-4AD3-BB3D-88229F6F505D';
+  return process.env.NEXT_PUBLIC_MERCADO_PUBLICO_TICKET || 'CE1F854E-2ED7-42B9-837B-066A77AED4EB';
 };
 
 /**
@@ -52,14 +52,12 @@ export async function getBidsByDate(date: string = '01012024'): Promise<MercadoP
     });
     
     if (!response.ok) {
-      // Manejamos el error sin lanzar una excepción para evitar romper el flujo
       return [];
     }
     
     const data = await response.json();
     return data.Listado || [];
   } catch (error) {
-    // Error de red o parseo
     return [];
   }
 }

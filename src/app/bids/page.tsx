@@ -35,6 +35,7 @@ export default function BidsListPage() {
   const [searchTerm, setSearchTerm] = useState("")
   const [isSyncing, setIsSyncing] = useState(false)
   const [ticketError, setTicketError] = useState(false)
+  const [isCalendarOpen, setIsCalendarOpen] = useState(false)
   const [selectedDate, setSelectedDate] = useState<Date>(() => {
     const today = new Date();
     const day = today.getDay();
@@ -108,7 +109,7 @@ export default function BidsListPage() {
           <p className="text-muted-foreground">Explora licitaciones sincronizadas. Elige una fecha hábil para importar.</p>
         </div>
         <div className="flex items-center gap-2">
-          <Popover>
+          <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
             <PopoverTrigger asChild>
               <Button variant="outline" className={cn("justify-start text-left font-normal w-[240px] border-primary/20", !selectedDate && "text-muted-foreground")}>
                 <CalendarIcon className="mr-2 h-4 w-4 text-primary" />
@@ -119,7 +120,12 @@ export default function BidsListPage() {
               <Calendar
                 mode="single"
                 selected={selectedDate}
-                onSelect={(date) => date && setSelectedDate(date)}
+                onSelect={(date) => {
+                  if (date) {
+                    setSelectedDate(date);
+                    setIsCalendarOpen(false);
+                  }
+                }}
                 initialFocus
                 disabled={(date) => date > new Date()}
               />

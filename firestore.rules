@@ -30,10 +30,10 @@ service cloud.firestore {
      * @description Cache for Mercado Público API responses.
      * @path /mp_cache/{cacheId}
      * @principle Technical cache for rate limiting. 
-     * In production, this should ideally be restricted to service accounts.
+     * Restricted to authenticated users to prevent public abuse.
      */
     match /mp_cache/{cacheId} {
-      allow read, write: if true; 
+      allow read, write: if isSignedIn();
     }
 
     match /bids/{bidId} {

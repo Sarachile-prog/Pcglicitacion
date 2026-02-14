@@ -5,6 +5,7 @@ import { useMemo } from "react"
 import { useCollection, useMemoFirebase, useFirestore } from "@/firebase"
 import { collection, query, orderBy, limit } from "firebase/firestore"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
 import { 
   BarChart, 
   Bar, 
@@ -19,7 +20,8 @@ import {
   LineChart,
   Line
 } from "recharts"
-import { TrendingUp, PieChart as PieChartIcon, BarChart3, ArrowUpRight, Loader2, Info } from "lucide-react"
+import { TrendingUp, PieChart as PieChartIcon, BarChart3, ArrowUpRight, Loader2, Info, ChevronLeft } from "lucide-react"
+import Link from "next/link"
 
 export default function TrendsPage() {
   const db = useFirestore()
@@ -69,9 +71,17 @@ export default function TrendsPage() {
 
   return (
     <div className="space-y-8 animate-in fade-in duration-700">
-      <div className="flex flex-col gap-2">
-        <h2 className="text-3xl font-extrabold tracking-tight text-primary">Análisis y Tendencias</h2>
-        <p className="text-muted-foreground">Visualización de datos estratégicos basados en tus sincronizaciones.</p>
+      <div className="flex flex-col gap-4">
+        <Link href="/dashboard">
+          <Button variant="ghost" size="sm" className="w-fit text-muted-foreground hover:text-primary -ml-2">
+            <ChevronLeft className="h-4 w-4 mr-1" /> Volver al Dashboard
+          </Button>
+        </Link>
+        
+        <div className="flex flex-col gap-2">
+          <h2 className="text-3xl font-extrabold tracking-tight text-primary">Análisis y Tendencias</h2>
+          <p className="text-muted-foreground">Visualización de datos estratégicos basados en tus sincronizaciones.</p>
+        </div>
       </div>
 
       {!bids || bids.length === 0 ? (

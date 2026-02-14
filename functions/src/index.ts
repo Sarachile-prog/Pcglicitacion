@@ -3,15 +3,17 @@ import * as admin from "firebase-admin";
 
 // Inicialización de Admin SDK
 // Esto permite acceso total a Firebase sin depender de Security Rules
-admin.initializeApp();
+if (admin.apps.length === 0) {
+  admin.initializeApp();
+}
 
 /**
  * Función de prueba Gen2 para verificar que el entorno de servidor
  * está correctamente configurado.
  */
 export const healthCheck = onRequest({
-  cors: true, // Habilitar CORS para llamadas desde el cliente si es necesario
-  region: "us-central1" // Ajustar según preferencia
+  cors: true,
+  region: "us-central1"
 }, (request, response) => {
   response.json({
     status: "ok",

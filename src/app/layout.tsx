@@ -72,7 +72,7 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
             <div className="flex-1">
               <h1 className="text-xl font-bold text-primary flex items-center gap-2">
                 <span className="bg-accent/10 text-accent px-2 py-0.5 rounded text-sm uppercase font-bold tracking-tighter">Live</span>
-                Portal Inteligente
+                PCGLICITACIÓN
               </h1>
             </div>
             <div className="flex items-center gap-4">
@@ -105,6 +105,8 @@ export default function RootLayout({
   return (
     <html lang="es">
       <head>
+        <title>PCGLICITACIÓN - Inteligencia de Mercado Público</title>
+        <meta name="description" content="Portal inteligente de licitaciones y asesoría estratégica con IA para Mercado Público Chile." />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />

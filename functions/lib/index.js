@@ -71,7 +71,7 @@ exports.getBidsByDate = (0, https_1.onRequest)({
         if (!apiResponse.ok) {
             throw new Error(`API responded with status: ${apiResponse.status}`);
         }
-        const apiData = await apiResponse.json();
+        const apiData = (await apiResponse.json());
         const bidsList = apiData.Listado || [];
         const newExpiresAt = admin.firestore.Timestamp.fromMillis(now + TTL_MS);
         await cacheRef.set({

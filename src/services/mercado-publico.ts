@@ -1,11 +1,10 @@
 'use server';
 /**
  * @fileOverview Servicio para interactuar con la API de Mercado Público.
- * Ahora devuelve los datos reales procesados por la Cloud Function o Firestore.
+ * Llama a la Cloud Function desplegada para obtener datos reales y gestionar el caché.
  */
 
-import { initializeFirebase } from '@/firebase';
-import { doc, getDoc, setDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
+import { firebaseConfig } from '@/firebase/config';
 
 export interface MercadoPublicoItem {
   CodigoProducto: number;
@@ -38,48 +37,40 @@ export interface MercadoPublicoBid {
 }
 
 /**
- * Obtiene licitaciones filtradas por fecha.
- * Primero intenta leer el caché local en Firestore para ahorrar cuota de API.
+ * Obtiene licitaciones llamando a la Cloud Function de Firebase.
+ * La función se encarga de la lógica de caché en Firestore y la consulta a la API oficial.
  */
 export async function getBidsByDate(date: string): Promise<MercadoPublicoBid[]> {
-  const { firestore } = initializeFirebase();
-  const cacheId = `bids_${date}`;
+  const projectId = firebaseConfig.projectId;
+  const region = 'us-central1';
+  
+  // URL de la Cloud Function (v2 utiliza el formato de Cloud Run o el mapeo de Firebase)
+  // Intentamos con el formato estándar de Firebase Functions
+  const functionUrl = `https://${region}-${projectId}.cloudfunctions.net/getBidsByDate?date=${date}`;
 
   try {
-    const docRef = doc(firestore, 'mp_cache', cacheId);
-    const docSnap = await getDoc(docRef);
-    const now = Date.now();
+    const response = await fetch(functionUrl, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      next: { revalidate: 60 } // Cache opcional a nivel de Next.js
+    });
 
-    if (docSnap.exists()) {
-      const cache = docSnap.data();
-      const expiresAt = (cache.expiresAt as Timestamp)?.toMillis() || 0;
-      
-      if (expiresAt > now) {
-        return cache.data || [];
-      }
+    if (!response.ok) {
+      console.warn(`[Service] Error llamando a la función: ${response.status}`);
+      return [];
     }
 
-    // Si no hay caché o expiró, la UI debería llamar a la Cloud Function
-    // pero por ahora devolvemos lo que haya o vacío.
-    // Una vez desplegada la función, ésta llenará el caché automáticamente.
-    return docSnap.exists() ? docSnap.data()?.data || [] : [];
+    const result = await response.json();
+    return result.data || [];
   } catch (error: any) {
-    console.error(`[Service] Error: ${error.message}`);
+    console.error(`[Service] Error en fetch: ${error.message}`);
     return [];
   }
 }
 
 export async function getBidDetail(codigo: string): Promise<MercadoPublicoBid | null> {
-  if (!codigo) return null;
-  const { firestore } = initializeFirebase();
-  const cacheId = `bid_${codigo}`;
-  
-  try {
-    const docRef = doc(firestore, 'mp_cache', cacheId);
-    const docSnap = await getDoc(docRef);
-    if (docSnap.exists()) return docSnap.data().data;
-    return null;
-  } catch (error) {
-    return null;
-  }
+  // Por ahora devolvemos null, el detalle se puede obtener del listado cargado
+  return null;
 }

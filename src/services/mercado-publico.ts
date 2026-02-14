@@ -1,7 +1,7 @@
 'use server';
 /**
  * @fileOverview Servicio para interactuar con la API de Mercado Público.
- * Llama a la Cloud Function desplegada para obtener datos reales y gestionar el caché.
+ * Llama a la Cloud Function Gen2 desplegada para obtener datos reales.
  */
 
 import { firebaseConfig } from '@/firebase/config';
@@ -37,16 +37,14 @@ export interface MercadoPublicoBid {
 }
 
 /**
- * Obtiene licitaciones llamando a la Cloud Function de Firebase.
- * La función se encarga de la lógica de caché en Firestore y la consulta a la API oficial.
+ * Obtiene licitaciones llamando a la Cloud Function Gen2.
+ * Nota: Se utiliza la URL específica de Cloud Run detectada en los logs.
  */
 export async function getBidsByDate(date: string): Promise<MercadoPublicoBid[]> {
-  const projectId = firebaseConfig.projectId;
-  const region = 'us-central1';
-  
-  // URL de la Cloud Function (v2 utiliza el formato de Cloud Run o el mapeo de Firebase)
-  // Intentamos con el formato estándar de Firebase Functions
-  const functionUrl = `https://${region}-${projectId}.cloudfunctions.net/getBidsByDate?date=${date}`;
+  // URL detectada en los logs del usuario para la función Gen2
+  const functionUrl = `https://getbidsbydate-uusj753vka-uc.a.run.app?date=${date}`;
+
+  console.log(`[Client Service] Llamando a Cloud Function: ${functionUrl}`);
 
   try {
     const response = await fetch(functionUrl, {
@@ -54,23 +52,24 @@ export async function getBidsByDate(date: string): Promise<MercadoPublicoBid[]> 
       headers: {
         'Content-Type': 'application/json',
       },
-      next: { revalidate: 60 } // Cache opcional a nivel de Next.js
+      cache: 'no-store'
     });
 
     if (!response.ok) {
-      console.warn(`[Service] Error llamando a la función: ${response.status}`);
+      const errorText = await response.text();
+      console.error(`[Client Service] Error status: ${response.status}. Body: ${errorText}`);
       return [];
     }
 
     const result = await response.json();
+    console.log(`[Client Service] Respuesta recibida. Licitaciones: ${result.data?.length || 0}`);
     return result.data || [];
   } catch (error: any) {
-    console.error(`[Service] Error en fetch: ${error.message}`);
+    console.error(`[Client Service] Error fatal en fetch: ${error.message}`);
     return [];
   }
 }
 
 export async function getBidDetail(codigo: string): Promise<MercadoPublicoBid | null> {
-  // Por ahora devolvemos null, el detalle se puede obtener del listado cargado
   return null;
 }

@@ -1,0 +1,17 @@
+
+{
+  "placeholderImages": [
+    {
+      "id": "hero-bids",
+      "description": "Professional business background with data overlays",
+      "imageUrl": "https://picsum.photos/seed/bids1/1200/400",
+      "imageHint": "business data"
+    },
+    {
+      "id": "government-building",
+      "description": "Abstract government building architecture",
+      "imageUrl": "https://picsum.photos/seed/govt/800/600",
+      "imageHint": "government building"
+    }
+  ]
+}

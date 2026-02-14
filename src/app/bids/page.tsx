@@ -16,6 +16,7 @@ import {
   Info,
   Calendar as CalendarIcon,
   ChevronRight,
+  ChevronLeft,
   Database,
   Zap,
   Settings as SettingsIcon,
@@ -100,45 +101,53 @@ export default function BidsListPage() {
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <Database className="h-5 w-5 text-accent" />
-            <h2 className="text-3xl font-extrabold tracking-tight text-primary">Base de Datos</h2>
-          </div>
-          <p className="text-muted-foreground">Explora licitaciones sincronizadas. Elige una fecha hábil para importar.</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
-            <PopoverTrigger asChild>
-              <Button variant="outline" className={cn("justify-start text-left font-normal w-[240px] border-primary/20", !selectedDate && "text-muted-foreground")}>
-                <CalendarIcon className="mr-2 h-4 w-4 text-primary" />
-                {selectedDate ? format(selectedDate, "PPP", { locale: es }) : <span>Seleccionar fecha</span>}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0" align="end">
-              <Calendar
-                mode="single"
-                selected={selectedDate}
-                onSelect={(date) => {
-                  if (date) {
-                    setSelectedDate(date);
-                    setIsCalendarOpen(false);
-                  }
-                }}
-                initialFocus
-                disabled={(date) => date > new Date()}
-              />
-            </PopoverContent>
-          </Popover>
-          <Button 
-            className="bg-accent hover:bg-accent/90 gap-2 font-bold shadow-lg"
-            onClick={handleSync} 
-            disabled={isSyncing}
-          >
-            <RefreshCw className={isSyncing ? "h-4 w-4 animate-spin" : "h-4 w-4"} />
-            {isSyncing ? "Sincronizando..." : "Sincronizar"}
+      <div className="flex flex-col gap-4">
+        <Link href="/dashboard">
+          <Button variant="ghost" size="sm" className="w-fit text-muted-foreground hover:text-primary -ml-2">
+            <ChevronLeft className="h-4 w-4 mr-1" /> Volver al Dashboard
           </Button>
+        </Link>
+        
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <Database className="h-5 w-5 text-accent" />
+              <h2 className="text-3xl font-extrabold tracking-tight text-primary">Base de Datos</h2>
+            </div>
+            <p className="text-muted-foreground">Explora licitaciones sincronizadas. Elige una fecha hábil para importar.</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className={cn("justify-start text-left font-normal w-[240px] border-primary/20", !selectedDate && "text-muted-foreground")}>
+                  <CalendarIcon className="mr-2 h-4 w-4 text-primary" />
+                  {selectedDate ? format(selectedDate, "PPP", { locale: es }) : <span>Seleccionar fecha</span>}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="end">
+                <Calendar
+                  mode="single"
+                  selected={selectedDate}
+                  onSelect={(date) => {
+                    if (date) {
+                      setSelectedDate(date);
+                      setIsCalendarOpen(false);
+                    }
+                  }}
+                  initialFocus
+                  disabled={(date) => date > new Date()}
+                />
+              </PopoverContent>
+            </Popover>
+            <Button 
+              className="bg-accent hover:bg-accent/90 gap-2 font-bold shadow-lg"
+              onClick={handleSync} 
+              disabled={isSyncing}
+            >
+              <RefreshCw className={isSyncing ? "h-4 w-4 animate-spin" : "h-4 w-4"} />
+              {isSyncing ? "Sincronizando..." : "Sincronizar"}
+            </Button>
+          </div>
         </div>
       </div>
 

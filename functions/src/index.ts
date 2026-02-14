@@ -1,3 +1,4 @@
+
 import { onRequest } from "firebase-functions/v2/https";
 import * as admin from "firebase-admin";
 
@@ -14,7 +15,7 @@ if (admin.apps.length === 0) {
 export const healthCheck = onRequest({
   cors: true,
   region: "us-central1"
-}, (request, response) => {
+}, (request: any, response: any) => {
   response.json({
     status: "ok",
     timestamp: new Date().toISOString(),

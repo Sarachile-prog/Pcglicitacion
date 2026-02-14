@@ -36,7 +36,9 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.healthCheck = void 0;
 const https_1 = require("firebase-functions/v2/https");
 const admin = __importStar(require("firebase-admin"));
-admin.initializeApp();
+if (admin.apps.length === 0) {
+    admin.initializeApp();
+}
 exports.healthCheck = (0, https_1.onRequest)({
     cors: true,
     region: "us-central1"

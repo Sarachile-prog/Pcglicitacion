@@ -2,16 +2,22 @@
 {
   "placeholderImages": [
     {
-      "id": "hero-bids",
-      "description": "Professional business background with data overlays",
-      "imageUrl": "https://picsum.photos/seed/bids1/1200/400",
-      "imageHint": "business data"
+      "id": "hero-landing",
+      "description": "Modern business office with digital data visualization",
+      "imageUrl": "https://picsum.photos/seed/pcg1/1200/600",
+      "imageHint": "business technology"
     },
     {
-      "id": "government-building",
-      "description": "Abstract government building architecture",
-      "imageUrl": "https://picsum.photos/seed/govt/800/600",
-      "imageHint": "government building"
+      "id": "ai-analysis",
+      "description": "Artificial intelligence and data processing abstract",
+      "imageUrl": "https://picsum.photos/seed/pcg2/800/600",
+      "imageHint": "artificial intelligence"
+    },
+    {
+      "id": "government-chile",
+      "description": "Abstract architecture representing institutional transparency",
+      "imageUrl": "https://picsum.photos/seed/pcg3/800/600",
+      "imageHint": "modern architecture"
     }
   ]
 }

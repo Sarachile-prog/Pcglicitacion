@@ -1,12 +1,7 @@
+
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    /**
-     * Licitaciones Globales Security Rules
-     */
-
-    // --- HELPER FUNCTIONS ---
 
     function isSignedIn() {
       return request.auth != null;
@@ -16,52 +11,21 @@ service cloud.firestore {
       return isSignedIn() && exists(/databases/$(database)/documents/admin_roles/$(request.auth.uid));
     }
 
-    function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
-    }
-
-    function itemExists() {
-      return resource != null;
-    }
-
-    // --- COLLECTION RULES ---
-
-    /**
-     * @description Cache for Mercado Público API responses.
-     * @path /mp_cache/{cacheId}
-     * @principle Technical cache for rate limiting. 
-     * Restricted to authenticated users to prevent public abuse.
-     */
-    match /mp_cache/{cacheId} {
+    match /settings/{settingId} {
       allow read, write: if isSignedIn();
     }
 
     match /bids/{bidId} {
       allow get, list: if isSignedIn();
-      allow create: if isAdmin();
-      allow update, delete: if isAdmin() && itemExists();
+      allow create, update, delete: if isSignedIn();
     }
 
-    match /categories/{categoryId} {
-      allow get, list: if isSignedIn();
-      allow create: if isAdmin();
-      allow update, delete: if isAdmin() && itemExists();
-    }
-
-    match /companies/{companyId} {
-      allow get, list: if isAdmin();
-      allow create: if isAdmin();
-      allow update, delete: if isAdmin() && itemExists();
-
-      match /contactEmails/{contactEmailId} {
-        allow get, list: if isAdmin();
-        allow create: if isAdmin() && request.resource.data.companyId == companyId;
-        allow update, delete: if isAdmin() && itemExists();
-      }
+    match /mp_cache/{cacheId} {
+      allow read, write: if isSignedIn();
     }
 
     match /admin_roles/{uid} {
-      allow get: if isOwner(uid);
+      allow get: if isSignedIn() && request.auth.uid == uid;
       allow list: if false;
       allow create, update, delete: if false;
     }

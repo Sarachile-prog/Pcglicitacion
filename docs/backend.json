@@ -1,0 +1,296 @@
+{
+  "entities": {
+    "Bid": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Bid",
+      "type": "object",
+      "description": "Represents a public tender or bid opportunity scraped from various government and institutional websites. It includes key information extracted and summarized from bid documents.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Bid entity."
+        },
+        "title": {
+          "type": "string",
+          "description": "The official title or name of the bid opportunity."
+        },
+        "description": {
+          "type": "string",
+          "description": "A summarized description of the bid's purpose and scope, often enriched by AI extraction."
+        },
+        "publicationDate": {
+          "type": "string",
+          "description": "The date and time when the bid was officially published or announced.",
+          "format": "date-time"
+        },
+        "deadlineDate": {
+          "type": "string",
+          "description": "The final date and time for interested parties to submit their proposals or bids.",
+          "format": "date-time"
+        },
+        "amount": {
+          "type": "number",
+          "description": "The estimated or actual monetary value associated with the bid, if specified."
+        },
+        "currency": {
+          "type": "string",
+          "description": "The currency code for the bid's amount (e.g., 'USD', 'CLP', 'EUR')."
+        },
+        "status": {
+          "type": "string",
+          "description": "The current state or phase of the bid (e.g., 'Open', 'Closed', 'Awarded', 'Canceled')."
+        },
+        "sourceUrl": {
+          "type": "string",
+          "description": "The original URL of the webpage or document from which the bid information was scraped.",
+          "format": "uri"
+        },
+        "categoryId": {
+          "type": "string",
+          "description": "Reference to the Category entity that classifies this bid. (Relationship: Category 1:N Bid)"
+        },
+        "issuingGovernmentEntityName": {
+          "type": "string",
+          "description": "The name of the government agency or institutional body that issued the bid."
+        },
+        "extractedKeyDetails": {
+          "type": "string",
+          "description": "Additional summarized key requirements, conditions, or relevant details extracted from the bid documents, potentially in a structured format like JSON string."
+        },
+        "scrapedAt": {
+          "type": "string",
+          "description": "The timestamp indicating when this bid record was last scraped or updated.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "description",
+        "publicationDate",
+        "deadlineDate",
+        "status",
+        "sourceUrl",
+        "categoryId",
+        "issuingGovernmentEntityName",
+        "scrapedAt"
+      ]
+    },
+    "Category": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Category",
+      "type": "object",
+      "description": "Defines a classification category or industry sector used to organize and filter bid opportunities.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Category entity."
+        },
+        "name": {
+          "type": "string",
+          "description": "The human-readable name of the category (e.g., 'Construcción', 'Tecnología', 'Servicios de Consultoría')."
+        },
+        "description": {
+          "type": "string",
+          "description": "A brief explanation or scope of the category."
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "description"
+      ]
+    },
+    "Company": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Company",
+      "type": "object",
+      "description": "Represents a company or organization that has been identified as participating in or related to bid opportunities, intended for outreach purposes.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Company entity."
+        },
+        "name": {
+          "type": "string",
+          "description": "The official registered name of the company."
+        },
+        "taxId": {
+          "type": "string",
+          "description": "The company's tax identification number (e.g., RUC in some countries, TIN, VAT ID)."
+        },
+        "address": {
+          "type": "string",
+          "description": "The primary physical address of the company."
+        },
+        "website": {
+          "type": "string",
+          "description": "The official website URL of the company.",
+          "format": "uri"
+        },
+        "identifiedFromBidIds": {
+          "type": "array",
+          "description": "An array of Bid IDs where this company was identified as participating, mentioned, or relevant. (Relationship: Company N:N Bid)",
+          "items": {
+            "type": "string"
+          }
+        },
+        "lastIdentifiedAt": {
+          "type": "string",
+          "description": "The timestamp indicating when this company record was last identified or updated through scraping.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "lastIdentifiedAt"
+      ]
+    },
+    "ContactEmail": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "ContactEmail",
+      "type": "object",
+      "description": "Stores individual email addresses associated with companies, primarily for sending invitations to use the Licitaciones Globales app.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the ContactEmail entity."
+        },
+        "emailAddress": {
+          "type": "string",
+          "description": "The email address identified for contact.",
+          "format": "email"
+        },
+        "companyId": {
+          "type": "string",
+          "description": "Reference to the Company entity that this email address belongs to. (Relationship: Company 1:N ContactEmail)"
+        },
+        "contactPersonName": {
+          "type": "string",
+          "description": "The name of the individual associated with this email address, if known."
+        },
+        "sourceDescription": {
+          "type": "string",
+          "description": "A description of how and where this email address was identified (e.g., 'Contact page on company website', 'Bid document XYZ')."
+        },
+        "isInvitationSent": {
+          "type": "boolean",
+          "description": "A flag indicating whether an invitation email to use the Licitaciones Globales app has been sent to this address."
+        },
+        "invitationSentDate": {
+          "type": "string",
+          "description": "The date and time when the invitation email was sent, if 'isInvitationSent' is true.",
+          "format": "date-time"
+        },
+        "firstIdentifiedAt": {
+          "type": "string",
+          "description": "The timestamp indicating when this email record was first identified through scraping.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "emailAddress",
+        "companyId",
+        "isInvitationSent",
+        "firstIdentifiedAt"
+      ]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password",
+      "anonymous"
+    ]
+  },
+  "firestore": {
+    "structure": [
+      {
+        "path": "/bids/{bidId}",
+        "definition": {
+          "entityName": "Bid",
+          "schema": {
+            "$ref": "#/backend/entities/Bid"
+          },
+          "description": "Stores public tender opportunities. All documents in this collection are globally readable by authenticated users. Includes fields like `categoryId` and `status` for efficient query-based filtering without rule-based dependencies.",
+          "params": [
+            {
+              "name": "bidId",
+              "description": "Unique identifier for a specific bid opportunity."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/categories/{categoryId}",
+        "definition": {
+          "entityName": "Category",
+          "schema": {
+            "$ref": "#/backend/entities/Category"
+          },
+          "description": "Defines classification categories for bids. All documents in this collection are globally readable by authenticated users.",
+          "params": [
+            {
+              "name": "categoryId",
+              "description": "Unique identifier for a bid category."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/companies/{companyId}",
+        "definition": {
+          "entityName": "Company",
+          "schema": {
+            "$ref": "#/backend/entities/Company"
+          },
+          "description": "Contains information about companies identified for outreach. Access is restricted to users with the 'admin' role, determined by the `/admin_roles/{uid}` collection. This ensures authorization independence without relying on hierarchical checks.",
+          "params": [
+            {
+              "name": "companyId",
+              "description": "Unique identifier for a specific company."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/companies/{companyId}/contactEmails/{contactEmailId}",
+        "definition": {
+          "entityName": "ContactEmail",
+          "schema": {
+            "$ref": "#/backend/entities/ContactEmail"
+          },
+          "description": "Stores contact email addresses associated with companies. Access is restricted to users with the 'admin' role, as defined in the `/admin_roles/{uid}` collection. Authorization is independent of the parent `Company` document's content. Includes denormalized `companyId` for data relationship, not authorization.",
+          "params": [
+            {
+              "name": "companyId",
+              "description": "Unique identifier of the parent company."
+            },
+            {
+              "name": "contactEmailId",
+              "description": "Unique identifier for a specific contact email."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/admin_roles/{uid}",
+        "definition": {
+          "entityName": "AdminRole",
+          "schema": {
+            "$ref": "#/backend/entities/AdminRole"
+          },
+          "description": "Collection used for Database Access Control (DBAC) to grant 'admin' privileges. The existence of a document at `/admin_roles/{request.auth.uid}` grants admin access to sensitive data (e.g., Companies, ContactEmails). This structure is critical for Authorization Independence and QAPs for admin-level operations.",
+          "params": [
+            {
+              "name": "uid",
+              "description": "The Firebase Authentication UID of the user with admin privileges."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "The Firestore structure is designed to be secure, scalable, and debuggable, adhering strictly to the core design principles and mandates. \n\n**Authorization Independence:**\n*   For `Bid` and `Category` entities, authorization is globally defined as 'authenticated read-only'. This means rules will check for the existence of `request.auth.uid` but will not perform any `get()` operations on parent documents for authorization purposes. Since these are public-facing, system-managed data, no user-specific ownership or membership is involved, ensuring inherent authorization independence.\n*   For `Company` and `ContactEmail` entities, access is restricted to application administrators. Authorization independence is achieved by using a **Global Role (DBAC)** pattern (`/admin_roles/{uid}`). An admin user's access to any `Company` or `ContactEmail` document is determined solely by the presence of their `uid` in the `admin_roles` collection, not by reading attributes from parent `Company` documents or any other hierarchical dependency. This eliminates `get()` calls in rules for these sensitive collections, allowing for atomic operations and simplifying rule logic.\n\n**QAPs (Rules are not Filters):**\n*   **Homogeneous Security Posture:** All documents within a collection or subcollection share the same security requirements. \n    *   `/bids`: All bids are authenticated read-only. Rules will allow `list` and `get` operations for any authenticated user. Filtering by `categoryId`, `status`, `publicationDate`, etc., will be handled by client-side queries, not security rules. \n    *   `/categories`: All categories are authenticated read-only. Rules will allow `list` and `get` for any authenticated user. \n    *   `/companies` and `/companies/{companyId}/contactEmails`: All documents in these collections/subcollections are accessible only to users with the 'admin' role. Security rules will check for the `admin_roles/{uid}` document's existence. Once authorized as an admin, `list` operations can be performed on `/companies` (for all companies) or on `/companies/{companyId}/contactEmails` (for a specific company's contacts). The `isInvitationSent` field in `ContactEmail` can be used for query filtering by the client (e.g., `where('isInvitationSent', '==', false)`) without impacting the security rules' ability to grant broad `list` access to authorized admins. This ensures that rules explicitly grant or deny access to the entire collection based on role, allowing clients to perform specific queries within that allowed set without rules acting as filters."
+  }
+}

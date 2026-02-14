@@ -1,0 +1,121 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    /**
+     * Licitaciones Globales Security Rules
+     *
+     * Core Philosophy:
+     * This ruleset implements a dual-access model: public-facing data (Bids, Categories) 
+     * is available for read-only access to all authenticated users, while sensitive 
+     * lead generation data (Companies, ContactEmails) is strictly restricted to 
+     * administrators.
+     *
+     * Data Structure:
+     * - /bids: Global collection of scraped tender opportunities.
+     * - /categories: Classification tags for bids.
+     * - /companies: Outreach targets identified from bid documents.
+     * - /admin_roles: A Database Access Control (DBAC) collection where the presence 
+     *   of a UID grants administrative privileges across the system.
+     *
+     * Key Security Decisions:
+     * 1. Authorization Independence: Read access for public data does not require 
+     *    expensive lookups. Admin access is centralized in the /admin_roles collection 
+     *    to avoid hierarchical 'get()' calls.
+     * 2. Prototyping Flexibility: While access is strictly controlled by identity 
+     *    and role, data schemas are not enforced to allow rapid development of 
+     *    scraping and AI extraction features.
+     * 3. Relational Integrity: On creation of sub-resources (like ContactEmails), 
+     *    the rules enforce that the internal link matches the parent path.
+     */
+
+    // --- HELPER FUNCTIONS ---
+
+    /** @description Checks if the user is authenticated with Firebase Auth. */
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    /** @description Checks if the user's UID exists in the admin_roles collection. */
+    function isAdmin() {
+      return isSignedIn() && exists(/databases/$(database)/documents/admin_roles/$(request.auth.uid));
+    }
+
+    /** @description Verifies the user is the owner of the specific document ID. */
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    /** @description Ensures a document exists before allowing modification. */
+    function itemExists() {
+      return resource != null;
+    }
+
+    // --- COLLECTION RULES ---
+
+    /**
+     * @description Public tender opportunities. Authenticated read-only for general users.
+     * @path /bids/{bidId}
+     * @allow (get) Any signed-in user viewing a specific bid.
+     * @deny (create) A non-admin user attempting to manually insert a bid.
+     * @principle System-managed data: authenticated read-only, admin-only writes.
+     */
+    match /bids/{bidId} {
+      allow get, list: if isSignedIn();
+      allow create: if isAdmin();
+      allow update, delete: if isAdmin() && itemExists();
+    }
+
+    /**
+     * @description Classification categories for bids.
+     * @path /categories/{categoryId}
+     * @allow (list) A signed-in user fetching the category list for filters.
+     * @deny (update) A standard user trying to rename a category.
+     * @principle Shared reference data: globally readable by users, managed by admins.
+     */
+    match /categories/{categoryId} {
+      allow get, list: if isSignedIn();
+      allow create: if isAdmin();
+      allow update, delete: if isAdmin() && itemExists();
+    }
+
+    /**
+     * @description Company leads identified for outreach. Restricted to administrators.
+     * @path /companies/{companyId}
+     * @allow (get) An authorized admin researcher viewing company details.
+     * @deny (list) A standard user attempting to scrape the company database.
+     * @principle Role-Based Access Control (RBAC) via admin lookup.
+     */
+    match /companies/{companyId} {
+      allow get, list: if isAdmin();
+      allow create: if isAdmin();
+      allow update, delete: if isAdmin() && itemExists();
+
+      /**
+       * @description Contact emails for companies.
+       * @path /companies/{companyId}/contactEmails/{contactEmailId}
+       * @allow (create) An admin adding a newly scraped email, validating the parent link.
+       * @deny (get) Anyone who is not an admin.
+       * @principle Relational integrity enforcement combined with RBAC.
+       */
+      match /contactEmails/{contactEmailId} {
+        allow get, list: if isAdmin();
+        allow create: if isAdmin() && request.resource.data.companyId == companyId;
+        allow update, delete: if isAdmin() && itemExists();
+      }
+    }
+
+    /**
+     * @description Registry of users with administrative privileges.
+     * @path /admin_roles/{uid}
+     * @allow (get) A user checking their own administrative status.
+     * @deny (create) A user attempting to grant themselves admin rights.
+     * @principle Self-identity verification for role lookup.
+     */
+    match /admin_roles/{uid} {
+      allow get: if isOwner(uid);
+      allow list: if false;
+      allow create, update, delete: if false; // Admin roles managed via console/Service Account
+    }
+  }
+}

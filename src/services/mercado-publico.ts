@@ -34,12 +34,24 @@ export interface MercadoPublicoBid {
 }
 
 const API_BASE_URL = 'https://api.mercadopublico.cl/servicios/v1/publico/licitaciones.json';
-const TICKET = process.env.NEXT_PUBLIC_MERCADO_PUBLICO_TICKET || 'F8069D13-DEC1-4AD3-BB3D-88229F6F505D'; // Ticket de prueba genérico
 
+// Se prioriza la variable de entorno para producción, usando un ticket de prueba como fallback.
+const getTicket = () => {
+  return process.env.NEXT_PUBLIC_MERCADO_PUBLICO_TICKET || 'F8069D13-DEC1-4AD3-BB3D-88229F6F505D';
+};
+
+/**
+ * Obtiene licitaciones filtradas por fecha.
+ * @param date Formato DDMMAAAA
+ */
 export async function getBidsByDate(date: string = '01012024'): Promise<MercadoPublicoBid[]> {
   try {
-    const response = await fetch(`${API_BASE_URL}?fecha=${date}&ticket=${TICKET}`);
-    if (!response.ok) throw new Error('Error al conectar con Mercado Público');
+    const ticket = getTicket();
+    const response = await fetch(`${API_BASE_URL}?fecha=${date}&ticket=${ticket}`, {
+      next: { revalidate: 3600 } // Cache de 1 hora
+    });
+    
+    if (!response.ok) throw new Error(`Error API: ${response.status}`);
     
     const data = await response.json();
     return data.Listado || [];
@@ -49,12 +61,22 @@ export async function getBidsByDate(date: string = '01012024'): Promise<MercadoP
   }
 }
 
+/**
+ * Obtiene el detalle de una licitación específica por su Código Externo.
+ */
 export async function getBidDetail(codigo: string): Promise<MercadoPublicoBid | null> {
+  if (!codigo) return null;
+  
   try {
-    const response = await fetch(`${API_BASE_URL}?codigo=${codigo}&ticket=${TICKET}`);
-    if (!response.ok) throw new Error('Error al obtener detalle de licitación');
+    const ticket = getTicket();
+    const response = await fetch(`${API_BASE_URL}?codigo=${codigo}&ticket=${ticket}`, {
+      next: { revalidate: 3600 }
+    });
+    
+    if (!response.ok) throw new Error(`Error API: ${response.status}`);
     
     const data = await response.json();
+    // La API devuelve un array en 'Listado', tomamos el primero.
     return data.Listado?.[0] || null;
   } catch (error) {
     console.error('MercadoPublico Detail Error:', error);

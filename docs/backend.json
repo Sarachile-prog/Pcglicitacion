@@ -1,3 +1,4 @@
+
 {
   "entities": {
     "Bid": {
@@ -75,6 +76,19 @@
         "issuingGovernmentEntityName",
         "scrapedAt"
       ]
+    },
+    "Bookmark": {
+      "title": "Bookmark",
+      "type": "object",
+      "description": "A bid that a user has decided to follow or save for later review.",
+      "properties": {
+        "bidId": { "type": "string" },
+        "title": { "type": "string" },
+        "entity": { "type": "string" },
+        "status": { "type": "string" },
+        "savedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["bidId", "title", "savedAt"]
     },
     "Category": {
       "$schema": "http://json-schema.org/draft-07/schema#",
@@ -213,7 +227,7 @@
           "schema": {
             "$ref": "#/backend/entities/Bid"
           },
-          "description": "Stores public tender opportunities. All documents in this collection are globally readable by authenticated users. Includes fields like `categoryId` and `status` for efficient query-based filtering without rule-based dependencies.",
+          "description": "Stores public tender opportunities.",
           "params": [
             {
               "name": "bidId",
@@ -223,74 +237,19 @@
         }
       },
       {
-        "path": "/categories/{categoryId}",
+        "path": "/users/{userId}/bookmarks/{bidId}",
         "definition": {
-          "entityName": "Category",
+          "entityName": "Bookmark",
           "schema": {
-            "$ref": "#/backend/entities/Category"
+            "$ref": "#/backend/entities/Bookmark"
           },
-          "description": "Defines classification categories for bids. All documents in this collection are globally readable by authenticated users.",
+          "description": "User's followed bids.",
           "params": [
-            {
-              "name": "categoryId",
-              "description": "Unique identifier for a bid category."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/companies/{companyId}",
-        "definition": {
-          "entityName": "Company",
-          "schema": {
-            "$ref": "#/backend/entities/Company"
-          },
-          "description": "Contains information about companies identified for outreach. Access is restricted to users with the 'admin' role, determined by the `/admin_roles/{uid}` collection. This ensures authorization independence without relying on hierarchical checks.",
-          "params": [
-            {
-              "name": "companyId",
-              "description": "Unique identifier for a specific company."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/companies/{companyId}/contactEmails/{contactEmailId}",
-        "definition": {
-          "entityName": "ContactEmail",
-          "schema": {
-            "$ref": "#/backend/entities/ContactEmail"
-          },
-          "description": "Stores contact email addresses associated with companies. Access is restricted to users with the 'admin' role, as defined in the `/admin_roles/{uid}` collection. Authorization is independent of the parent `Company` document's content. Includes denormalized `companyId` for data relationship, not authorization.",
-          "params": [
-            {
-              "name": "companyId",
-              "description": "Unique identifier of the parent company."
-            },
-            {
-              "name": "contactEmailId",
-              "description": "Unique identifier for a specific contact email."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/admin_roles/{uid}",
-        "definition": {
-          "entityName": "AdminRole",
-          "schema": {
-            "$ref": "#/backend/entities/AdminRole"
-          },
-          "description": "Collection used for Database Access Control (DBAC) to grant 'admin' privileges. The existence of a document at `/admin_roles/{request.auth.uid}` grants admin access to sensitive data (e.g., Companies, ContactEmails). This structure is critical for Authorization Independence and QAPs for admin-level operations.",
-          "params": [
-            {
-              "name": "uid",
-              "description": "The Firebase Authentication UID of the user with admin privileges."
-            }
+            { "name": "userId", "description": "Auth UID" },
+            { "name": "bidId", "description": "Bid ID" }
           ]
         }
       }
-    ],
-    "reasoning": "The Firestore structure is designed to be secure, scalable, and debuggable, adhering strictly to the core design principles and mandates. \n\n**Authorization Independence:**\n*   For `Bid` and `Category` entities, authorization is globally defined as 'authenticated read-only'. This means rules will check for the existence of `request.auth.uid` but will not perform any `get()` operations on parent documents for authorization purposes. Since these are public-facing, system-managed data, no user-specific ownership or membership is involved, ensuring inherent authorization independence.\n*   For `Company` and `ContactEmail` entities, access is restricted to application administrators. Authorization independence is achieved by using a **Global Role (DBAC)** pattern (`/admin_roles/{uid}`). An admin user's access to any `Company` or `ContactEmail` document is determined solely by the presence of their `uid` in the `admin_roles` collection, not by reading attributes from parent `Company` documents or any other hierarchical dependency. This eliminates `get()` calls in rules for these sensitive collections, allowing for atomic operations and simplifying rule logic.\n\n**QAPs (Rules are not Filters):**\n*   **Homogeneous Security Posture:** All documents within a collection or subcollection share the same security requirements. \n    *   `/bids`: All bids are authenticated read-only. Rules will allow `list` and `get` operations for any authenticated user. Filtering by `categoryId`, `status`, `publicationDate`, etc., will be handled by client-side queries, not security rules. \n    *   `/categories`: All categories are authenticated read-only. Rules will allow `list` and `get` for any authenticated user. \n    *   `/companies` and `/companies/{companyId}/contactEmails`: All documents in these collections/subcollections are accessible only to users with the 'admin' role. Security rules will check for the `admin_roles/{uid}` document's existence. Once authorized as an admin, `list` operations can be performed on `/companies` (for all companies) or on `/companies/{companyId}/contactEmails` (for a specific company's contacts). The `isInvitationSent` field in `ContactEmail` can be used for query filtering by the client (e.g., `where('isInvitationSent', '==', false)`) without impacting the security rules' ability to grant broad `list` access to authorized admins. This ensures that rules explicitly grant or deny access to the entire collection based on role, allowing clients to perform specific queries within that allowed set without rules acting as filters."
+    ]
   }
 }

@@ -20,19 +20,22 @@ import {
   Target,
   ExternalLink,
   RefreshCw,
-  Info
+  Info,
+  Bookmark,
+  BookmarkCheck
 } from "lucide-react"
 import Link from "next/link"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import { getBidDetail } from "@/services/mercado-publico"
-import { useDoc, useFirestore, useMemoFirebase } from "@/firebase"
-import { doc } from "firebase/firestore"
+import { useDoc, useFirestore, useMemoFirebase, useUser } from "@/firebase"
+import { doc, setDoc, deleteDoc } from "firebase/firestore"
 
 export default function BidDetailPage() {
   const params = useParams()
   const bidId = params.id as string
   const db = useFirestore()
+  const { user } = useUser()
   const { toast } = useToast()
   
   const [loadingAI, setLoadingAI] = useState(false)
@@ -46,6 +49,14 @@ export default function BidDetailPage() {
   }, [db, bidId])
 
   const { data: bid, isLoading: isDocLoading } = useDoc(bidRef)
+
+  // BOOKMARK LOGIC
+  const bookmarkRef = useMemoFirebase(() => {
+    if (!db || !user || !bidId) return null
+    return doc(db, "users", user.uid, "bookmarks", bidId)
+  }, [db, user, bidId])
+
+  const { data: bookmark, isLoading: isBookmarkLoading } = useDoc(bookmarkRef)
 
   // Intentar refrescar datos detallados (ítems, descripción larga, monto real) en segundo plano
   useEffect(() => {
@@ -74,6 +85,35 @@ export default function BidDetailPage() {
       }
     } finally {
       setIsRefreshing(false)
+    }
+  }
+
+  const handleToggleFollow = async () => {
+    if (!user) {
+      toast({
+        title: "Inicia sesión",
+        description: "Debes estar autenticado para seguir licitaciones.",
+      })
+      return
+    }
+    if (!bid || !bookmarkRef) return
+
+    try {
+      if (bookmark) {
+        await deleteDoc(bookmarkRef)
+        toast({ title: "Licitación eliminada", description: "Ya no sigues este proceso." })
+      } else {
+        await setDoc(bookmarkRef, {
+          bidId: bid.id,
+          title: bid.title,
+          entity: bid.entity || "No especificada",
+          status: bid.status,
+          savedAt: new Date().toISOString()
+        })
+        toast({ title: "Licitación seguida", description: "Se ha guardado en tu cartera." })
+      }
+    } catch (e) {
+      toast({ variant: "destructive", title: "Error", description: "No se pudo actualizar el estado." })
     }
   }
 
@@ -136,16 +176,28 @@ export default function BidDetailPage() {
             <ChevronLeft className="h-4 w-4 mr-1" /> Volver al explorador
           </Button>
         </Link>
-        <Button 
-          variant="outline" 
-          size="sm" 
-          onClick={() => handleRefreshData(true)}
-          disabled={isRefreshing}
-          className="gap-2 border-primary/20 text-primary"
-        >
-          <RefreshCw className={cn("h-4 w-4", isRefreshing && "animate-spin")} />
-          {isRefreshing ? "Actualizando..." : "Refrescar desde API"}
-        </Button>
+        <div className="flex gap-2">
+           <Button 
+            variant={bookmark ? "default" : "outline"} 
+            size="sm" 
+            onClick={handleToggleFollow}
+            disabled={isBookmarkLoading}
+            className={cn("gap-2", bookmark ? "bg-accent hover:bg-accent/90 border-none" : "border-accent text-accent")}
+          >
+            {bookmark ? <BookmarkCheck className="h-4 w-4" /> : <Bookmark className="h-4 w-4" />}
+            {bookmark ? "Siguiendo" : "Seguir Licitación"}
+          </Button>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => handleRefreshData(true)}
+            disabled={isRefreshing}
+            className="gap-2 border-primary/20 text-primary"
+          >
+            <RefreshCw className={cn("h-4 w-4", isRefreshing && "animate-spin")} />
+            {isRefreshing ? "Actualizando..." : "Refrescar desde API"}
+          </Button>
+        </div>
       </div>
 
       <div className="flex flex-col md:flex-row justify-between items-start gap-6">

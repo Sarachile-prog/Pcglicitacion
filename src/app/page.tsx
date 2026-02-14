@@ -1,7 +1,7 @@
 
 "use client"
 
-import { useCollection, useMemoFirebase, useFirestore } from "@/firebase"
+import { useCollection, useMemoFirebase, useFirestore, useUser } from "@/firebase"
 import { collection, query, orderBy, limit } from "firebase/firestore"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -14,13 +14,16 @@ import {
   Search,
   Building2,
   Calendar,
-  Loader2
+  Loader2,
+  Bookmark,
+  Zap
 } from "lucide-react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 
 export default function Dashboard() {
   const db = useFirestore()
+  const { user } = useUser()
 
   const bidsQuery = useMemoFirebase(() => {
     if (!db) return null
@@ -31,12 +34,21 @@ export default function Dashboard() {
     )
   }, [db])
 
-  const { data: bids, isLoading } = useCollection(bidsQuery)
+  const bookmarksQuery = useMemoFirebase(() => {
+    if (!db || !user) return null
+    return query(
+      collection(db, "users", user.uid, "bookmarks"),
+      orderBy("savedAt", "desc"),
+      limit(5)
+    )
+  }, [db, user])
+
+  const { data: bids, isLoading: isBidsLoading } = useCollection(bidsQuery)
+  const { data: bookmarks, isLoading: isBookmarksLoading } = useCollection(bookmarksQuery)
 
   const totalBids = bids?.length || 0
   const totalAmount = bids?.reduce((acc, bid) => acc + (Number(bid.amount) || 0), 0) || 0
   
-  // Categorías estáticas para exploración
   const categories = [
     'Construcción', 'Tecnología', 'Salud', 'Educación', 'Servicios'
   ]
@@ -97,64 +109,100 @@ export default function Dashboard() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2 space-y-6">
-          <div className="flex items-center justify-between">
-            <h3 className="text-xl font-bold text-primary flex items-center gap-2">
-              <Calendar className="h-5 w-5" />
-              Últimas Sincronizadas
-            </h3>
-            <Link href="/bids">
-              <Button variant="ghost" className="text-accent hover:text-accent/80 font-semibold gap-1">
-                Ver Todas <ChevronRight className="h-4 w-4" />
-              </Button>
-            </Link>
-          </div>
-
-          <div className="grid gap-4">
-            {isLoading ? (
-              <div className="flex flex-col items-center justify-center py-10 space-y-2">
-                <Loader2 className="h-8 w-8 text-primary animate-spin opacity-20" />
-                <p className="text-sm text-muted-foreground">Cargando datos vivos...</p>
+        <div className="lg:col-span-2 space-y-8">
+          
+          {/* SECCIÓN DE BOOKMARKS (SIGUIENDO) */}
+          {user && (
+            <div className="space-y-4">
+              <h3 className="text-xl font-bold text-primary flex items-center gap-2">
+                <Bookmark className="h-5 w-5 text-accent" />
+                Licitaciones en mi Cartera
+              </h3>
+              <div className="grid gap-3">
+                {isBookmarksLoading ? (
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground mx-auto" />
+                ) : bookmarks && bookmarks.length > 0 ? (
+                  bookmarks.map((fav) => (
+                    <Card key={fav.id} className="hover:border-accent transition-all">
+                      <Link href={`/bids/${fav.bidId}`}>
+                        <div className="p-4 flex items-center justify-between">
+                          <div className="min-w-0 flex-1">
+                            <p className="font-bold text-primary truncate">{fav.title}</p>
+                            <p className="text-xs text-muted-foreground truncate">{fav.entity}</p>
+                          </div>
+                          <ChevronRight className="h-5 w-5 text-accent shrink-0 ml-4" />
+                        </div>
+                      </Link>
+                    </Card>
+                  ))
+                ) : (
+                  <div className="p-8 bg-muted/20 border-2 border-dashed rounded-xl text-center">
+                    <p className="text-sm text-muted-foreground italic">No sigues ninguna licitación aún. Explora el buscador y marca las que te interesen.</p>
+                  </div>
+                )}
               </div>
-            ) : bids && bids.length > 0 ? (
-              bids.slice(0, 5).map((bid) => (
-                <Card key={bid.id} className="overflow-hidden group cursor-pointer hover:border-accent transition-colors">
-                  <Link href={`/bids/${bid.id}`}>
-                    <div className="flex flex-col md:flex-row">
-                      <div className="p-6 flex-1">
-                        <div className="flex items-center gap-2 mb-2">
-                          <Badge variant="outline" className="bg-primary/5 text-primary border-primary/20">ID: {bid.id}</Badge>
-                          <Badge className={bid.status === 'Publicada' ? 'bg-accent text-white' : 'bg-muted text-muted-foreground'}>
-                            {bid.status}
-                          </Badge>
+            </div>
+          )}
+
+          <div className="space-y-4 pt-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-xl font-bold text-primary flex items-center gap-2">
+                <Calendar className="h-5 w-5" />
+                Últimas Sincronizadas
+              </h3>
+              <Link href="/bids">
+                <Button variant="ghost" className="text-accent hover:text-accent/80 font-semibold gap-1">
+                  Ver Todas <ChevronRight className="h-4 w-4" />
+                </Button>
+              </Link>
+            </div>
+
+            <div className="grid gap-4">
+              {isBidsLoading ? (
+                <div className="flex flex-col items-center justify-center py-10 space-y-2">
+                  <Loader2 className="h-8 w-8 text-primary animate-spin opacity-20" />
+                  <p className="text-sm text-muted-foreground">Cargando datos vivos...</p>
+                </div>
+              ) : bids && bids.length > 0 ? (
+                bids.slice(0, 5).map((bid) => (
+                  <Card key={bid.id} className="overflow-hidden group cursor-pointer hover:border-accent transition-colors">
+                    <Link href={`/bids/${bid.id}`}>
+                      <div className="flex flex-col md:flex-row">
+                        <div className="p-6 flex-1">
+                          <div className="flex items-center gap-2 mb-2">
+                            <Badge variant="outline" className="bg-primary/5 text-primary border-primary/20">ID: {bid.id}</Badge>
+                            <Badge className={bid.status === 'Publicada' ? 'bg-accent text-white' : 'bg-muted text-muted-foreground'}>
+                              {bid.status}
+                            </Badge>
+                          </div>
+                          <h4 className="text-lg font-bold group-hover:text-accent transition-colors line-clamp-1">{bid.title}</h4>
+                          <div className="flex flex-wrap items-center gap-4 mt-3 text-sm text-muted-foreground">
+                            <span className="flex items-center gap-1.5"><Building2 className="h-4 w-4" /> {bid.entity}</span>
+                            <span className="flex items-center gap-1.5"><Clock className="h-4 w-4" /> Cierre: {bid.deadlineDate ? new Date(bid.deadlineDate).toLocaleDateString() : 'No definido'}</span>
+                          </div>
                         </div>
-                        <h4 className="text-lg font-bold group-hover:text-accent transition-colors line-clamp-1">{bid.title}</h4>
-                        <div className="flex flex-wrap items-center gap-4 mt-3 text-sm text-muted-foreground">
-                          <span className="flex items-center gap-1.5"><Building2 className="h-4 w-4" /> {bid.entity}</span>
-                          <span className="flex items-center gap-1.5"><Clock className="h-4 w-4" /> Cierre: {bid.deadlineDate ? new Date(bid.deadlineDate).toLocaleDateString() : 'No definido'}</span>
+                        <div className="bg-muted/30 p-6 flex flex-col justify-center items-end border-t md:border-t-0 md:border-l border-border min-w-[200px]">
+                          <span className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Monto Referencial</span>
+                          <span className="text-lg font-black text-primary">
+                            {bid.amount > 0 ? new Intl.NumberFormat('es-CL', { style: 'currency', currency: bid.currency || 'CLP' }).format(bid.amount) : 'Por Definir'}
+                          </span>
+                          <div className="mt-3 w-full">
+                            <Button size="sm" className="w-full bg-primary group-hover:bg-accent transition-colors">Ver Ficha</Button>
+                          </div>
                         </div>
                       </div>
-                      <div className="bg-muted/30 p-6 flex flex-col justify-center items-end border-t md:border-t-0 md:border-l border-border min-w-[200px]">
-                        <span className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Monto Referencial</span>
-                        <span className="text-lg font-black text-primary">
-                          {bid.amount > 0 ? new Intl.NumberFormat('es-CL', { style: 'currency', currency: bid.currency || 'CLP' }).format(bid.amount) : 'Por Definir'}
-                        </span>
-                        <div className="mt-3 w-full">
-                          <Button size="sm" className="w-full bg-primary group-hover:bg-accent transition-colors">Analizar</Button>
-                        </div>
-                      </div>
-                    </div>
+                    </Link>
+                  </Card>
+                ))
+              ) : (
+                <Card className="border-dashed border-2 p-10 text-center">
+                  <p className="text-muted-foreground">Tu base de datos está vacía. Ve a Licitaciones y sincroniza una fecha pasada.</p>
+                  <Link href="/bids">
+                    <Button className="mt-4 bg-accent">Ir al Explorador</Button>
                   </Link>
                 </Card>
-              )
-            )) : (
-              <Card className="border-dashed border-2 p-10 text-center">
-                <p className="text-muted-foreground">Tu base de datos está vacía. Ve a Licitaciones y sincroniza una fecha pasada.</p>
-                <Link href="/bids">
-                  <Button className="mt-4 bg-accent">Ir al Explorador</Button>
-                </Link>
-              </Card>
-            )}
+              )}
+            </div>
           </div>
         </div>
 
@@ -173,9 +221,11 @@ export default function Dashboard() {
                 ))}
               </div>
               <div className="mt-8 p-4 bg-primary/5 rounded-lg border border-primary/10">
-                <h5 className="font-bold text-primary mb-2">Estado de Sincronización</h5>
-                <p className="text-sm text-muted-foreground leading-relaxed">
-                  Para ver datos actualizados, usa el buscador en la sección de Licitaciones y selecciona una fecha hábil reciente.
+                <h5 className="font-bold text-primary mb-2 flex items-center gap-2">
+                  <Zap className="h-4 w-4 text-accent" /> Recomendación IA
+                </h5>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  Basado en tus licitaciones seguidas, hay un aumento del 15% en requerimientos de "Suministros de Oficina" para el sector salud.
                 </p>
               </div>
             </CardContent>

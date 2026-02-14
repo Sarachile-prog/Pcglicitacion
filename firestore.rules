@@ -28,6 +28,11 @@ service cloud.firestore {
       allow write: if isSignedIn();
     }
 
+    // Bookmarks de usuarios: Solo el dueño puede leer/escribir
+    match /users/{userId}/bookmarks/{bidId} {
+      allow read, write: if isSignedIn() && request.auth.uid == userId;
+    }
+
     // Cache de sincronización: Público para ver estado, protegido para escribir
     match /mp_cache/{cacheId} {
       allow read: if true;

@@ -18,7 +18,6 @@ export function SidebarNav() {
   const { setOpen, setOpenMobile, isMobile } = useSidebar()
 
   const handleLinkClick = () => {
-    // Cerrar sidebar al seleccionar algo
     if (isMobile) {
       setOpenMobile(false)
     } else {
@@ -27,7 +26,7 @@ export function SidebarNav() {
   }
 
   const navItems = [
-    { name: "Dashboard", href: "/", icon: LayoutDashboard },
+    { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
     { name: "Licitaciones", href: "/bids", icon: Search },
     { name: "Análisis y Tendencias", href: "/trends", icon: PieChart },
   ]

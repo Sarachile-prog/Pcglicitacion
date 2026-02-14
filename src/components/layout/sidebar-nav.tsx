@@ -42,7 +42,7 @@ export function SidebarNav() {
                 >
                   <Link href={item.href} className="flex items-center gap-3">
                     <item.icon className="h-4 w-4" />
-                    <span className="font-medium">{item.name}</span>
+                    <span className="font-medium group-data-[collapsible=icon]:hidden">{item.name}</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
@@ -64,7 +64,7 @@ export function SidebarNav() {
                 >
                   <Link href={item.href} className="flex items-center gap-3">
                     <item.icon className="h-4 w-4" />
-                    <span className="font-medium">{item.name}</span>
+                    <span className="font-medium group-data-[collapsible=icon]:hidden">{item.name}</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>

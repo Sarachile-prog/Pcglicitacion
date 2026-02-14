@@ -12,10 +12,25 @@ import { FirebaseClientProvider } from '@/firebase/client-provider';
 import { useUser, useAuth } from '@/firebase';
 import { signOut } from 'firebase/auth';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 
 function LayoutContent({ children }: { children: React.ReactNode }) {
   const { user, isUserLoading } = useUser();
   const auth = useAuth();
+  const pathname = usePathname();
+  
+  // Determinamos si es la página de inicio para aplicar un layout de landing page
+  const isHomePage = pathname === '/';
+
+  if (isHomePage) {
+    return (
+      <div className="min-h-screen flex flex-col">
+        <main className="flex-1">
+          {children}
+        </main>
+      </div>
+    );
+  }
 
   return (
     <SidebarProvider>

@@ -1,7 +1,7 @@
 'use server';
 /**
- * @fileOverview Flujo de Genkit para asesoría experta en licitaciones.
- * Extrae detalles, genera alertas de cumplimiento, prepara checklists de formularios y brinda consejos estratégicos.
+ * @fileOverview Flujo de Genkit para asesoría experta en licitaciones y detección de leads.
+ * Extrae detalles, genera alertas de cumplimiento, prepara checklists y detecta empresas potenciales.
  */
 
 import {ai} from '@/ai/genkit';
@@ -22,6 +22,13 @@ const FormRequirementSchema = z.object({
   dataRequired: z.array(z.string()).describe('Lista de datos específicos que el usuario debe tener a mano.'),
 });
 
+// Esquema de Prospecto/Empresa detectada
+const PotentialLeadSchema = z.object({
+  name: z.string().describe('Nombre de la empresa mencionada o tipo de proveedor.'),
+  role: z.string().describe('Por qué es relevante (ej: Proveedor actual, competencia citada, subcontratista necesario).'),
+  reason: z.string().describe('Justificación de por qué debería estar en nuestra base de datos.'),
+});
+
 // Output Schema Extendido
 const PostulationAdvisorOutputSchema = z.object({
   summary: z.string().describe('Resumen ejecutivo de la oportunidad.'),
@@ -31,6 +38,7 @@ const PostulationAdvisorOutputSchema = z.object({
   timeline: z.array(TimelineEventSchema).describe('Cronograma clave del proceso.'),
   formChecklist: z.array(FormRequirementSchema).describe('Guía paso a paso para completar los formularios y anexos.'),
   strategicAdvice: z.string().describe('Consejo experto sobre cómo ganar esta licitación o si vale la pena el riesgo.'),
+  identifiedLeads: z.array(PotentialLeadSchema).describe('Empresas o perfiles identificados en el documento para outreach.'),
   reasoning: z.string().describe('Explicación del análisis realizado.'),
 });
 
@@ -42,7 +50,7 @@ const ExtractAndSummarizeBidDetailsInputSchema = z.object({
 });
 export type ExtractAndSummarizeBidDetailsInput = z.infer<typeof ExtractAndSummarizeBidDetailsInputSchema>;
 
-// Herramienta de conceptos (mantenida para mejor comprensión)
+// Herramientas Genkit
 const explainConceptTool = ai.defineTool(
   {
     name: 'explainConcept',
@@ -76,15 +84,15 @@ const postulationAdvisorPrompt = ai.definePrompt({
   input: { schema: ExtractAndSummarizeBidDetailsInputSchema },
   output: { schema: PostulationAdvisorOutputSchema },
   tools: [explainConceptTool, fetchRealBidDataTool],
-  prompt: `Actúa como un Asesor Senior de Postulaciones a Mercado Público Chile. 
-  Tu objetivo es preparar al usuario para ganar la licitación.
+  prompt: `Actúa como un Asesor Senior de Postulaciones a Mercado Público Chile e Inteligencia de Mercado. 
+  Tu objetivo es preparar al usuario para ganar la licitación e identificar oportunidades de negocio (leads).
 
   1. Analiza las bases adjuntas: {{{bidDocumentText}}}.
   2. Si hay ID ({{{bidId}}}), valida plazos reales con la API.
-  3. Identifica "Alertas Rojas": ¿Piden una boleta de garantía muy alta? ¿El plazo de entrega es absurdo? ¿Hay multas severas?
-  4. Crea una guía de formularios: ¿Qué anexos son obligatorios? ¿Qué datos de la empresa se deben preparar?
-  5. Define un cronograma de hitos críticos.
-  6. Da un consejo final: "Postular" o "Pasar" basado en la dificultad vs beneficio.
+  3. Identifica "Alertas Rojas": ¿Piden una boleta de garantía muy alta? ¿El plazo de entrega es absurdo?
+  4. Crea una guía de formularios y cronograma de hitos.
+  5. DETECCIÓN DE LEADS: Identifica empresas que se mencionen (ej: el proveedor anterior, marcas sugeridas, o subcontratistas específicos requeridos). Si no hay nombres propios, identifica "Perfiles de Empresa" que serían el target ideal para invitar a esta plataforma.
+  6. Da un consejo final estratégico.
 
   Responde en español chileno profesional.`,
 });

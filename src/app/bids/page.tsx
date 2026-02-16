@@ -1,7 +1,7 @@
 
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useMemo } from "react"
 import { useCollection, useMemoFirebase, useFirestore } from "@/firebase"
 import { collection, query, orderBy, limit } from "firebase/firestore"
 import { Input } from "@/components/ui/input"
@@ -13,20 +13,17 @@ import {
   Search, 
   Building2, 
   RefreshCw, 
-  AlertCircle, 
-  Info,
   Calendar as CalendarIcon,
   ChevronRight,
   ChevronLeft,
-  Database,
-  Zap,
-  Settings as SettingsIcon,
-  AlertTriangle,
   LayoutGrid,
   List,
-  Filter,
   CircleHelp as TooltipIcon,
-  History
+  History,
+  Settings as SettingsIcon,
+  AlertTriangle,
+  ChevronLast,
+  ChevronFirst
 } from "lucide-react"
 import Link from "next/link"
 import { getBidsByDate } from "@/services/mercado-publico"
@@ -34,11 +31,12 @@ import { useToast } from "@/hooks/use-toast"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Calendar } from "@/components/ui/calendar"
 import { format, subDays } from "date-fns"
-import { es } from "date-fns/locale"
 import { cn } from "@/lib/utils"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { CATEGORIES } from "@/app/lib/mock-data"
+
+const ITEMS_PER_PAGE = 50;
 
 export default function BidsListPage() {
   const db = useFirestore()
@@ -47,7 +45,9 @@ export default function BidsListPage() {
   const [isSyncing, setIsSyncing] = useState(false)
   const [ticketError, setTicketError] = useState(false)
   const [isCalendarOpen, setIsCalendarOpen] = useState(false)
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('list')
+  const [currentPage, setCurrentPage] = useState(1)
+  
   const [selectedDate, setSelectedDate] = useState<Date>(() => {
     const today = new Date();
     const day = today.getDay();
@@ -57,13 +57,13 @@ export default function BidsListPage() {
   })
   const { toast } = useToast()
 
-  // Consulta global de la base de datos (todas las sincronizaciones)
+  // Consulta global de la base de datos con un límite más generoso
   const bidsQuery = useMemoFirebase(() => {
     if (!db) return null;
     return query(
       collection(db, "bids"),
       orderBy("scrapedAt", "desc"),
-      limit(200) // Aumentamos el límite para ver más historia
+      limit(1000) // Límite de carga para el prototipo
     )
   }, [db])
 
@@ -101,24 +101,35 @@ export default function BidsListPage() {
     }
   }
 
-  const filteredBids = (bids || []).filter(bid => {
-    const searchString = searchTerm.toLowerCase()
-    const matchesSearch = 
-      bid.title?.toLowerCase().includes(searchString) || 
-      bid.entity?.toLowerCase().includes(searchString) ||
-      bid.id?.toLowerCase().includes(searchString)
-    
-    let matchesRubro = true
-    if (selectedRubro !== "all") {
-      const rubroLower = selectedRubro.toLowerCase()
-      matchesRubro = 
-        bid.title?.toLowerCase().includes(rubroLower) || 
-        bid.entity?.toLowerCase().includes(rubroLower) ||
-        (bid.items && bid.items.some((item: any) => item.Categoria?.toLowerCase().includes(rubroLower)))
-    }
+  // Filtrado de datos
+  const filteredBids = useMemo(() => {
+    const allBids = bids || [];
+    return allBids.filter(bid => {
+      const searchString = searchTerm.toLowerCase()
+      const matchesSearch = 
+        bid.title?.toLowerCase().includes(searchString) || 
+        bid.entity?.toLowerCase().includes(searchString) ||
+        bid.id?.toLowerCase().includes(searchString)
+      
+      let matchesRubro = true
+      if (selectedRubro !== "all") {
+        const rubroLower = selectedRubro.toLowerCase()
+        matchesRubro = 
+          bid.title?.toLowerCase().includes(rubroLower) || 
+          bid.entity?.toLowerCase().includes(rubroLower) ||
+          (bid.items && bid.items.some((item: any) => item.Categoria?.toLowerCase().includes(rubroLower)))
+      }
 
-    return matchesSearch && matchesRubro
-  })
+      return matchesSearch && matchesRubro
+    })
+  }, [bids, searchTerm, selectedRubro])
+
+  // Lógica de Paginación
+  const totalPages = Math.ceil(filteredBids.length / ITEMS_PER_PAGE);
+  const pagedBids = useMemo(() => {
+    const start = (currentPage - 1) * ITEMS_PER_PAGE;
+    return filteredBids.slice(start, start + ITEMS_PER_PAGE);
+  }, [filteredBids, currentPage]);
 
   const formatCurrency = (amount: number, currency: string) => {
     if (!amount || amount <= 0) return 'Por Definir';
@@ -142,12 +153,11 @@ export default function BidsListPage() {
           <div className="space-y-1">
             <div className="flex items-center gap-2">
               <History className="h-5 w-5 text-accent" />
-              <h2 className="text-3xl font-extrabold tracking-tight text-primary">Historial de Mercado</h2>
+              <h2 className="text-3xl font-extrabold tracking-tight text-primary italic uppercase">Historial Global de Mercado</h2>
             </div>
-            <p className="text-muted-foreground">Explora todas las oportunidades sincronizadas. El listado es acumulativo.</p>
+            <p className="text-muted-foreground">Explora el consolidado de todas tus sincronizaciones. Datos acumulativos.</p>
           </div>
           
-          {/* SECCIÓN DE IMPORTACIÓN */}
           <Card className="bg-primary/5 border-primary/10 p-2 shadow-sm">
             <div className="flex items-center gap-2">
               <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
@@ -193,9 +203,9 @@ export default function BidsListPage() {
               <AlertTriangle className="h-6 w-6 text-red-600" />
             </div>
             <div className="flex-1 space-y-2">
-              <h4 className="font-bold text-red-800 text-lg">Ticket de API No Válido</h4>
+              <h4 className="font-bold text-red-800 text-lg">Error de Acceso a API</h4>
               <p className="text-sm text-red-700 leading-relaxed">
-                El acceso a Mercado Público ha fallado. Revisa tu ticket en la configuración.
+                No pudimos conectar con Mercado Público. Verifica tu ticket de desarrollador.
               </p>
             </div>
             <Link href="/settings">
@@ -207,25 +217,31 @@ export default function BidsListPage() {
         </Card>
       )}
 
-      {/* BARRA DE BÚSQUEDA Y FILTROS GLOBALES */}
+      {/* FILTROS */}
       <div className="bg-white p-6 rounded-2xl shadow-md border-2 border-primary/5 space-y-6">
         <div className="flex flex-col lg:flex-row gap-4 items-end">
           <div className="flex-1 space-y-2 w-full">
-            <label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest ml-1">Búsqueda Inteligente</label>
+            <label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest ml-1">Buscador Estratégico</label>
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input 
-                placeholder="Filtrar por nombre, institución o ID..." 
+                placeholder="Filtrar en toda la base de datos por título, institución o ID..." 
                 className="pl-10 h-12 bg-muted/20 border-none shadow-inner"
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                onChange={(e) => {
+                  setSearchTerm(e.target.value);
+                  setCurrentPage(1); // Reset page on search
+                }}
               />
             </div>
           </div>
           
           <div className="w-full lg:w-64 space-y-2">
-            <label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest ml-1">Rubro Estratégico</label>
-            <Select value={selectedRubro} onValueChange={setSelectedRubro}>
+            <label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest ml-1">Rubro / Sector</label>
+            <Select value={selectedRubro} onValueChange={(val) => {
+              setSelectedRubro(val);
+              setCurrentPage(1);
+            }}>
               <SelectTrigger className="h-12 bg-muted/20 border-none shadow-inner font-bold">
                 <SelectValue placeholder="Todos los Rubros" />
               </SelectTrigger>
@@ -259,28 +275,69 @@ export default function BidsListPage() {
         </div>
 
         <div className="flex items-center justify-between pt-4 border-t">
-          <div className="flex items-center gap-2">
-            <Badge variant="secondary" className="bg-primary/10 text-primary font-black px-3 py-1">
-              {filteredBids.length} Licitaciones Encontradas
+          <div className="flex items-center gap-3">
+            <Badge variant="secondary" className="bg-primary text-white font-black px-3 py-1">
+              {filteredBids.length} Licitaciones Filtradas
             </Badge>
-            {bids && bids.length > 0 && (
-              <span className="text-[10px] font-bold text-muted-foreground uppercase">
-                Mostrando últimos sincronizados de un total de {bids.length}
+            {bids && (
+              <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">
+                Base de Datos: {bids.length} Registros Recientes
               </span>
             )}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-4">
+             {totalPages > 1 && (
+               <div className="flex items-center gap-1">
+                 <Button 
+                   variant="ghost" 
+                   size="icon" 
+                   className="h-8 w-8" 
+                   onClick={() => setCurrentPage(1)} 
+                   disabled={currentPage === 1}
+                 >
+                   <ChevronFirst className="h-4 w-4" />
+                 </Button>
+                 <Button 
+                   variant="ghost" 
+                   size="icon" 
+                   className="h-8 w-8" 
+                   onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))} 
+                   disabled={currentPage === 1}
+                 >
+                   <ChevronLeft className="h-4 w-4" />
+                 </Button>
+                 <span className="text-xs font-bold px-2">Página {currentPage} de {totalPages}</span>
+                 <Button 
+                   variant="ghost" 
+                   size="icon" 
+                   className="h-8 w-8" 
+                   onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))} 
+                   disabled={currentPage === totalPages}
+                 >
+                   <ChevronRight className="h-4 w-4" />
+                 </Button>
+                 <Button 
+                   variant="ghost" 
+                   size="icon" 
+                   className="h-8 w-8" 
+                   onClick={() => setCurrentPage(totalPages)} 
+                   disabled={currentPage === totalPages}
+                 >
+                   <ChevronLast className="h-4 w-4" />
+                 </Button>
+               </div>
+             )}
              <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
                   <div className="flex items-center gap-2 text-muted-foreground cursor-help">
                     <TooltipIcon className="h-4 w-4" />
-                    <span className="text-[10px] font-black uppercase">¿Cómo funciona?</span>
+                    <span className="text-[10px] font-black uppercase">Info de Datos</span>
                   </div>
                 </TooltipTrigger>
                 <TooltipContent className="max-w-xs p-4">
                   <p className="text-xs leading-relaxed font-medium">
-                    Esta lista muestra <b>todas las licitaciones</b> que han sido importadas a través de tus sincronizaciones manuales o automáticas. Puedes usar los filtros para segmentar por rubro o buscar una institución específica sin importar la fecha.
+                    Mostramos hasta las últimas 1,000 licitaciones sincronizadas en tu base de datos global. Pagina de {ITEMS_PER_PAGE} en {ITEMS_PER_PAGE}.
                   </p>
                 </TooltipContent>
               </Tooltip>
@@ -294,10 +351,10 @@ export default function BidsListPage() {
           <RefreshCw className="h-12 w-12 text-primary animate-spin opacity-20" />
           <p className="text-muted-foreground font-medium">Consultando base de datos histórica...</p>
         </div>
-      ) : filteredBids.length > 0 ? (
+      ) : pagedBids.length > 0 ? (
         viewMode === 'grid' ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredBids.map((bid) => (
+            {pagedBids.map((bid) => (
               <Link key={bid.id} href={`/bids/${bid.id}`} className="group">
                 <Card className="h-full hover:border-accent hover:shadow-2xl transition-all duration-300 overflow-hidden border-2 border-transparent">
                   <CardContent className="p-6">
@@ -351,7 +408,7 @@ export default function BidsListPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredBids.map((bid) => (
+                  {pagedBids.map((bid) => (
                     <TableRow key={bid.id} className="group hover:bg-accent/5 cursor-pointer">
                       <TableCell className="font-mono text-xs font-bold text-primary">
                         <Link href={`/bids/${bid.id}`}>{bid.id}</Link>
@@ -395,12 +452,58 @@ export default function BidsListPage() {
             <div className="h-16 w-16 rounded-full bg-white flex items-center justify-center shadow-sm">
               <History className="h-8 w-8 text-primary/40" />
             </div>
-            <h3 className="text-xl font-bold text-primary italic uppercase">Base de datos vacía</h3>
+            <h3 className="text-xl font-bold text-primary italic uppercase">No se encontraron resultados</h3>
             <p className="text-muted-foreground max-w-sm">
-              Utiliza el panel superior para importar licitaciones de una fecha específica y comenzar a poblar tu inteligencia de mercado.
+              Ajusta tus filtros o importa datos de una fecha específica para expandir tu base de datos.
             </p>
           </CardContent>
         </Card>
+      )}
+
+      {/* Paginación Inferior */}
+      {totalPages > 1 && (
+        <div className="flex justify-center items-center gap-2 pt-4">
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))} 
+            disabled={currentPage === 1}
+            className="font-bold uppercase text-[10px]"
+          >
+            <ChevronLeft className="h-4 w-4 mr-1" /> Anterior
+          </Button>
+          <div className="flex gap-1">
+            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+              let pageNum = currentPage;
+              if (currentPage <= 3) pageNum = i + 1;
+              else if (currentPage >= totalPages - 2) pageNum = totalPages - 4 + i;
+              else pageNum = currentPage - 2 + i;
+              
+              if (pageNum <= 0 || pageNum > totalPages) return null;
+
+              return (
+                <Button 
+                  key={pageNum}
+                  variant={currentPage === pageNum ? "default" : "outline"} 
+                  size="sm"
+                  className="w-9 h-9 font-bold text-xs"
+                  onClick={() => setCurrentPage(pageNum)}
+                >
+                  {pageNum}
+                </Button>
+              )
+            })}
+          </div>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))} 
+            disabled={currentPage === totalPages}
+            className="font-bold uppercase text-[10px]"
+          >
+            Siguiente <ChevronRight className="h-4 w-4 ml-1" />
+          </Button>
+        </div>
       )}
     </div>
   )

@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useParams } from "next/navigation"
@@ -8,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog"
 import { extractAndSummarizeBidDetails, PostulationAdvisorOutput } from "@/ai/flows/extract-and-summarize-bid-details"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { 
   Building2, 
   Clock, 
@@ -29,14 +30,15 @@ import {
   FilePlus2,
   BrainCircuit,
   Zap,
-  Globe
+  Globe,
+  Database
 } from "lucide-react"
 import Link from "next/link"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import { getBidDetail } from "@/services/mercado-publico"
 import { useDoc, useFirestore, useMemoFirebase, useUser } from "@/firebase"
-import { doc, setDoc, deleteDoc } from "firebase/firestore"
+import { doc, setDoc, deleteDoc, updateDoc } from "firebase/firestore"
 
 export default function BidDetailPage() {
   const params = useParams()
@@ -64,6 +66,13 @@ export default function BidDetailPage() {
   }, [db, user, bidId])
 
   const { data: bookmark, isLoading: isBookmarkLoading } = useDoc(bookmarkRef)
+
+  // Sincronizar estado local de análisis con los datos de Firestore
+  useEffect(() => {
+    if (bid?.aiAnalysis) {
+      setAnalysis(bid.aiAnalysis as PostulationAdvisorOutput)
+    }
+  }, [bid])
 
   useEffect(() => {
     if (bidId && !isDocLoading && bid && !bid.fullDetailAt) {
@@ -124,14 +133,25 @@ export default function BidDetailPage() {
   }
 
   const handleAnalyze = async (mode: 'fast' | 'deep') => {
-    if (!bid) return
+    if (!bid || !bidRef) return
+
+    // Si ya existe un análisis guardado y es modo rápido, avisamos que lo estamos recuperando
+    if (mode === 'fast' && bid.aiAnalysis) {
+      toast({
+        title: "Análisis Recuperado",
+        description: "Mostrando inteligencia ya almacenada en la base de datos.",
+      })
+      setAnalysis(bid.aiAnalysis as PostulationAdvisorOutput)
+      return
+    }
+
     setLoadingAI(true)
     if (mode === 'deep') setIsDialogOpen(false)
 
     try {
       toast({
-        title: "Conectando con el Portal",
-        description: "Accediendo a la ficha pública en tiempo real...",
+        title: "Iniciando Análisis IA",
+        description: mode === 'fast' ? "Escaneando portal en vivo..." : "Procesando bases administrativas...",
       })
 
       const contextText = mode === 'deep' ? manualText : (bid.description || bid.title)
@@ -139,13 +159,19 @@ export default function BidDetailPage() {
       const result = await extractAndSummarizeBidDetails({ 
         bidId: bid.id,
         bidDocumentText: contextText,
-        useLivePortal: true // Activamos el scraper en vivo
+        useLivePortal: true
       })
       
+      // PERSISTENCIA: Guardamos el análisis en la base de datos para que sea compartido
+      updateDoc(bidRef, {
+        aiAnalysis: result,
+        lastAnalyzedAt: new Date().toISOString()
+      })
+
       setAnalysis(result)
       toast({
-        title: "Asesoría Generada",
-        description: "Análisis completado con datos en vivo del portal.",
+        title: "Análisis Finalizado",
+        description: "La inteligencia ha sido guardada y compartida con la comunidad.",
       })
     } catch (error: any) {
       toast({
@@ -224,9 +250,11 @@ export default function BidDetailPage() {
                "text-white",
                bid.status === 'Publicada' ? 'bg-emerald-500' : 'bg-blue-600'
             )}>{bid.status}</Badge>
-            <Badge variant="secondary" className="bg-accent/10 text-accent border-accent/20 flex items-center gap-1">
-              <Globe className="h-3 w-3" /> Live Portal Enabled
-            </Badge>
+            {bid.aiAnalysis && (
+              <Badge variant="secondary" className="bg-teal-50 text-teal-700 border-teal-100 flex items-center gap-1">
+                <Database className="h-3 w-3" /> Inteligencia Persistida
+              </Badge>
+            )}
           </div>
           <h1 className="text-4xl font-black tracking-tight text-primary leading-tight">{bid.title}</h1>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -258,7 +286,10 @@ export default function BidDetailPage() {
           <CardContent className="p-6">
             {!analysis ? (
               <div className="space-y-4">
-                <p className="text-sm text-muted-foreground">Analizaremos los datos en vivo del portal para detectar discrepancias y riesgos.</p>
+                <p className="text-sm text-muted-foreground">
+                  Inicia un análisis para descubrir riesgos ocultos y documentación necesaria. 
+                  {bid.aiAnalysis && " Ya hay un análisis disponible en la base de datos."}
+                </p>
                 
                 <div className="grid gap-2">
                   <Button 
@@ -266,7 +297,7 @@ export default function BidDetailPage() {
                     onClick={() => handleAnalyze('fast')}
                     disabled={loadingAI || isRefreshing}
                   >
-                    {loadingAI ? <><Loader2 className="h-4 w-4 animate-spin" /> Escaneando Portal...</> : <><Zap className="h-4 w-4" /> Análisis Live (Portal)</>}
+                    {loadingAI ? <><Loader2 className="h-4 w-4 animate-spin" /> Procesando...</> : <><Zap className="h-4 w-4" /> {bid.aiAnalysis ? 'Ver Análisis Guardado' : 'Análisis Live (Portal)'}</>}
                   </Button>
 
                   <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
@@ -276,19 +307,19 @@ export default function BidDetailPage() {
                         className="w-full border-accent text-accent font-bold h-12 gap-2"
                         disabled={loadingAI || isRefreshing}
                       >
-                        <BrainCircuit className="h-4 w-4" /> Análisis Senior (Portal + Bases)
+                        <BrainCircuit className="h-4 w-4" /> Actualizar con Bases
                       </Button>
                     </DialogTrigger>
                     <DialogContent className="max-w-2xl">
                       <DialogHeader>
-                        <DialogTitle>Análisis Experto Combinado</DialogTitle>
+                        <DialogTitle>Análisis Experto de Bases</DialogTitle>
                         <DialogDescription>
-                          La IA cruzará la información en vivo del portal con el texto de las bases que proporciones para detectar riesgos críticos.
+                          Pega el texto de las bases administrativas para que la IA actualice el informe estratégico compartido.
                         </DialogDescription>
                       </DialogHeader>
                       <div className="space-y-4 py-4">
                         <Textarea 
-                          placeholder="Pega aquí el texto de las bases administrativas/técnicas para un análisis 360°..." 
+                          placeholder="Pega aquí el contenido de los anexos o bases técnicas..." 
                           className="min-h-[300px] font-mono text-xs"
                           value={manualText}
                           onChange={(e) => setManualText(e.target.value)}
@@ -301,7 +332,7 @@ export default function BidDetailPage() {
                           disabled={!manualText || loadingAI}
                         >
                           {loadingAI ? <Loader2 className="animate-spin mr-2" /> : <Sparkles className="mr-2" />}
-                          Iniciar Análisis Senior + Portal
+                          Actualizar Inteligencia Colectiva
                         </Button>
                       </DialogFooter>
                     </DialogContent>
@@ -314,22 +345,27 @@ export default function BidDetailPage() {
                   <p className="text-xs font-bold text-accent uppercase mb-2">Consejo Estratégico</p>
                   <p className="text-sm font-medium leading-relaxed italic">"{analysis.strategicAdvice}"</p>
                 </div>
-                <Button variant="outline" className="w-full border-primary text-primary" onClick={() => setAnalysis(null)}>
-                  Reiniciar Análisis
-                </Button>
+                <div className="flex flex-col gap-2">
+                  <Button variant="outline" className="w-full border-primary text-primary" onClick={() => setAnalysis(null)}>
+                    Ver Opciones de Análisis
+                  </Button>
+                  <p className="text-[10px] text-center text-muted-foreground">
+                    Los resultados están guardados en el ID: {bid.id}
+                  </p>
+                </div>
               </div>
             )}
           </CardContent>
         </Card>
       </div>
 
-      <Tabs defaultValue="description" className="space-y-6">
+      <Tabs defaultValue={analysis ? "ai-advisor" : "description"} className="space-y-6">
         <TabsList className="bg-muted p-1 gap-1 h-12 overflow-x-auto">
           <TabsTrigger value="description" className="px-6">Detalle Público</TabsTrigger>
           <TabsTrigger value="items" className="px-6">Ítems Solicitados</TabsTrigger>
-          {analysis && (
+          {(analysis || bid?.aiAnalysis) && (
             <TabsTrigger value="ai-advisor" className="px-6 data-[state=active]:bg-primary data-[state=active]:text-white">
-              <Target className="h-4 w-4 mr-2" /> Estrategia IA
+              <Target className="h-4 w-4 mr-2" /> Inteligencia IA {bid?.aiAnalysis && <Database className="h-3 w-3 ml-2 opacity-50" />}
             </TabsTrigger>
           )}
         </TabsList>
@@ -415,7 +451,7 @@ export default function BidDetailPage() {
                   <Card className="border-red-100 bg-red-50/30">
                     <CardHeader>
                       <CardTitle className="text-red-700 flex items-center gap-2">
-                        <AlertTriangle className="h-6 w-6" /> Alertas del Portal & Bases
+                        <AlertTriangle className="h-6 w-6" /> Alertas Estratégicas
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="grid gap-3">
@@ -433,16 +469,13 @@ export default function BidDetailPage() {
                       <CardTitle className="text-primary flex items-center gap-2">
                         <CheckSquare className="h-6 w-6 text-accent" /> Documentación Identificada
                       </CardTitle>
-                      <CardDescription>Formularios detectados en el análisis cruzado de portal y bases.</CardDescription>
                     </CardHeader>
                     <CardContent className="grid gap-4">
                       {analysis.formChecklist.map((form, i) => (
                         <div key={i} className="p-4 bg-muted/20 rounded-xl border space-y-3">
-                          <div className="flex justify-between items-start">
-                            <h4 className="font-bold text-primary flex items-center gap-2">
-                              <FileText className="h-4 w-4 text-muted-foreground" /> {form.formName}
-                            </h4>
-                          </div>
+                          <h4 className="font-bold text-primary flex items-center gap-2">
+                            <FileText className="h-4 w-4 text-muted-foreground" /> {form.formName}
+                          </h4>
                           <p className="text-xs text-muted-foreground leading-relaxed">{form.purpose}</p>
                           <div className="flex flex-wrap gap-2">
                             {form.dataRequired.map((data, j) => (
@@ -485,7 +518,7 @@ export default function BidDetailPage() {
                   <Card className="bg-primary text-white border-none shadow-xl h-fit">
                     <CardHeader>
                       <CardTitle className="flex items-center gap-2 text-xl">
-                        <Target className="h-6 w-6 text-accent" /> Veredicto IA Live
+                        <Target className="h-6 w-6 text-accent" /> Veredicto IA
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-6">

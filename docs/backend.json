@@ -58,6 +58,10 @@
           "type": "string",
           "description": "Additional summarized key requirements, conditions, or relevant details extracted from the bid documents, potentially in a structured format like JSON string."
         },
+        "aiAnalysis": {
+          "type": "object",
+          "description": "Stored results of the strategic AI analysis, including risks, checklist, and advice."
+        },
         "scrapedAt": {
           "type": "string",
           "description": "The timestamp indicating when this bid record was last scraped or updated.",

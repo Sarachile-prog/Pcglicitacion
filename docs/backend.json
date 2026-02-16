@@ -40,6 +40,8 @@
         "email": { "type": "string", "format": "email" },
         "role": { "type": "string", "enum": ["User", "Admin", "SuperAdmin"] },
         "companyId": { "type": "string" },
+        "requestedCompanyName": { "type": "string", "description": "Name of the company provided during signup." },
+        "planRequested": { "type": "boolean", "description": "Whether the user has clicked the 'Request Plan' button." },
         "status": { "type": "string", "enum": ["Active", "Suspended"] },
         "termsAccepted": { "type": "boolean" },
         "demoUsageCount": { "type": "number", "description": "Number of AI analyses performed in demo mode." }
@@ -65,7 +67,7 @@
     }
   },
   "auth": {
-    "providers": ["password", "anonymous"]
+    "providers": ["password"]
   },
   "firestore": {
     "structure": [

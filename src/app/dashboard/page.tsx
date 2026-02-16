@@ -2,7 +2,7 @@
 "use client"
 
 import { useCollection, useMemoFirebase, useFirestore, useUser, useDoc, useAuth } from "@/firebase"
-import { collection, query, orderBy, limit, doc } from "firebase/firestore"
+import { collection, query, orderBy, limit, doc, updateDoc } from "firebase/firestore"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { 
@@ -29,21 +29,25 @@ import {
   Search,
   ArrowRight,
   BrainCircuit,
-  MessageCircle
+  MessageCircle,
+  CheckCircle2
 } from "lucide-react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { signOut } from "firebase/auth"
+import { useToast } from "@/hooks/use-toast"
+import { useState } from "react"
 
-const WHATSAPP_URL = "https://wa.me/56941245316?text=Hola,%20necesito%20activar%20mi%20plan%20empresas%20para%20acceder%20a%20los%20análisis%20IA.";
+const WHATSAPP_URL = "https://wa.me/56941245316?text=Hola,%20ya%20me%20registré%20en%20la%20plataforma%20y%20quiero%20activar%20mi%20Plan%20Empresas.";
 
 export default function DashboardPage() {
   const db = useFirestore()
   const auth = useAuth()
   const { user, isUserLoading } = useUser()
+  const { toast } = useToast()
+  const [isRequesting, setIsRequesting] = useState(false)
 
-  // Obtenemos el perfil para saber el companyId y el rol en tiempo real
   const profileRef = useMemoFirebase(() => {
     if (!db || !user) return null
     return doc(db, "users", user.uid)
@@ -54,9 +58,25 @@ export default function DashboardPage() {
   const isSuperAdmin = user?.email === 'control@pcgoperacion.com' || profile?.role === 'SuperAdmin'
   const isLinkedToCompany = !!profile?.companyId
   const demoUsage = profile?.demoUsageCount || 0
-  const isDemo = !isLinkedToCompany && !isSuperAdmin
+  const hasRequestedPlan = profile?.planRequested || false
 
-  // Licitaciones globales recientes (disponibles para todos)
+  const handleRequestPlan = async () => {
+    if (!profileRef) return
+    setIsRequesting(true)
+    try {
+      await updateDoc(profileRef, { planRequested: true })
+      toast({ 
+        title: "Solicitud Enviada", 
+        description: "Un ejecutivo revisará tu perfil para la activación del plan corporativo." 
+      })
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Error", description: e.message })
+    } finally {
+      setIsRequesting(false)
+    }
+  }
+
+  // Licitaciones globales recientes
   const bidsQuery = useMemoFirebase(() => {
     if (!db) return null
     return query(
@@ -68,7 +88,7 @@ export default function DashboardPage() {
 
   const { data: bids, isLoading: isBidsLoading } = useCollection(bidsQuery)
 
-  // Bookmarks corporativos (Solo si está vinculado)
+  // Bookmarks corporativos
   const bookmarksQuery = useMemoFirebase(() => {
     if (!db || !profile?.companyId) return null
     return query(
@@ -80,17 +100,6 @@ export default function DashboardPage() {
   const { data: bookmarks, isLoading: isBookmarksLoading } = useCollection(bookmarksQuery)
 
   const totalAmount = bids?.reduce((acc, bid) => acc + (Number(bid.amount) || 0), 0) || 0
-
-  const criticalAlerts = bookmarks?.flatMap(bookmark => {
-    const timeline = (bookmark as any).timeline || []
-    return timeline
-      .filter((event: any) => event.criticality === 'alta')
-      .map((event: any) => ({
-        ...event,
-        bidId: bookmark.bidId,
-        bidTitle: bookmark.title
-      }))
-  }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()).slice(0, 3) || []
 
   if (isUserLoading || isProfileLoading) {
     return (
@@ -112,40 +121,55 @@ export default function DashboardPage() {
                 <ShieldCheck className="h-8 w-8 text-primary animate-pulse" />
               </div>
               <div className="space-y-2">
-                <Badge className="bg-accent text-white uppercase font-black text-[10px] px-4">Modo Prospecto Activo</Badge>
-                <h2 className="text-3xl font-black text-primary uppercase italic tracking-tighter">Acceso en Proceso</h2>
+                <Badge className="bg-accent text-white uppercase font-black text-[10px] px-4">Acceso de Prueba Activo</Badge>
+                <h2 className="text-3xl font-black text-primary uppercase italic tracking-tighter">Panel de Prospección</h2>
               </div>
             </CardHeader>
             <CardContent className="p-8 space-y-8">
-              <div className="text-center space-y-4">
-                <p className="text-muted-foreground text-md leading-relaxed font-medium italic">
-                  Tu cuenta está en fase de prospección. Puedes usar el motor IA de forma limitada mientras se activa tu empresa.
+              <div className="space-y-6">
+                <div className="p-6 bg-muted/30 rounded-2xl border-2 border-dashed space-y-2">
+                  <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Empresa Registrada</p>
+                  <p className="text-xl font-black text-primary uppercase italic">{profile?.requestedCompanyName || "No especificada"}</p>
+                </div>
+
+                <p className="text-muted-foreground text-md leading-relaxed font-medium italic text-center">
+                  Tu cuenta está en fase de prueba. Tienes acceso al motor IA para tus primeros 3 procesos antes de requerir el plan corporativo.
                 </p>
-                <div className="bg-amber-50 border-2 border-amber-100 rounded-2xl p-6 text-left space-y-4">
-                  <div className="flex items-center gap-3 text-amber-800 font-black uppercase text-xs tracking-widest">
-                    <Zap className="h-4 w-4" /> Funciones Disponibles
-                  </div>
-                  <p className="text-sm text-amber-900/80 font-bold leading-relaxed italic">
-                    Explora el mercado y utiliza el motor IA para tus primeros 3 procesos.
-                  </p>
+
+                <div className="grid gap-4">
                   <Link href="/bids">
-                    <Button className="w-full h-12 bg-amber-600 hover:bg-amber-700 text-white font-black uppercase italic shadow-md gap-2">
-                      <Search className="h-4 w-4" /> Ir al Buscador de Licitaciones
+                    <Button className="w-full h-14 bg-primary hover:bg-primary/90 text-white font-black uppercase italic shadow-lg gap-3">
+                      <Search className="h-5 w-5" /> Explorar Licitaciones Reales
                     </Button>
                   </Link>
+
+                  {hasRequestedPlan ? (
+                    <div className="p-4 bg-emerald-50 border-2 border-emerald-100 rounded-2xl flex items-center justify-center gap-3 text-emerald-700 font-black uppercase italic text-sm">
+                      <CheckCircle2 className="h-5 w-5" /> Solicitud de Plan en Revisión
+                    </div>
+                  ) : (
+                    <Button 
+                      onClick={handleRequestPlan}
+                      disabled={isRequesting}
+                      className="w-full h-14 bg-accent hover:bg-accent/90 text-white font-black uppercase italic shadow-xl gap-3 text-lg"
+                    >
+                      {isRequesting ? <Loader2 className="animate-spin" /> : <Sparkles className="h-5 w-5" />}
+                      Activar Plan Empresas
+                    </Button>
+                  )}
                 </div>
               </div>
               
-              <div className="pt-6 border-t space-y-4">
-                <Button asChild className="w-full h-14 bg-[#25D366] hover:bg-[#20ba5a] text-white font-black uppercase italic text-lg shadow-xl gap-3">
+              <div className="pt-6 border-t flex flex-col sm:flex-row gap-4">
+                <Button asChild variant="outline" className="flex-1 h-12 border-[#25D366] text-[#25D366] hover:bg-[#25D366]/5 font-black uppercase italic gap-2">
                   <a href={WHATSAPP_URL} target="_blank">
-                    Solicitar Activación Corporativa
+                    <MessageCircle className="h-4 w-4" /> Hablar con Soporte
                   </a>
                 </Button>
                 <Button 
-                  variant="outline" 
+                  variant="ghost" 
                   onClick={() => signOut(auth)} 
-                  className="w-full font-black uppercase italic text-xs border-primary/20 gap-2"
+                  className="h-12 font-black uppercase italic text-xs text-red-400 hover:text-red-600 hover:bg-red-50 gap-2"
                 >
                   <LogOut className="h-3 w-3" /> Cerrar Sesión
                 </Button>
@@ -159,12 +183,12 @@ export default function DashboardPage() {
                 <BrainCircuit className="h-20 w-20" />
               </div>
               <CardHeader>
-                <CardTitle className="text-xs uppercase font-black tracking-widest text-accent italic">Tu Consumo Demo</CardTitle>
+                <CardTitle className="text-xs uppercase font-black tracking-widest text-accent italic">Créditos de Cortesía</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="text-center py-4">
                   <span className="text-6xl font-black italic">{3 - demoUsage}</span>
-                  <p className="text-[10px] uppercase font-bold opacity-60 tracking-widest mt-2">Créditos de Análisis</p>
+                  <p className="text-[10px] uppercase font-bold opacity-60 tracking-widest mt-2">Análisis Disponibles</p>
                 </div>
                 <div className="h-2 w-full bg-white/10 rounded-full overflow-hidden">
                   <div 
@@ -173,20 +197,20 @@ export default function DashboardPage() {
                   />
                 </div>
                 <p className="text-[10px] italic font-medium opacity-80 text-center">
-                  {demoUsage >= 3 ? "Límite alcanzado." : "Úsalos con sabiduría en licitaciones reales."}
+                  Prueba el poder de nuestra IA en licitaciones reales de hoy.
                 </p>
               </CardContent>
             </Card>
 
             <Card className="border-2 border-accent/10 bg-accent/5 rounded-3xl shadow-sm">
               <CardHeader className="pb-2">
-                <CardTitle className="text-[10px] font-black uppercase tracking-widest text-primary">Identidad</CardTitle>
+                <CardTitle className="text-[10px] font-black uppercase tracking-widest text-primary">Identidad Digital</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-2">
-                <div className="p-3 bg-white rounded-xl border text-[10px] font-mono break-all text-muted-foreground">
-                  UID: {user.uid}
+              <CardContent className="space-y-3">
+                <div className="p-3 bg-white rounded-xl border text-[10px] font-mono break-all text-muted-foreground shadow-inner">
+                  {user.email}
                 </div>
-                <p className="text-[9px] text-primary/60 font-bold italic">Comparte este ID con soporte para vincularte a tu empresa.</p>
+                <p className="text-[9px] text-primary/60 font-bold italic leading-tight px-1">Usa este correo para todas tus consultas de soporte y facturación.</p>
               </CardContent>
             </Card>
           </div>
@@ -250,40 +274,6 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
       </div>
-
-      {criticalAlerts.length > 0 && (
-        <div className="space-y-4">
-          <div className="flex items-center gap-2">
-            <AlertTriangle className="h-4 w-4 text-red-600" />
-            <h3 className="text-[10px] font-black uppercase text-red-700 tracking-widest">Hitos Críticos Inminentes (Tu Equipo)</h3>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {criticalAlerts.map((alert, i) => (
-              <Link key={i} href={`/bids/${alert.bidId}/apply`} className="block group">
-                <Card className="bg-red-50 border-red-200 border-l-8 border-l-red-600 hover:shadow-lg transition-all h-full">
-                  <CardContent className="p-4 flex items-start gap-4">
-                    <div className="h-10 w-10 rounded-full bg-red-100 flex items-center justify-center shrink-0 border border-red-200">
-                      <AlertTriangle className="h-5 w-5 text-red-600 animate-pulse" />
-                    </div>
-                    <div className="space-y-1 overflow-hidden flex-1">
-                      <div className="flex justify-between items-center">
-                        <span className="text-[9px] font-black uppercase text-red-700 tracking-tighter bg-red-100 px-2 rounded-full">Prioridad Máxima</span>
-                        <ArrowUpRight className="h-3 w-3 text-red-400 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
-                      </div>
-                      <p className="text-xs font-black text-red-900 truncate leading-tight">{alert.event}</p>
-                      <p className="text-[9px] text-red-700/70 truncate uppercase font-bold italic">{alert.bidTitle}</p>
-                      <div className="flex items-center gap-1.5 pt-1.5">
-                        <Clock className="h-3 w-3 text-red-600" />
-                        <span className="text-[10px] font-black text-red-600">{alert.date}</span>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </Link>
-            ))}
-          </div>
-        </div>
-      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <Card className="bg-white border-2 border-primary/5 shadow-sm hover:shadow-md transition-shadow">
@@ -452,7 +442,7 @@ export default function DashboardPage() {
           <Card className="border-2 border-accent/10 bg-accent/5 rounded-3xl overflow-hidden shadow-sm">
             <CardHeader className="pb-4">
               <CardTitle className="text-sm font-black flex items-center gap-2 uppercase tracking-widest text-primary">
-                <Users className="h-4 w-4 text-accent" /> Equipo en Línea
+                <Users className="h-4 w-4 text-accent" /> Perfil de Operación
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -473,8 +463,8 @@ export default function DashboardPage() {
               </div>
               
               {!isLinkedToCompany && !isSuperAdmin && (
-                <div className="flex items-center gap-2 p-3 bg-red-50 rounded-2xl border border-red-100 text-[10px] font-bold text-red-700 italic">
-                  <Lock className="h-3 w-3 shrink-0" /> Colaboración bloqueada: Requiere vinculación.
+                <div className="flex items-center gap-2 p-3 bg-amber-50 rounded-2xl border border-amber-100 text-[10px] font-bold text-amber-700 italic leading-tight">
+                  <Lock className="h-3 w-3 shrink-0" /> Acceso de prueba: Vincula tu empresa para habilitar colaboración de equipo.
                 </div>
               )}
             </CardContent>

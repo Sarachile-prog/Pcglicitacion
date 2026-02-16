@@ -3,7 +3,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { LayoutDashboard, Search, PieChart, Info, Settings, Users, Mail, Sparkles, Calculator, ShieldCheck, Building2, Zap } from "lucide-react"
+import { LayoutDashboard, Search, PieChart, Info, Settings, Users, Mail, Sparkles, Calculator, ShieldCheck, Building2, Zap, CreditCard } from "lucide-react"
 import { 
   SidebarMenu, 
   SidebarMenuItem, 
@@ -33,7 +33,8 @@ export function SidebarNav() {
 
   const isSuperAdmin = profile?.role === 'SuperAdmin' || user?.email === 'control@pcgoperacion.com'
   const isAdmin = profile?.role === 'Admin' || isSuperAdmin
-  const isDemo = user && !profile?.companyId && !isSuperAdmin
+  const isLinked = !!profile?.companyId
+  const isDemo = user && !isLinked && !isSuperAdmin
 
   const handleLinkClick = () => {
     if (isMobile) {
@@ -45,6 +46,10 @@ export function SidebarNav() {
     { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
     { name: "Licitaciones", href: "/bids", icon: Search, badge: isDemo ? "Probar" : null },
     { name: "Análisis y Tendencias", href: "/trends", icon: PieChart },
+  ]
+
+  const corporateItems = [
+    { name: "Facturación y Plan", href: "/settings/billing", icon: CreditCard, show: isLinked || isSuperAdmin },
   ]
 
   const adminItems = [
@@ -90,6 +95,26 @@ export function SidebarNav() {
           </SidebarMenu>
         </SidebarGroupContent>
       </SidebarGroup>
+
+      {isLinked && (
+        <SidebarGroup>
+          <SidebarGroupLabel className="text-sidebar-foreground/50 uppercase text-[10px] font-black tracking-widest">Corporativo</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {corporateItems.filter(i => i.show).map((item) => (
+                <SidebarMenuItem key={item.name}>
+                  <SidebarMenuButton asChild isActive={pathname === item.href} onClick={handleLinkClick}>
+                    <Link href={item.href} className="flex items-center gap-3">
+                      <item.icon className="h-4 w-4" />
+                      <span className="font-medium">{item.name}</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+      )}
 
       {isSuperAdmin && (
         <SidebarGroup>

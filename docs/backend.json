@@ -13,18 +13,6 @@
       },
       "required": ["id", "name", "description"]
     },
-    "AwardingBody": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "AwardingBody",
-      "type": "object",
-      "description": "Government or institutional entity issuing a bid.",
-      "properties": {
-        "id": { "type": "string" },
-        "name": { "type": "string" },
-        "country": { "type": "string" }
-      },
-      "required": ["id", "name", "country"]
-    },
     "Bid": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Bid",
@@ -51,11 +39,9 @@
         "uid": { "type": "string" },
         "email": { "type": "string", "format": "email" },
         "role": { "type": "string", "enum": ["User", "Admin", "SuperAdmin"] },
-        "companyId": { "type": "string", "description": "Link to the Company entity." },
+        "companyId": { "type": "string" },
         "status": { "type": "string", "enum": ["Active", "Suspended"] },
-        "termsAccepted": { "type": "boolean" },
-        "aiUsageCount": { "type": "number" },
-        "aiCredits": { "type": "number", "description": "Available credits for deep analysis." }
+        "termsAccepted": { "type": "boolean" }
       },
       "required": ["uid", "role"]
     },
@@ -70,7 +56,9 @@
         "rut": { "type": "string" },
         "plan": { "type": "string", "enum": ["Standard", "Enterprise"] },
         "subscriptionStatus": { "type": "string", "enum": ["Active", "Inactive"] },
-        "maxUsers": { "type": "number" }
+        "maxUsers": { "type": "number" },
+        "billingEmail": { "type": "string" },
+        "subscriptionExpiresAt": { "type": "string", "format": "date-time" }
       },
       "required": ["id", "name", "plan", "subscriptionStatus"]
     }
@@ -111,16 +99,7 @@
           "schema": { "$ref": "#/backend/entities/Bid" },
           "description": "Global cache of scraped bids."
         }
-      },
-      {
-        "path": "/settings/{settingId}",
-        "definition": {
-          "entityName": "SystemConfig",
-          "schema": { "type": "object" },
-          "description": "System-wide settings like API keys."
-        }
       }
-    ],
-    "reasoning": "The structure uses a hierarchical multi-tenant approach. /users holds the mapping between individuals and corporate accounts. /companies isolates team-specific collaboration data, ensuring data privacy between different firms using the SaaS."
+    ]
   }
 }

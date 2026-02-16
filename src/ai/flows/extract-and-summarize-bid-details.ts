@@ -47,6 +47,7 @@ export type ExtractAndSummarizeBidDetailsInput = z.infer<typeof ExtractAndSummar
 
 /**
  * Función de diagnóstico para probar la conexión con el modelo.
+ * Intenta usar el nombre corto del modelo.
  */
 export async function testAiConnection() {
   console.log('>>> [AI_DIAGNOSTIC] Probando conexión con Gemini...');
@@ -58,6 +59,19 @@ export async function testAiConnection() {
     return { success: true, response: text };
   } catch (error: any) {
     console.error('>>> [AI_DIAGNOSTIC_ERROR]:', error.message);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Nueva función para listar modelos disponibles.
+ */
+export async function listModels() {
+  try {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${process.env.GEMINI_API_KEY}`);
+    const data = await response.json();
+    return { success: true, models: data.models || [] };
+  } catch (error: any) {
     return { success: false, error: error.message };
   }
 }

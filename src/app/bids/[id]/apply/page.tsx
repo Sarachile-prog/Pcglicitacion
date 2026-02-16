@@ -102,7 +102,8 @@ export default function BidApplyPage() {
     const total = annexes.length;
     const uploaded = annexes.filter(a => a.status !== 'pending').length;
     const ready = annexes.filter(a => a.status === 'uploaded' && a.auditResult?.isReady).length;
-    return { total, uploaded, ready };
+    const toCorrect = annexes.filter(a => a.status === 'error').length;
+    return { total, uploaded, ready, toCorrect };
   }, [annexes]);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -273,12 +274,16 @@ export default function BidApplyPage() {
             </CardHeader>
             <CardContent className="space-y-4">
                <div className="flex justify-between items-center text-xs">
-                 <span className="opacity-70">Documentos:</span>
+                 <span className="opacity-70">Total Archivos:</span>
                  <span className="font-bold">{stats.total}</span>
                </div>
                <div className="flex justify-between items-center text-xs text-emerald-400">
                  <span className="opacity-70">Auditados OK:</span>
                  <span className="font-bold">{stats.ready}</span>
+               </div>
+               <div className="flex justify-between items-center text-xs text-red-400">
+                 <span className="opacity-70">A corregir:</span>
+                 <span className="font-bold">{stats.toCorrect}</span>
                </div>
                <div className="pt-4 border-t border-white/10">
                  <p className="text-[9px] font-bold uppercase opacity-60 mb-2">Seguridad</p>
@@ -361,8 +366,9 @@ export default function BidApplyPage() {
                         <DialogContent>
                           <DialogHeader>
                             <DialogTitle>Cargar Documento Oficial</DialogTitle>
+                            <DialogTitle className="text-xs text-muted-foreground">{annex.name}</DialogTitle>
                             <DialogDescription>
-                              Selecciona el archivo PDF del {selectedAnnex?.name} para su análisis técnico.
+                              Selecciona el archivo PDF para su análisis técnico.
                             </DialogDescription>
                           </DialogHeader>
                           <div className="py-6 border-2 border-dashed rounded-xl flex flex-col items-center justify-center gap-4 bg-muted/10">

@@ -31,7 +31,8 @@ import {
   BrainCircuit,
   Zap,
   Globe,
-  Database
+  Database,
+  Users
 } from "lucide-react"
 import Link from "next/link"
 import { useToast } from "@/hooks/use-toast"
@@ -297,42 +298,50 @@ export default function BidDetailPage() {
                     onClick={() => handleAnalyze('fast')}
                     disabled={loadingAI || isRefreshing}
                   >
-                    {loadingAI ? <><Loader2 className="h-4 w-4 animate-spin" /> Procesando...</> : <><Zap className="h-4 w-4" /> {bid.aiAnalysis ? 'Ver Análisis Guardado' : 'Análisis Live (Portal)'}</>}
+                    {loadingAI ? <><Loader2 className="h-4 w-4 animate-spin" /> Procesando...</> : <><Zap className="h-4 w-4" /> {bid.aiAnalysis ? 'Ver Análisis Guardado' : 'Escanear Portal (Live)'}</>}
                   </Button>
 
                   <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                     <DialogTrigger asChild>
                       <Button 
                         variant="outline"
-                        className="w-full border-accent text-accent font-bold h-12 gap-2"
+                        className="w-full border-accent text-accent font-bold h-12 gap-2 group"
                         disabled={loadingAI || isRefreshing}
                       >
-                        <BrainCircuit className="h-4 w-4" /> Actualizar con Bases
+                        <BrainCircuit className="h-4 w-4 group-hover:scale-110 transition-transform" /> 
+                        Entrenar con Bases (Análisis Profundo)
                       </Button>
                     </DialogTrigger>
                     <DialogContent className="max-w-2xl">
-                      <DialogHeader>
-                        <DialogTitle>Análisis Experto de Bases</DialogTitle>
-                        <DialogDescription>
-                          Pega el texto de las bases administrativas para que la IA actualice el informe estratégico compartido.
+                      <DialogHeader className="space-y-3">
+                        <DialogTitle className="text-2xl flex items-center gap-2">
+                          <Users className="h-6 w-6 text-accent" /> Inteligencia Estratégica Compartida
+                        </DialogTitle>
+                        <DialogDescription className="text-md leading-relaxed">
+                          Pega aquí el texto extraído de las <b>Bases Administrativas o Técnicas (PDF)</b>. 
+                          La IA procesará multas, boletas de garantía y anexos, <b>guardando este análisis permanentemente</b> para que tú y otros usuarios puedan postular con éxito.
                         </DialogDescription>
                       </DialogHeader>
                       <div className="space-y-4 py-4">
                         <Textarea 
-                          placeholder="Pega aquí el contenido de los anexos o bases técnicas..." 
-                          className="min-h-[300px] font-mono text-xs"
+                          placeholder="Pega aquí el contenido de los anexos, criterios de evaluación o bases administrativas..." 
+                          className="min-h-[300px] font-mono text-xs border-accent/20 focus:border-accent"
                           value={manualText}
                           onChange={(e) => setManualText(e.target.value)}
                         />
+                        <div className="flex items-center gap-2 text-[10px] text-muted-foreground bg-muted/50 p-2 rounded">
+                          <Info className="h-3 w-3" />
+                          <span>Tip: Puedes seleccionar todo el texto del PDF (Ctrl+A) y pegarlo aquí directamente.</span>
+                        </div>
                       </div>
                       <DialogFooter>
                         <Button 
-                          className="bg-accent hover:bg-accent/90 font-bold w-full h-12" 
+                          className="bg-accent hover:bg-accent/90 font-bold w-full h-14 text-lg gap-2 shadow-lg" 
                           onClick={() => handleAnalyze('deep')}
                           disabled={!manualText || loadingAI}
                         >
-                          {loadingAI ? <Loader2 className="animate-spin mr-2" /> : <Sparkles className="mr-2" />}
-                          Actualizar Inteligencia Colectiva
+                          {loadingAI ? <Loader2 className="animate-spin h-5 w-5" /> : <Database className="h-5 w-5" />}
+                          Actualizar Inteligencia de la Comunidad
                         </Button>
                       </DialogFooter>
                     </DialogContent>
@@ -347,10 +356,10 @@ export default function BidDetailPage() {
                 </div>
                 <div className="flex flex-col gap-2">
                   <Button variant="outline" className="w-full border-primary text-primary" onClick={() => setAnalysis(null)}>
-                    Ver Opciones de Análisis
+                    Cambiar Modo de Análisis
                   </Button>
                   <p className="text-[10px] text-center text-muted-foreground">
-                    Los resultados están guardados en el ID: {bid.id}
+                    Los resultados están persistidos en la base de datos global.
                   </p>
                 </div>
               </div>

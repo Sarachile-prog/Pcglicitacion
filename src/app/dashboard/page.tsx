@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useCollection, useMemoFirebase, useFirestore, useUser } from "@/firebase"
@@ -17,11 +18,16 @@ import {
   Bookmark,
   Loader2,
   TrendingUp,
-  Mail
+  Mail,
+  AlertTriangle,
+  Calendar,
+  ArrowUpRight
 } from "lucide-react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
+import { formatDistanceToNow } from 'date-fns'
+import { es } from 'date-fns/locale'
 
 export default function DashboardPage() {
   const db = useFirestore()
@@ -52,6 +58,18 @@ export default function DashboardPage() {
 
   const totalAmount = bids?.reduce((acc, bid) => acc + (Number(bid.amount) || 0), 0) || 0
 
+  // Extraer alertas críticas de los bookmarks
+  const criticalAlerts = bookmarks?.flatMap(bookmark => {
+    const timeline = (bookmark as any).timeline || []
+    return timeline
+      .filter((event: any) => event.criticality === 'alta')
+      .map((event: any) => ({
+        ...event,
+        bidId: bookmark.bidId,
+        bidTitle: bookmark.title
+      }))
+  }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()).slice(0, 3) || []
+
   if (isUserLoading) {
     return (
       <div className="flex flex-col items-center justify-center py-20 gap-4">
@@ -75,9 +93,38 @@ export default function DashboardPage() {
         </Link>
       </div>
 
+      {/* ALERTAS CRÍTICAS (SURVIVAL STRIP) */}
+      {criticalAlerts.length > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {criticalAlerts.map((alert, i) => (
+            <Link key={i} href={`/bids/${alert.bidId}/apply`}>
+              <Card className="bg-red-50 border-red-200 border-l-8 border-l-red-600 hover:shadow-md transition-all group">
+                <CardContent className="p-4 flex items-start gap-4">
+                  <div className="h-10 w-10 rounded-full bg-red-100 flex items-center justify-center shrink-0">
+                    <AlertTriangle className="h-5 w-5 text-red-600 animate-pulse" />
+                  </div>
+                  <div className="space-y-1 overflow-hidden">
+                    <div className="flex justify-between items-center">
+                      <span className="text-[10px] font-black uppercase text-red-700 tracking-tighter">Hito Crítico</span>
+                      <ArrowUpRight className="h-3 w-3 text-red-400 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+                    </div>
+                    <p className="text-xs font-bold text-red-900 truncate">{alert.event}</p>
+                    <p className="text-[10px] text-red-700/70 truncate">{alert.bidTitle}</p>
+                    <div className="flex items-center gap-1.5 pt-1">
+                      <Clock className="h-3 w-3 text-red-600" />
+                      <span className="text-[10px] font-black text-red-600">{alert.date}</span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </Link>
+          ))}
+        </div>
+      )}
+
       {/* STATS STRIP */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <Card className="bg-white border-none shadow-sm hover:shadow-md transition-all">
+        <Card className="bg-white border-none shadow-sm">
           <CardContent className="p-6 flex items-center gap-4">
             <div className="h-12 w-12 rounded-xl bg-primary/5 flex items-center justify-center shrink-0">
               <Briefcase className="h-6 w-6 text-primary" />
@@ -89,7 +136,7 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-        <Card className="bg-white border-none shadow-sm hover:shadow-md transition-all">
+        <Card className="bg-white border-none shadow-sm">
           <CardContent className="p-6 flex items-center gap-4">
             <div className="h-12 w-12 rounded-xl bg-accent/5 flex items-center justify-center shrink-0">
               <DollarSign className="h-6 w-6 text-accent" />
@@ -103,7 +150,7 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-        <Card className="bg-white border-none shadow-sm hover:shadow-md transition-all">
+        <Card className="bg-white border-none shadow-sm">
           <CardContent className="p-6 flex items-center gap-4">
             <div className="h-12 w-12 rounded-xl bg-orange-50 flex items-center justify-center shrink-0">
               <Bookmark className="h-6 w-6 text-orange-600" />
@@ -115,7 +162,7 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-        <Card className="bg-white border-none shadow-sm hover:shadow-md transition-all">
+        <Card className="bg-white border-none shadow-sm">
           <CardContent className="p-6 flex items-center gap-4">
             <div className="h-12 w-12 rounded-xl bg-teal-50 flex items-center justify-center shrink-0">
               <TrendingUp className="h-6 w-6 text-teal-600" />
@@ -129,7 +176,6 @@ export default function DashboardPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* COLUMNA IZQUIERDA: LICITACIONES SEGUIDAS */}
         <div className="lg:col-span-2 space-y-6">
           <Card className="border-none shadow-md overflow-hidden">
             <CardHeader className="bg-primary/5 border-b flex flex-row items-center justify-between p-6">
@@ -175,34 +221,8 @@ export default function DashboardPage() {
               )}
             </CardContent>
           </Card>
-
-          {/* ÚLTIMAS SINCRONIZADAS */}
-          <div className="space-y-4">
-            <h3 className="text-xl font-bold text-primary flex items-center gap-2">
-              <Zap className="h-5 w-5 text-accent" /> Últimas Oportunidades Sincronizadas
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {bids?.map((bid) => (
-                <Link key={bid.id} href={`/bids/${bid.id}`}>
-                  <Card className="hover:border-accent transition-all duration-300">
-                    <CardContent className="p-4 space-y-3">
-                      <div className="flex justify-between items-start">
-                        <Badge variant="outline" className="text-[9px]">{bid.id}</Badge>
-                        <p className="text-xs font-black text-primary">
-                          {bid.amount > 0 ? new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(bid.amount) : 'Por Definir'}
-                        </p>
-                      </div>
-                      <h5 className="font-bold text-sm line-clamp-1">{bid.title}</h5>
-                      <p className="text-[10px] text-muted-foreground truncate">{bid.entity}</p>
-                    </CardContent>
-                  </Card>
-                </Link>
-              ))}
-            </div>
-          </div>
         </div>
 
-        {/* COLUMNA DERECHA: INSIGHTS IA */}
         <div className="space-y-6">
           <Card className="bg-primary text-white border-none shadow-xl overflow-hidden relative">
              <div className="absolute top-0 right-0 p-4 opacity-10">
@@ -247,23 +267,6 @@ export default function DashboardPage() {
                 </div>
               ))}
             </CardContent>
-          </Card>
-
-          <Card>
-             <CardHeader className="pb-2">
-               <CardTitle className="text-sm font-bold flex items-center gap-2">
-                 <BarChart3 className="h-4 w-4 text-primary" /> Actividad Outreach
-               </CardTitle>
-             </CardHeader>
-             <CardContent className="text-center py-6">
-                <div className="h-16 w-16 bg-muted rounded-full flex items-center justify-center mx-auto mb-3">
-                  <Mail className="h-8 w-8 text-muted-foreground/30" />
-                </div>
-                <p className="text-xs text-muted-foreground">No hay campañas activas enviando invitaciones hoy.</p>
-                <Link href="/admin/outreach">
-                  <Button variant="link" className="text-accent font-bold text-xs">Gestionar Outreach</Button>
-                </Link>
-             </CardContent>
           </Card>
         </div>
       </div>

@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useParams } from "next/navigation"
@@ -31,7 +32,7 @@ import {
   Database,
   Users,
   SendHorizontal
-} from "lucide-react"
+} from "lucide-center"
 import Link from "next/link"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
@@ -113,12 +114,16 @@ export default function BidDetailPage() {
         await deleteDoc(bookmarkRef)
         toast({ title: "Licitación eliminada", description: "Ya no sigues este proceso." })
       } else {
+        // Capturamos el cronograma actual si existe para que el dashboard tenga alertas inmediatas
+        const timelineSnapshot = analysis?.timeline || (bid.aiAnalysis as any)?.timeline || []
+        
         await setDoc(bookmarkRef, {
           bidId: bid.id,
           title: bid.title,
           entity: bid.entity || "No especificada",
           status: bid.status,
-          savedAt: new Date().toISOString()
+          savedAt: new Date().toISOString(),
+          timeline: timelineSnapshot
         })
         toast({ title: "Licitación seguida", description: "Se ha guardado en tu cartera." })
       }
@@ -147,10 +152,17 @@ export default function BidDetailPage() {
         useLivePortal: true
       })
       
-      updateDoc(bidRef, {
+      await updateDoc(bidRef, {
         aiAnalysis: result,
         lastAnalyzedAt: new Date().toISOString()
       })
+
+      // Si ya está seguida, actualizamos el bookmark también para que el dashboard se refresque
+      if (bookmarkRef && bookmark) {
+        await updateDoc(bookmarkRef, {
+          timeline: result.timeline
+        })
+      }
 
       setAnalysis(result)
       toast({ title: "Análisis Finalizado", description: "La inteligencia ha sido guardada." })
@@ -360,18 +372,21 @@ export default function BidDetailPage() {
                       <div className="p-3 bg-white/10 rounded-lg text-xs italic opacity-80">{analysis.reasoning}</div>
                     </CardContent>
                   </Card>
-                  {analysis.identifiedLeads.length > 0 && (
-                    <Card className="border-accent/20 bg-accent/5">
-                      <CardHeader><CardTitle className="text-sm font-bold flex items-center gap-2"><Users /> Leads de Prospección</CardTitle></CardHeader>
-                      <CardContent className="space-y-3">
-                        {analysis.identifiedLeads.map((lead, i) => (
-                          <div key={i} className="p-3 bg-white rounded-lg border shadow-sm">
-                            <p className="font-bold text-sm text-primary">{lead.name}</p>
-                            <p className="text-[10px] text-accent font-bold uppercase">{lead.role}</p>
-                          </div>
-                        ))}
-                      </CardContent>
-                    </Card>
+                  {analysis.timeline && (
+                     <Card className="border-accent/20 bg-accent/5">
+                        <CardHeader><CardTitle className="text-sm font-bold flex items-center gap-2"><Clock /> Cronograma IA</CardTitle></CardHeader>
+                        <CardContent className="space-y-3">
+                           {analysis.timeline.map((item, i) => (
+                              <div key={i} className={cn(
+                                "p-3 rounded-lg border shadow-sm",
+                                item.criticality === 'alta' ? "bg-red-50 border-red-200" : "bg-white"
+                              )}>
+                                 <p className="text-[10px] font-black uppercase text-muted-foreground">{item.event}</p>
+                                 <p className="text-sm font-bold text-primary">{item.date}</p>
+                              </div>
+                           ))}
+                        </CardContent>
+                     </Card>
                   )}
                 </div>
               </div>

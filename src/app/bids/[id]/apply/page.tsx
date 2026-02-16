@@ -1,9 +1,10 @@
+
 "use client"
 
 import { useParams, useRouter } from "next/navigation"
 import { useDoc, useFirestore, useMemoFirebase, useUser } from "@/firebase"
 import { doc } from "firebase/firestore"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -23,7 +24,8 @@ import {
   ArrowRight,
   Calendar,
   AlertTriangle,
-  History
+  History,
+  Clock
 } from "lucide-react"
 import Link from "next/link"
 import { auditBidProposal, AuditOutput } from "@/ai/flows/audit-bid-proposal"
@@ -96,7 +98,7 @@ export default function BidApplyPage() {
           <ChevronLeft className="h-4 w-4 mr-1 group-hover:-translate-x-1 transition-transform" /> Volver al detalle
         </Button>
         <div className="flex items-center gap-2">
-          <Badge variant="outline" className="text-primary border-primary/20">Modo: Auditoría de Supervivencia</Badge>
+          <Badge variant="outline" className="text-primary border-primary/20 uppercase font-black">Modo: Auditoría de Supervivencia</Badge>
           <Badge className="bg-primary text-white font-mono">{bid.id}</Badge>
         </div>
       </div>
@@ -104,24 +106,42 @@ export default function BidApplyPage() {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         {/* PANEL DE CONTROL IZQUIERDO: CRONOGRAMA DE SUPERVIVENCIA */}
         <div className="lg:col-span-3 space-y-6">
-          <Card className="border-red-200 shadow-lg overflow-hidden">
-            <CardHeader className="bg-red-500 text-white py-4">
-              <CardTitle className="text-sm font-black uppercase tracking-widest flex items-center gap-2">
-                <AlertTriangle className="h-4 w-4" /> Cronograma Crítico
+          <Card className="border-red-600 shadow-2xl overflow-hidden relative">
+            <div className="absolute top-0 right-0 p-2 opacity-10">
+              <Clock className="h-12 w-12 text-red-600" />
+            </div>
+            <CardHeader className="bg-red-600 text-white py-4">
+              <CardTitle className="text-xs font-black uppercase tracking-widest flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4 animate-bounce" /> Hitos Ineludibles
               </CardTitle>
             </CardHeader>
             <CardContent className="p-4 space-y-4">
               {analysis?.timeline ? (
                 analysis.timeline.map((item: any, i: number) => (
                   <div key={i} className={cn(
-                    "p-3 rounded-lg border-l-4 space-y-1 transition-all",
-                    item.criticality === 'alta' ? "bg-red-50 border-red-500" : "bg-muted/30 border-muted"
+                    "p-4 rounded-xl border-2 space-y-2 transition-all relative overflow-hidden",
+                    item.criticality === 'alta' 
+                      ? "bg-red-50 border-red-500 shadow-inner" 
+                      : "bg-muted/30 border-muted"
                   )}>
+                    {item.criticality === 'alta' && (
+                       <div className="absolute top-0 right-0 h-full w-1 bg-red-500" />
+                    )}
                     <div className="flex justify-between items-start">
-                      <p className="text-[10px] font-black uppercase text-muted-foreground">{item.event}</p>
-                      {item.criticality === 'alta' && <Badge className="bg-red-500 h-2 w-2 p-0 rounded-full animate-pulse" />}
+                      <p className={cn(
+                        "text-[10px] font-black uppercase tracking-wider",
+                        item.criticality === 'alta' ? "text-red-700" : "text-muted-foreground"
+                      )}>{item.event}</p>
+                      {item.criticality === 'alta' && <Badge className="bg-red-600 text-[8px] h-4">CRÍTICO</Badge>}
                     </div>
-                    <p className="text-sm font-bold text-primary">{item.date}</p>
+                    <div className="flex items-baseline gap-2">
+                      <p className="text-lg font-black text-primary">{item.date}</p>
+                    </div>
+                    {item.criticality === 'alta' && (
+                       <p className="text-[9px] text-red-600 font-bold italic leading-tight">
+                         ¡El incumplimiento de este hito significa la descalificación inmediata!
+                       </p>
+                    )}
                   </div>
                 ))
               ) : (
@@ -130,19 +150,22 @@ export default function BidApplyPage() {
             </CardContent>
           </Card>
 
-          <Card className="bg-primary text-white border-none">
+          <Card className="bg-primary text-white border-none shadow-lg">
             <CardHeader>
               <CardTitle className="text-sm flex items-center gap-2">
                 <ShieldCheck className="h-4 w-4 text-accent" /> Check de Anexos
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-2">
+            <CardContent className="space-y-3">
               {analysis?.formChecklist?.map((form: any, i: number) => (
-                <div key={i} className="flex items-start gap-2 text-xs opacity-90 hover:opacity-100 transition-opacity">
-                   <div className="h-4 w-4 rounded bg-white/20 flex items-center justify-center shrink-0 mt-0.5">
-                     <span className="text-[10px]">{i+1}</span>
+                <div key={i} className="flex items-start gap-3 p-2 rounded bg-white/5 hover:bg-white/10 transition-colors cursor-default">
+                   <div className="h-5 w-5 rounded bg-accent/20 flex items-center justify-center shrink-0 mt-0.5 border border-accent/30">
+                     <span className="text-[10px] font-black text-accent">{i+1}</span>
                    </div>
-                   <span>{form.formName}</span>
+                   <div className="space-y-0.5">
+                      <p className="text-xs font-bold leading-tight">{form.formName}</p>
+                      <p className="text-[9px] opacity-60 line-clamp-1">{form.purpose}</p>
+                   </div>
                 </div>
               ))}
             </CardContent>
@@ -151,31 +174,36 @@ export default function BidApplyPage() {
 
         {/* ÁREA DE TRABAJO CENTRAL */}
         <div className="lg:col-span-6 space-y-6">
-          <Card className="border-2 border-primary/10 shadow-xl">
-            <CardHeader className="bg-muted/50">
+          <Card className="border-2 border-primary/10 shadow-xl overflow-hidden">
+            <CardHeader className="bg-muted/50 border-b">
               <div className="flex justify-between items-center">
                 <CardTitle className="text-lg flex items-center gap-2">
                   <FileText className="h-5 w-5 text-primary" /> Borrador de Propuesta
                 </CardTitle>
-                <Badge variant="outline" className="bg-white">Revisión de Formato</Badge>
+                <div className="flex gap-2">
+                  <Badge variant="outline" className="bg-white text-[10px] font-bold">Rigor IA 2.5</Badge>
+                  <Badge className="bg-accent text-white text-[10px] font-bold">Auditoría Activa</Badge>
+                </div>
               </div>
-              <CardDescription>Pega aquí tu oferta técnica o económica para detectar errores de forma o sumas.</CardDescription>
+              <CardDescription className="pt-2">Pega el contenido de tus documentos para detectar errores de forma, RUTs inválidos o sumas incorrectas.</CardDescription>
             </CardHeader>
-            <CardContent className="p-6 space-y-6">
+            <CardContent className="p-0 space-y-0">
               <Textarea 
-                placeholder="Pega el contenido de tus anexos o borrador de oferta..."
-                className="min-h-[500px] font-mono text-sm leading-relaxed border-none focus-visible:ring-0 bg-muted/5 p-4 rounded-xl"
+                placeholder="Pega aquí el contenido de tus anexos o borrador de oferta..."
+                className="min-h-[600px] font-mono text-sm leading-relaxed border-none focus-visible:ring-0 bg-transparent p-8 resize-none"
                 value={proposalText}
                 onChange={(e) => setProposalText(e.target.value)}
               />
-              <Button 
-                className="w-full h-16 bg-accent hover:bg-accent/90 text-white font-black text-xl gap-3 shadow-2xl transition-all hover:scale-[1.01]"
-                onClick={handleAudit}
-                disabled={isAuditing || !proposalText}
-              >
-                {isAuditing ? <Loader2 className="animate-spin h-6 w-6" /> : <BrainCircuit className="h-7 w-7" />}
-                {isAuditing ? "Analizando Rigurosidad..." : "Ejecutar Auditoría Final IA"}
-              </Button>
+              <div className="p-6 bg-muted/30 border-t">
+                <Button 
+                  className="w-full h-16 bg-accent hover:bg-accent/90 text-white font-black text-xl gap-3 shadow-2xl transition-all hover:scale-[1.01] hover:shadow-accent/20"
+                  onClick={handleAudit}
+                  disabled={isAuditing || !proposalText}
+                >
+                  {isAuditing ? <Loader2 className="animate-spin h-6 w-6" /> : <BrainCircuit className="h-7 w-7" />}
+                  {isAuditing ? "Analizando Rigurosidad..." : "Ejecutar Auditoría Final IA"}
+                </Button>
+              </div>
             </CardContent>
           </Card>
         </div>
@@ -185,51 +213,60 @@ export default function BidApplyPage() {
            {auditResult ? (
              <div className="space-y-6 animate-in slide-in-from-right duration-500">
                 <Card className={cn(
-                  "border-t-8 shadow-lg",
-                  auditResult.isReady ? "border-t-emerald-500" : "border-t-red-500"
+                  "border-t-8 shadow-2xl overflow-hidden",
+                  auditResult.isReady ? "border-t-emerald-500" : "border-t-red-600"
                 )}>
-                  <CardContent className="pt-6 text-center space-y-4">
+                  <CardContent className="pt-8 text-center space-y-4">
                     <div className="relative inline-flex items-center justify-center">
-                      <svg className="w-24 h-24">
-                        <circle className="text-muted-foreground/20" strokeWidth="8" stroke="currentColor" fill="transparent" r="40" cx="48" cy="48" />
+                      <svg className="w-32 h-32">
+                        <circle className="text-muted-foreground/10" strokeWidth="12" stroke="currentColor" fill="transparent" r="50" cx="64" cy="64" />
                         <circle 
-                          className={auditResult.isReady ? "text-emerald-500" : "text-red-500"} 
-                          strokeWidth="8" 
-                          strokeDasharray={251} 
-                          strokeDashoffset={251 - (251 * auditResult.complianceScore) / 100} 
+                          className={auditResult.isReady ? "text-emerald-500" : "text-red-600"} 
+                          strokeWidth="12" 
+                          strokeDasharray={314} 
+                          strokeDashoffset={314 - (314 * auditResult.complianceScore) / 100} 
                           strokeLinecap="round" 
                           stroke="currentColor" 
                           fill="transparent" 
-                          r="40" cx="48" cy="48" 
+                          r="50" cx="64" cy="64" 
                         />
                       </svg>
-                      <span className="absolute text-2xl font-black text-primary">{auditResult.complianceScore}%</span>
+                      <span className="absolute text-3xl font-black text-primary">{auditResult.complianceScore}%</span>
                     </div>
-                    <h4 className="font-black text-lg uppercase italic text-primary">
-                      {auditResult.isReady ? "Propuesta Sólida" : "Riesgo de Rechazo"}
-                    </h4>
+                    <div className="space-y-1">
+                      <h4 className="font-black text-xl uppercase italic text-primary">
+                        {auditResult.isReady ? "Oferta Sólida" : "Propuesta Vulnerable"}
+                      </h4>
+                      <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest">
+                        Nivel de cumplimiento detectado
+                      </p>
+                    </div>
                   </CardContent>
                 </Card>
 
-                <Card className="bg-orange-50 border-orange-100">
+                <Card className="bg-orange-50 border-orange-200 border-2">
                   <CardHeader className="pb-2">
                     <CardTitle className="text-xs font-black uppercase text-orange-700 flex items-center gap-2">
                       <Zap className="h-3 w-3" /> Hallazgos Críticos
                     </CardTitle>
                   </CardHeader>
-                  <CardContent className="space-y-4">
+                  <CardContent className="space-y-4 pt-2">
                     {auditResult.riskWarnings.map((risk, i) => (
-                      <div key={i} className="flex gap-2 p-3 bg-white rounded-lg border border-orange-200 text-xs shadow-sm">
-                        <AlertCircle className="h-4 w-4 text-orange-600 shrink-0" />
-                        <p className="font-medium text-orange-900">{risk}</p>
+                      <div key={i} className="flex gap-3 p-3 bg-white rounded-xl border border-orange-200 text-xs shadow-sm group hover:border-orange-400 transition-colors">
+                        <AlertCircle className="h-4 w-4 text-orange-600 shrink-0 mt-0.5" />
+                        <p className="font-bold text-orange-900 leading-tight">{risk}</p>
                       </div>
                     ))}
                     {auditResult.missingElements.length > 0 && (
-                      <div className="space-y-2">
-                        <p className="text-[10px] font-bold text-muted-foreground">FALTANTES:</p>
-                        <div className="flex flex-wrap gap-1">
+                      <div className="space-y-3 pt-2">
+                        <p className="text-[10px] font-black text-orange-700 uppercase tracking-widest flex items-center gap-1">
+                          <AlertTriangle className="h-3 w-3" /> Elementos Faltantes
+                        </p>
+                        <div className="flex flex-wrap gap-1.5">
                           {auditResult.missingElements.map((m, i) => (
-                            <Badge key={i} variant="outline" className="bg-white text-[9px]">{m}</Badge>
+                            <Badge key={i} variant="outline" className="bg-white border-orange-200 text-orange-800 text-[9px] font-bold py-1">
+                              {m}
+                            </Badge>
                           ))}
                         </div>
                       </div>
@@ -237,22 +274,29 @@ export default function BidApplyPage() {
                   </CardContent>
                 </Card>
 
-                <Card className="border-primary/10">
-                  <CardHeader>
-                    <CardTitle className="text-xs font-bold flex items-center gap-2">
-                      <History className="h-3 w-3" /> Sugerencia Final
+                <Card className="border-primary/20 bg-primary/5">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-xs font-black uppercase text-primary flex items-center gap-2">
+                      <History className="h-3 w-3" /> Veredicto del Auditor
                     </CardTitle>
                   </CardHeader>
-                  <CardContent className="text-xs italic text-muted-foreground leading-relaxed">
+                  <CardContent className="text-xs font-medium text-primary/80 leading-relaxed bg-white/50 p-4 m-2 rounded-lg italic">
                     "{auditResult.improvementSuggestions}"
                   </CardContent>
                 </Card>
              </div>
            ) : (
-             <Card className="bg-muted/20 border-dashed border-2">
-               <CardContent className="py-20 text-center space-y-4">
-                 <Target className="h-10 w-10 text-muted-foreground/30 mx-auto" />
-                 <p className="text-xs text-muted-foreground">Pega tu borrador y ejecuta la auditoría para ver el análisis de riesgo detallado.</p>
+             <Card className="bg-muted/20 border-dashed border-2 h-full min-h-[400px]">
+               <CardContent className="flex flex-col items-center justify-center h-full text-center space-y-6 px-6">
+                 <div className="h-20 w-20 rounded-full bg-white flex items-center justify-center shadow-lg transform rotate-6">
+                   <Target className="h-10 w-10 text-muted-foreground/30" />
+                 </div>
+                 <div className="space-y-2">
+                   <h5 className="font-black text-primary uppercase italic text-lg tracking-tighter">Esperando Borrador</h5>
+                   <p className="text-xs text-muted-foreground leading-relaxed">
+                     Pega tus documentos y ejecuta la auditoría para confrontar tu oferta contra los hitos de supervivencia.
+                   </p>
+                 </div>
                </CardContent>
              </Card>
            )}

@@ -1,7 +1,7 @@
 'use server';
 /**
  * @fileOverview Flujo de Genkit para asesoría experta en licitaciones y detección de leads.
- * Refactorizado para máxima estabilidad en Server Actions.
+ * Incluye logs detallados para diagnóstico de errores en el servidor.
  */
 
 import {ai} from '@/ai/genkit';
@@ -47,56 +47,64 @@ const ExtractAndSummarizeBidDetailsInputSchema = z.object({
 });
 export type ExtractAndSummarizeBidDetailsInput = z.infer<typeof ExtractAndSummarizeBidDetailsInputSchema>;
 
-// Herramientas refinadas
-const fetchRealBidDataTool = ai.defineTool(
-  {
-    name: 'fetchRealBidData',
-    description: 'Consulta datos técnicos oficiales de la licitación.',
-    inputSchema: z.object({ bidId: z.string() }),
-    outputSchema: z.any(),
-  },
-  async (input) => {
-    try {
-      const data = await getBidDetail(input.bidId);
-      return data || { info: "No hay datos adicionales disponibles." };
-    } catch (e) {
-      return { info: "Error al consultar la API externa." };
-    }
+/**
+ * Función de diagnóstico para probar la conexión con el modelo.
+ */
+export async function testAiConnection() {
+  try {
+    const { text } = await ai.generate('Hola, ¿puedes responder?');
+    return { success: true, response: text };
+  } catch (error: any) {
+    console.error('[AI_DIAGNOSTIC_ERROR]:', error);
+    return { success: false, error: error.message };
   }
-);
+}
 
 /**
- * Flujo principal de asesoría estratégica.
+ * Flujo principal de asesoría estratégica con logging mejorado.
  */
 export async function extractAndSummarizeBidDetails(
   input: ExtractAndSummarizeBidDetailsInput
 ): Promise<PostulationAdvisorOutput> {
-  const { output } = await ai.generate({
-    model: 'googleai/gemini-1.5-flash',
-    tools: [fetchRealBidDataTool],
-    system: `Actúa como un Asesor Senior de Postulaciones a Mercado Público Chile. 
-    Tu misión es analizar licitaciones para maximizar las chances de ganar y detectar riesgos.
-    Usa un tono profesional, experto y directo.`,
-    prompt: `Analiza esta licitación:
-    ID: ${input.bidId || 'No provisto'}
-    Texto: ${input.bidDocumentText}
+  console.log(`>>> [AI_FLOW] Iniciando análisis para licitación: ${input.bidId || 'Sin ID'}`);
+  
+  try {
+    const { output } = await ai.generate({
+      model: 'googleai/gemini-1.5-flash',
+      system: `Actúa como un Asesor Senior de Postulaciones a Mercado Público Chile. 
+      Tu misión es analizar licitaciones para maximizar las chances de ganar y detectar riesgos.
+      Usa un tono profesional, experto y directo.`,
+      prompt: `Analiza esta licitación y extrae los detalles estratégicos:
+      ID: ${input.bidId || 'No provisto'}
+      Texto: ${input.bidDocumentText}
 
-    Instrucciones críticas:
-    1. Usa fetchRealBidData si tienes el ID para obtener montos y descripciones técnicas reales.
-    2. Identifica alertas estratégicas (multas, garantías, requisitos difíciles).
-    3. Prepara un checklist de formularios para no quedar fuera por errores administrativos.
-    4. Detecta empresas o perfiles para outreach.`,
-    output: {
-      schema: PostulationAdvisorOutputSchema,
-    },
-    config: {
-      temperature: 0.4,
+      Instrucciones críticas:
+      1. Identifica alertas estratégicas (multas, garantías, requisitos difíciles).
+      2. Prepara un checklist de formularios administrativos.
+      3. Detecta perfiles potenciales para outreach.`,
+      output: {
+        schema: PostulationAdvisorOutputSchema,
+      },
+      config: {
+        temperature: 0.3,
+      }
+    });
+
+    if (!output) {
+      console.error('>>> [AI_FLOW_ERROR]: La IA devolvió un output nulo.');
+      throw new Error("El modelo no generó una respuesta válida.");
     }
-  });
 
-  if (!output) {
-    throw new Error("La IA no pudo procesar la solicitud. Por favor, intenta de nuevo.");
+    console.log('>>> [AI_FLOW] Análisis completado con éxito.');
+    return output;
+  } catch (error: any) {
+    // Este log aparecerá en la terminal del servidor/consola de desarrollo
+    console.error('>>> [AI_FLOW_FATAL_ERROR]:', {
+      message: error.message,
+      stack: error.stack,
+      cause: error.cause
+    });
+    
+    throw new Error(`Error en el servicio de IA: ${error.message}`);
   }
-
-  return output;
 }

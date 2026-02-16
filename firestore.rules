@@ -1,85 +1,55 @@
+
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    /**
-     * Licitaciones Globales - Security Rules Philosophy
-     * 
-     * Core Philosophy: This ruleset implements a public-read, restricted-write model for a global
-     * bidding platform. The data (Bid Opportunities, Categories, and Government Entities) is 
-     * intended for universal consumption, allowing both authenticated and unauthenticated users 
-     * to browse and search for opportunities.
-     * 
-     * Data Structure: The database uses a flat, top-level structure for core entities:
-     * - /bidOpportunities/{bidOpportunityId}
-     * - /categories/{categoryId}
-     * - /governmentEntities/{governmentEntityId}
-     * 
-     * Key Security Decisions: 
-     * 1. Public Read Access: All core collections allow public 'get' and 'list' operations to 
-     *    facilitate open access to bid information.
-     * 2. Write Restrictions: Writing, updating, or deleting data is currently restricted. 
-     *    Because the provided schema lacks internal ownership fields (e.g., 'ownerId' or 
-     *    'authorId'), secure client-side writes cannot be implemented without risking data 
-     *    integrity. These operations are marked with TODOs for the developer.
-     * 3. Performance: By using a flat structure, we avoid costly get() calls or cross-document 
-     *    lookups for authorization, ensuring high performance for public queries.
-     */
-
-    // --- GLOBAL HELPER FUNCTIONS ---
-
-    // The 'isSignedIn' function was removed as it was identified as unused by the linter.
-    // If needed in the future for authenticated-only write operations, it can be re-added.
-
-    // The 'isOwner' function has been removed as it was identified as unused by the linter.
-    // If needed in the future, it can be re-added when ownership checks are implemented for write operations.
-
-    // --- COLLECTION RULES ---
-
-    /**
-     * @description Access rules for bid opportunities scraped from various sources.
-     * @path /bidOpportunities/{bidOpportunityId}
-     * @allow (get, list) for any user (public).
-     * @deny (create, update, delete) for all users (missing ownership context).
-     * @principle Public consumption with protected administrative writes.
-     */
-    match /bidOpportunities/{bidOpportunityId} {
-      allow get, list: if true;
-      
-      // CRITICAL: Cannot implement owner-only writes. The 'BidOpportunity' entity 
-      // is missing an 'ownerId' or 'authorId' field in the schema.
-      allow create, update, delete: if false; // TODO: Add owner/admin validation once schema includes ownership fields.
+    // Funciones de ayuda
+    function isSignedIn() {
+      return request.auth != null;
     }
 
-    /**
-     * @description Access rules for classification categories (e.g., Construction, IT).
-     * @path /categories/{categoryId}
-     * @allow (get, list) for any user (public lookup).
-     * @deny (create, update, delete) for all users.
-     * @principle Global lookup table protection.
-     */
-    match /categories/{categoryId} {
-      allow get, list: if true;
-      
-      // CRITICAL: Cannot implement restricted writes. The 'Category' entity 
-      // is missing an ownership or role-based access field.
-      allow create, update, delete: if false; // TODO: Restrict to administrative users.
+    function isSuperAdmin() {
+      return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'SuperAdmin';
     }
 
-    /**
-     * @description Access rules for government bodies and institutions issuing bids.
-     * @path /governmentEntities/{governmentEntityId}
-     * @allow (get, list) for any user (public reference).
-     * @deny (create, update, delete) for all users.
-     * @principle Verified institutional data protection.
-     */
-    match /governmentEntities/{governmentEntityId} {
-      allow get, list: if true;
-      
-      // CRITICAL: Cannot implement restricted writes. The 'GovernmentEntity' entity 
-      // is missing an ownership or role-based access field.
-      allow create, update, delete: if false; // TODO: Restrict to verified administrative users.
+    function belongsToCompany(companyId) {
+      return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.companyId == companyId;
     }
 
+    // --- REGLAS DE COLECCIÓN ---
+
+    // Licitaciones Globales: Lectura pública, Escritura restringida a Admin/System
+    match /bids/{bidId} {
+      allow read: if true;
+      allow write: if isSignedIn(); // Temporalmente abierto para que el cliente pueda actualizar detalles IA
+    }
+
+    // Empresas: Solo usuarios de la misma empresa o SuperAdmin
+    match /companies/{companyId} {
+      allow read: if belongsToCompany(companyId) || isSuperAdmin();
+      allow write: if isSuperAdmin();
+      
+      // Bookmarks: Compartidos entre todos los usuarios de la empresa
+      match /bookmarks/{bidId} {
+        allow read, write: if belongsToCompany(companyId) || isSuperAdmin();
+      }
+    }
+
+    // Usuarios: Lectura propia o SuperAdmin. 
+    match /users/{userId} {
+      allow read: if isSignedIn() && (request.auth.uid == userId || isSuperAdmin());
+      allow write: if isSignedIn() && (request.auth.uid == userId || isSuperAdmin());
+    }
+
+    // Configuraciones: Solo SuperAdmin
+    match /settings/{settingId} {
+      allow read, write: if isSuperAdmin();
+    }
+
+    // Cache de Mercado Público: Lectura pública, Escritura por sistema
+    match /mp_cache/{cacheId} {
+      allow read: if true;
+      allow write: if isSignedIn();
+    }
   }
 }

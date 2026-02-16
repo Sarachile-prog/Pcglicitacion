@@ -8,7 +8,7 @@ import {
   signInAnonymously, 
   createUserWithEmailAndPassword 
 } from "firebase/auth"
-import { doc, setDoc, serverTimestamp } from "firebase/firestore"
+import { doc, setDoc, serverTimestamp, getDoc } from "firebase/firestore"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -31,8 +31,6 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [isAnonLoading, setIsAnonLoading] = useState(false)
 
-  // Solo redireccionamos automáticamente si el usuario YA estaba logueado al cargar la página
-  // y no estamos en medio de un proceso de login manual.
   useEffect(() => {
     if (user && !isUserLoading && !isLoading && !isAnonLoading) {
       router.push("/dashboard")
@@ -43,19 +41,31 @@ export default function LoginPage() {
     if (!db) return
     try {
       const userRef = doc(db, "users", uid)
-      // Usamos setDoc con merge para no sobreescribir datos si el usuario ya existía
-      await setDoc(userRef, {
-        uid,
-        email: userEmail,
-        role: userEmail === 'control@pcgoperacion.com' ? 'SuperAdmin' : 'User',
-        lastLoginAt: serverTimestamp(),
-        isAnonymous: !userEmail,
-        updatedAt: serverTimestamp(),
-        // No sobreescribimos createdAt ni termsAccepted si ya existen
-      }, { merge: true })
+      const userSnap = await getDoc(userRef)
+      
+      // Si el perfil no existe, lo inicializamos con el contador en 0
+      if (!userSnap.exists()) {
+        await setDoc(userRef, {
+          uid,
+          email: userEmail,
+          role: userEmail === 'control@pcgoperacion.com' ? 'SuperAdmin' : 'User',
+          lastLoginAt: serverTimestamp(),
+          isAnonymous: !userEmail,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+          termsAccepted: false,
+          demoUsageCount: 0
+        })
+      } else {
+        // Si ya existe, solo actualizamos el último acceso para no tocar el demoUsageCount
+        await setDoc(userRef, {
+          lastLoginAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
+        }, { merge: true })
+      }
       return true
     } catch (e) {
-      console.error("Error al crear perfil:", e)
+      console.error("Error al gestionar perfil:", e)
       return false
     }
   }
@@ -73,7 +83,6 @@ export default function LoginPage() {
         toast({ title: "Bienvenido", description: "Acceso concedido al ecosistema PCG." })
       } else {
         const cred = await createUserWithEmailAndPassword(auth, email, password)
-        // CRÍTICO: Esperamos a que el perfil se cree en Firestore antes de mover al usuario
         await ensureUserProfile(cred.user.uid, cred.user.email)
         toast({ title: "Cuenta Creada", description: "Tu perfil ha sido registrado. Solicita tu activación corporativa." })
       }

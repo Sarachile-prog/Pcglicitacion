@@ -27,12 +27,16 @@ import {
   Lock,
   LogOut,
   Search,
-  ArrowRight
+  ArrowRight,
+  BrainCircuit,
+  MessageCircle
 } from "lucide-react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { signOut } from "firebase/auth"
+
+const WHATSAPP_URL = "https://wa.me/56941245316?text=Hola,%20necesito%20activar%20mi%20plan%20empresas%20para%20acceder%20a%20los%20análisis%20IA.";
 
 export default function DashboardPage() {
   const db = useFirestore()
@@ -49,6 +53,8 @@ export default function DashboardPage() {
 
   const isSuperAdmin = user?.email === 'control@pcgoperacion.com' || profile?.role === 'SuperAdmin'
   const isLinkedToCompany = !!profile?.companyId
+  const demoUsage = profile?.demoUsageCount || 0
+  const isDemo = !isLinkedToCompany && !isSuperAdmin
 
   // Licitaciones globales recientes (disponibles para todos)
   const bidsQuery = useMemoFirebase(() => {
@@ -98,68 +104,93 @@ export default function DashboardPage() {
   // ESTADO 1: USUARIO REGISTRADO PERO NO VINCULADO (ACCESO EN PROCESO)
   if (user && !isSuperAdmin && !isLinkedToCompany) {
     return (
-      <div className="max-w-3xl mx-auto py-10 animate-in zoom-in-95 duration-500 space-y-8">
-        <Card className="border-2 border-primary/10 shadow-2xl overflow-hidden rounded-3xl">
-          <CardHeader className="bg-primary/5 text-center py-8 space-y-4">
-            <div className="h-16 w-16 bg-white rounded-2xl shadow-xl flex items-center justify-center mx-auto transform -rotate-3 border border-primary/10">
-              <ShieldCheck className="h-8 w-8 text-primary animate-pulse" />
-            </div>
-            <div className="space-y-2">
-              <Badge className="bg-accent text-white uppercase font-black text-[10px] px-4">Modo Prospecto Activo</Badge>
-              <h2 className="text-3xl font-black text-primary uppercase italic tracking-tighter">Acceso en Proceso de Activación</h2>
-            </div>
-          </CardHeader>
-          <CardContent className="p-10 space-y-8">
-            <div className="text-center space-y-4">
-              <p className="text-muted-foreground text-lg leading-relaxed font-medium italic">
-                Hola. Tu cuenta ha sido detectada por el sistema de seguridad de <b>PCGLICITACIÓN</b>.
-              </p>
-              <div className="bg-amber-50 border-2 border-amber-100 rounded-2xl p-6 text-left space-y-4">
-                <div className="flex items-center gap-3 text-amber-800 font-black uppercase text-xs tracking-widest">
-                  <Zap className="h-4 w-4" /> Funciones Disponibles Ahora
-                </div>
-                <p className="text-sm text-amber-900/80 font-bold leading-relaxed italic">
-                  Mientras esperas la vinculación a tu empresa, ya puedes usar nuestras herramientas de búsqueda. Explora el mercado oficial y utiliza el motor de Inteligencia Artificial para analizar tus primeros procesos.
+      <div className="max-w-4xl mx-auto py-10 animate-in zoom-in-95 duration-500 space-y-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          <Card className="lg:col-span-2 border-2 border-primary/10 shadow-2xl overflow-hidden rounded-3xl h-fit">
+            <CardHeader className="bg-primary/5 text-center py-8 space-y-4">
+              <div className="h-16 w-16 bg-white rounded-2xl shadow-xl flex items-center justify-center mx-auto transform -rotate-3 border border-primary/10">
+                <ShieldCheck className="h-8 w-8 text-primary animate-pulse" />
+              </div>
+              <div className="space-y-2">
+                <Badge className="bg-accent text-white uppercase font-black text-[10px] px-4">Modo Prospecto Activo</Badge>
+                <h2 className="text-3xl font-black text-primary uppercase italic tracking-tighter">Acceso en Proceso</h2>
+              </div>
+            </CardHeader>
+            <CardContent className="p-8 space-y-8">
+              <div className="text-center space-y-4">
+                <p className="text-muted-foreground text-md leading-relaxed font-medium italic">
+                  Tu cuenta está en fase de prospección. Puedes usar el motor IA de forma limitada mientras se activa tu empresa.
                 </p>
-                <Link href="/bids">
-                  <Button className="w-full h-12 bg-amber-600 hover:bg-amber-700 text-white font-black uppercase italic shadow-md gap-2 mt-2">
-                    <Search className="h-4 w-4" /> Ir al Buscador de Licitaciones <ArrowRight className="h-4 w-4" />
-                  </Button>
-                </Link>
+                <div className="bg-amber-50 border-2 border-amber-100 rounded-2xl p-6 text-left space-y-4">
+                  <div className="flex items-center gap-3 text-amber-800 font-black uppercase text-xs tracking-widest">
+                    <Zap className="h-4 w-4" /> Funciones Disponibles
+                  </div>
+                  <p className="text-sm text-amber-900/80 font-bold leading-relaxed italic">
+                    Explora el mercado y utiliza el motor IA para tus primeros 3 procesos.
+                  </p>
+                  <Link href="/bids">
+                    <Button className="w-full h-12 bg-amber-600 hover:bg-amber-700 text-white font-black uppercase italic shadow-md gap-2">
+                      <Search className="h-4 w-4" /> Ir al Buscador de Licitaciones
+                    </Button>
+                  </Link>
+                </div>
               </div>
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-left">
-              <div className="p-4 bg-muted/30 rounded-xl border space-y-1">
-                <p className="text-[10px] font-black text-primary uppercase">Tu Identificador Unico (UID)</p>
-                <p className="text-[11px] font-mono break-all text-muted-foreground">{user.uid}</p>
-              </div>
-              <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-100 space-y-1">
-                <p className="text-[10px] font-black text-emerald-700 uppercase">Estado de Soporte</p>
-                <p className="text-xs font-bold text-emerald-600 italic">Esperando asignación corporativa...</p>
-              </div>
-            </div>
-
-            <div className="pt-6 border-t space-y-4 text-center">
-              <p className="text-xs font-bold text-muted-foreground uppercase italic tracking-widest">¿Necesitas ayuda con la activación?</p>
-              <Button asChild className="w-full h-14 bg-[#25D366] hover:bg-[#20ba5a] text-white font-black uppercase italic text-lg shadow-xl gap-3">
-                <a href={`https://wa.me/56941245316?text=Hola,%20mi%20UID%20es%20${user.uid}%20y%20necesito%20activar%20mi%20cuenta%20corporativa.`} target="_blank">
-                  Contactar a Soporte Técnico
-                </a>
-              </Button>
               
-              <div className="flex flex-col gap-2 pt-4">
+              <div className="pt-6 border-t space-y-4">
+                <Button asChild className="w-full h-14 bg-[#25D366] hover:bg-[#20ba5a] text-white font-black uppercase italic text-lg shadow-xl gap-3">
+                  <a href={WHATSAPP_URL} target="_blank">
+                    Solicitar Activación Corporativa
+                  </a>
+                </Button>
                 <Button 
                   variant="outline" 
                   onClick={() => signOut(auth)} 
                   className="w-full font-black uppercase italic text-xs border-primary/20 gap-2"
                 >
-                  <LogOut className="h-3 w-3" /> Cerrar Sesión / Cambiar Cuenta
+                  <LogOut className="h-3 w-3" /> Cerrar Sesión
                 </Button>
               </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+
+          <div className="space-y-6">
+            <Card className="bg-primary text-white border-none shadow-xl rounded-3xl overflow-hidden relative">
+              <div className="absolute top-0 right-0 p-4 opacity-10">
+                <BrainCircuit className="h-20 w-20" />
+              </div>
+              <CardHeader>
+                <CardTitle className="text-xs uppercase font-black tracking-widest text-accent italic">Tu Consumo Demo</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="text-center py-4">
+                  <span className="text-6xl font-black italic">{3 - demoUsage}</span>
+                  <p className="text-[10px] uppercase font-bold opacity-60 tracking-widest mt-2">Créditos de Análisis</p>
+                </div>
+                <div className="h-2 w-full bg-white/10 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-accent transition-all duration-1000" 
+                    style={{ width: `${((3 - demoUsage) / 3) * 100}%` }}
+                  />
+                </div>
+                <p className="text-[10px] italic font-medium opacity-80 text-center">
+                  {demoUsage >= 3 ? "Límite alcanzado." : "Úsalos con sabiduría en licitaciones reales."}
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card className="border-2 border-accent/10 bg-accent/5 rounded-3xl shadow-sm">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-[10px] font-black uppercase tracking-widest text-primary">Identidad</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <div className="p-3 bg-white rounded-xl border text-[10px] font-mono break-all text-muted-foreground">
+                  UID: {user.uid}
+                </div>
+                <p className="text-[9px] text-primary/60 font-bold italic">Comparte este ID con soporte para vincularte a tu empresa.</p>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
       </div>
     )
   }

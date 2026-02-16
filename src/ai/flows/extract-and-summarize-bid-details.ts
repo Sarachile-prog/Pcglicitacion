@@ -11,7 +11,7 @@ import {z} from 'genkit';
 const TimelineEventSchema = z.object({
   event: z.string().describe('Nombre del hito o fecha importante.'),
   date: z.string().describe('Fecha del evento extraída de las bases.'),
-  criticality: z.enum(['baja', 'media', 'alta']),
+  criticality: z.enum(['baja', 'media', 'alta']).describe('Alta si el incumplimiento significa descalificación inmediata.'),
 });
 
 const FormRequirementSchema = z.object({
@@ -31,7 +31,7 @@ const PostulationAdvisorOutputSchema = z.object({
   deadline: z.string().describe('Fecha límite de postulación.'),
   monetaryAmount: z.string().describe('Monto estimado o presupuesto.'),
   strategicAlerts: z.array(z.string()).describe('Alertas sobre multas, garantías o requisitos difíciles.'),
-  timeline: z.array(TimelineEventSchema).describe('Hitos clave del proceso.'),
+  timeline: z.array(TimelineEventSchema).describe('Cronograma de hitos críticos (Visita a terreno, foro de preguntas, etc).'),
   formChecklist: z.array(FormRequirementSchema).describe('Lista de documentos administrativos requeridos.'),
   strategicAdvice: z.string().describe('Consejo experto para ganar la licitación.'),
   identifiedLeads: z.array(PotentialLeadSchema).describe('Personas o cargos para outreach.'),
@@ -59,15 +59,12 @@ async function scrapePublicPortal(bidId: string): Promise<string> {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
       },
-      next: { revalidate: 0 } // No cachear para asegurar datos frescos
+      next: { revalidate: 0 }
     });
 
     if (!response.ok) return `Error al acceder al portal: ${response.statusText}`;
 
     const html = await response.text();
-    
-    // Limpieza básica del HTML para no saturar de tokens
-    // Extraemos solo el cuerpo principal y eliminamos scripts/estilos
     const cleanContent = html
       .replace(/<script\b[^>]*>([\s\S]*?)<\/script>/gmi, '')
       .replace(/<style\b[^>]*>([\s\S]*?)<\/style>/gmi, '')
@@ -76,33 +73,25 @@ async function scrapePublicPortal(bidId: string): Promise<string> {
       .replace(/\s+/g, ' ')
       .trim();
 
-    return cleanContent.substring(0, 50000); // Limitamos a 50k caracteres para seguridad de tokens
+    return cleanContent.substring(0, 50000);
   } catch (error: any) {
     console.error(`>>> [SCRAPER_ERROR]: ${error.message}`);
     return `Error de conexión con el portal público: ${error.message}`;
   }
 }
 
-/**
- * Función de diagnóstico para probar la conexión con el modelo.
- */
 export async function testAiConnection() {
-  console.log('>>> [AI_DIAGNOSTIC] Probando conexión con Gemini 2.5 Flash...');
   try {
     const { text } = await ai.generate({
       model: 'googleai/gemini-2.5-flash',
-      prompt: 'Hola, responde brevemente: ¿Estás activo en el modelo 2.5?',
+      prompt: 'Responde OK si estás activo.',
     });
     return { success: true, response: text };
   } catch (error: any) {
-    console.error('>>> [AI_DIAGNOSTIC_ERROR]:', error.message);
     return { success: false, error: error.message };
   }
 }
 
-/**
- * Función para listar modelos disponibles.
- */
 export async function listModels() {
   try {
     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${process.env.GEMINI_API_KEY}`);
@@ -113,14 +102,9 @@ export async function listModels() {
   }
 }
 
-/**
- * Flujo principal de asesoría estratégica.
- */
 export async function extractAndSummarizeBidDetails(
   input: ExtractAndSummarizeBidDetailsInput
 ): Promise<PostulationAdvisorOutput> {
-  console.log(`>>> [AI_FLOW] Analizando licitación con Gemini 2.5: ${input.bidId}`);
-  
   let portalData = "";
   if (input.useLivePortal) {
     portalData = await scrapePublicPortal(input.bidId);
@@ -130,24 +114,24 @@ export async function extractAndSummarizeBidDetails(
     const { output } = await ai.generate({
       model: 'googleai/gemini-2.5-flash',
       system: `Eres un Asesor Senior Experto en Licitaciones de Mercado Público Chile (Ley 19.886).
-      Tu objetivo es analizar los datos proporcionados para detectar riesgos, facilitar la postulación (checklist) e identificar leads.
+      Tu misión principal es evitar que el usuario sea descalificado por errores de forma o por saltarse hitos obligatorios.
       
-      IMPORTANTE: Se te puede proporcionar texto crudo extraído directamente del portal público de Mercado Público. 
-      Este texto puede ser desordenado. Tu labor es encontrar los datos clave (fechas, montos, estados) dentro de ese ruido.`,
-      prompt: `Analiza detalladamente esta licitación y genera el informe estratégico:
+      CRÍTICO: Debes identificar con precisión absoluta los siguientes hitos si aparecen:
+      1. Visita a terreno (¿Es obligatoria?).
+      2. Fecha de cierre de consultas (Foro).
+      3. Fecha de publicación de respuestas.
+      4. Fecha de apertura técnica y económica.
+      5. Fecha de adjudicación estimada.`,
+      prompt: `Analiza esta licitación para detectar riesgos de descalificación:
       
-      ID DE LICITACIÓN: ${input.bidId}
+      ID: ${input.bidId}
+      DATOS DEL PORTAL: ${portalData || "No disponible"}
+      BASES/TEXTO: ${input.bidDocumentText || "No proporcionado"}
       
-      DATOS DEL PORTAL EN VIVO (Scraping):
-      ${portalData || "No disponible"}
-      
-      TEXTO ADICIONAL / BASES:
-      ${input.bidDocumentText || "No proporcionado"}
-      
-      Instrucciones específicas:
-      - Si encuentras discrepancias entre los datos de bases y el portal, prioriza lo que diga el PORTAL EN VIVO sobre el estado actual (si está cerrada o abierta).
-      - En el checklist de formularios, busca nombres como "Anexo N°1", "Formulario de Experiencia", etc.
-      - Si el texto indica que está cerrada pero el usuario pregunta por qué, explícalo basándote en las fechas encontradas.`,
+      Instrucciones:
+      - Si existe una "Visita a Terreno", cárgala en el timeline con criticality: 'alta'.
+      - En el Checklist, busca todos los Anexos Administrativos (1, 2, 3...).
+      - Identifica leads si se mencionan nombres de contrapartes técnicas.`,
       output: {
         schema: PostulationAdvisorOutputSchema,
       },
@@ -156,13 +140,10 @@ export async function extractAndSummarizeBidDetails(
       }
     });
 
-    if (!output) {
-      throw new Error("El modelo no generó una respuesta válida.");
-    }
-
+    if (!output) throw new Error("Fallo en generación IA.");
     return output;
   } catch (error: any) {
-    console.error('>>> [AI_FLOW_FATAL_ERROR]:', error.message);
+    console.error('>>> [AI_FLOW_ERROR]:', error.message);
     throw new Error(`Error en el servicio de IA: ${error.message}`);
   }
 }

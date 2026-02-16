@@ -2,6 +2,7 @@
 /**
  * @fileOverview Flujo de Genkit para auditoría final de propuestas de licitación.
  * Compara el borrador del usuario contra los requisitos identificados por la IA.
+ * Enfocado en detectar errores de forma, placeholders vacíos y errores de suma.
  */
 
 import {ai} from '@/ai/genkit';
@@ -17,34 +18,37 @@ export type AuditInput = z.infer<typeof AuditInputSchema>;
 const AuditOutputSchema = z.object({
   complianceScore: z.number().min(0).max(100).describe('Puntaje de cumplimiento estimado.'),
   missingElements: z.array(z.string()).describe('Elementos o anexos que parecen faltar.'),
-  riskWarnings: z.array(z.string()).describe('Riesgos detectados en la redacción o montos.'),
-  improvementSuggestions: z.string().describe('Sugerencias específicas para mejorar la oferta.'),
+  riskWarnings: z.array(z.string()).describe('Riesgos detectados (Formato, sumas, placeholders).'),
+  improvementSuggestions: z.string().describe('Sugerencias específicas para corregir la oferta.'),
   isReady: z.boolean().describe('¿Está la oferta lista para ser enviada?'),
 });
 export type AuditOutput = z.infer<typeof AuditOutputSchema>;
 
 export async function auditBidProposal(input: AuditInput): Promise<AuditOutput> {
-  console.log(`>>> [AI_AUDITOR] Auditando propuesta para: ${input.bidId}`);
-
   try {
     const { output } = await ai.generate({
       model: 'googleai/gemini-2.5-flash',
-      system: `Eres un Auditor Experto en Licitaciones Públicas. 
-      Tu misión es actuar como el último filtro de seguridad antes de que una empresa suba su oferta a Mercado Público.
-      Debes ser extremadamente crítico y buscar errores en anexos, montos, plazos o requisitos técnicos.`,
-      prompt: `Revisa minuciosamente este borrador de propuesta:
+      system: `Eres un Auditor Crítico de Licitaciones Públicas.
+      Tu objetivo es buscar cualquier error que cause que la oferta sea declarada "Inadmisible".
+      
+      BUSCA ESPECÍFICAMENTE:
+      1. Placeholders vacíos como "[...]", "Insertar aquí", "Nombre Empresa", "RUT".
+      2. Errores de formato en RUT (falta dígito verificador o puntos).
+      3. Incoherencias en montos (si el monto en letras no coincide con números).
+      4. Omisión de Garantías de Seriedad de la Oferta si son requeridas.
+      5. Falta de firmas mencionadas o sellos.`,
+      prompt: `Audita esta propuesta técnica/económica:
 
-      CONTEXTO ESTRATÉGICO DE LA LICITACIÓN:
+      CONTEXTO ESTRATÉGICO:
       ${JSON.stringify(input.strategicContext)}
 
-      BORRADOR DEL USUARIO / DOCUMENTOS:
+      BORRADOR DEL USUARIO:
       ${input.proposalText}
 
       Instrucciones:
-      1. Compara los "Elementos Requeridos" del contexto con lo que el usuario escribió.
-      2. Si el usuario no menciona una garantía o un anexo específico, márcalo como faltante.
-      3. Revisa si el tono es profesional y cumple con las bases administrativas.
-      4. Da un veredicto final de "Listo" o "No Listo".`,
+      - Sé extremadamente severo con los campos vacíos.
+      - Si el contexto dice que el Anexo 3 es obligatorio y no ves su estructura en el texto, márcalo como faltante.
+      - Verifica que el nombre de la institución sea el correcto.`,
       output: {
         schema: AuditOutputSchema,
       },
@@ -53,10 +57,9 @@ export async function auditBidProposal(input: AuditInput): Promise<AuditOutput> 
       }
     });
 
-    if (!output) throw new Error("Fallo al auditar la propuesta.");
+    if (!output) throw new Error("Fallo al auditar.");
     return output;
   } catch (error: any) {
-    console.error('>>> [AI_AUDITOR_ERROR]:', error.message);
     throw new Error(`Error en auditoría IA: ${error.message}`);
   }
 }

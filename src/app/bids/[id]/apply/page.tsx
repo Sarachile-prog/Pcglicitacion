@@ -4,7 +4,7 @@
 import { useParams, useRouter } from "next/navigation"
 import { useDoc, useFirestore, useMemoFirebase, useUser } from "@/firebase"
 import { doc, updateDoc } from "firebase/firestore"
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useMemo } from "react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -33,7 +33,9 @@ import {
   FileWarning,
   Trash2,
   FileUp,
-  FileCheck
+  FileCheck,
+  CloudCheck,
+  Cloud
 } from "lucide-react"
 import { auditBidProposal, AuditOutput } from "@/ai/flows/audit-bid-proposal"
 import { useToast } from "@/hooks/use-toast"
@@ -62,6 +64,7 @@ export default function BidApplyPage() {
   const [isUploading, setIsUploading] = useState(false)
   const [isAuditing, setIsAuditing] = useState(false)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
+  const [isSyncing, setIsSyncing] = useState(false)
 
   const bookmarkRef = useMemoFirebase(() => {
     if (!db || !user || !bidId) return null
@@ -71,6 +74,7 @@ export default function BidApplyPage() {
   const { data: bookmark, isLoading: isBookmarkLoading } = useDoc(bookmarkRef)
   const { data: bid, isLoading: isBidLoading } = useDoc(useMemoFirebase(() => db && bidId ? doc(db, "bids", bidId) : null, [db, bidId]))
 
+  // Sincronizar estado local con Firestore
   useEffect(() => {
     if (bookmark?.annexes && bookmark.annexes.length > 0) {
       setAnnexes(bookmark.annexes)
@@ -86,12 +90,21 @@ export default function BidApplyPage() {
           auditResult: null
         }))
         setAnnexes(initialAnnexes)
+        // Solo inicializamos si no existe el campo en el bookmark
         if (bookmarkRef && bookmark && !bookmark.annexes) {
           updateDoc(bookmarkRef, { annexes: initialAnnexes })
         }
       }
     }
   }, [bookmark, bid, bookmarkRef])
+
+  // Cálculos derivados para la cabecera
+  const stats = useMemo(() => {
+    const total = annexes.length;
+    const uploaded = annexes.filter(a => a.status !== 'pending').length;
+    const ready = annexes.filter(a => a.status === 'uploaded' && a.auditResult?.isReady).length;
+    return { total, uploaded, ready };
+  }, [annexes]);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -103,6 +116,7 @@ export default function BidApplyPage() {
     }
 
     setIsUploading(true)
+    setIsSyncing(true)
     
     try {
       const reader = new FileReader()
@@ -121,11 +135,13 @@ export default function BidApplyPage() {
         setIsDialogOpen(false)
         setSelectedAnnex(null)
         setIsUploading(false)
+        setIsSyncing(false)
       }
       reader.readAsDataURL(file)
     } catch (error: any) {
       toast({ variant: "destructive", title: "Error", description: error.message })
       setIsUploading(false)
+      setIsSyncing(false)
     }
   }
 
@@ -136,6 +152,7 @@ export default function BidApplyPage() {
     }
 
     setIsAuditing(true)
+    setIsSyncing(true)
     try {
       toast({ title: "Iniciando Auditoría Multimodal", description: "Analizando contenido del PDF y verificando sumas..." })
       const strategicContext = (bookmark as any)?.aiAnalysis || bid?.aiAnalysis || {}
@@ -146,16 +163,19 @@ export default function BidApplyPage() {
         strategicContext
       })
 
+      // Limpiar undefined para Firestore
+      const cleanResult = JSON.parse(JSON.stringify(result));
+
       const updatedAnnexes: AnnexDocument[] = annexes.map(a => 
         a.name === annex.name 
-          ? { ...a, auditResult: result || null, status: result?.isReady ? 'uploaded' : 'error' as const } 
+          ? { ...a, auditResult: cleanResult || null, status: cleanResult?.isReady ? 'uploaded' : 'error' as const } 
           : a
       )
 
       await updateDoc(bookmarkRef, { annexes: updatedAnnexes })
       setAnnexes(updatedAnnexes)
       
-      if (!result?.isReady) {
+      if (!cleanResult?.isReady) {
         toast({ variant: "destructive", title: "Alerta de Cumplimiento", description: "Se detectaron errores críticos en el PDF." })
       } else {
         toast({ title: "PDF Validado", description: "El documento está listo para ser enviado." })
@@ -164,17 +184,20 @@ export default function BidApplyPage() {
       toast({ variant: "destructive", title: "Error de IA", description: error.message })
     } finally {
       setIsAuditing(false)
+      setIsSyncing(false)
     }
   }
 
   const handleDeleteAnnex = async (annexName: string) => {
     if (!bookmarkRef) return
+    setIsSyncing(true)
     const updatedAnnexes: AnnexDocument[] = annexes.map(a => 
       a.name === annexName ? { ...a, fileDataUri: null, fileName: null, status: 'pending' as const, auditResult: null } : a
     )
     await updateDoc(bookmarkRef, { annexes: updatedAnnexes })
     setAnnexes(updatedAnnexes)
     toast({ title: "Documento Eliminado", description: "Archivo removido de la nube." })
+    setIsSyncing(false)
   }
 
   const isLoading = isBookmarkLoading || isBidLoading
@@ -198,18 +221,25 @@ export default function BidApplyPage() {
   return (
     <div className="max-w-7xl mx-auto space-y-8 animate-in fade-in duration-500">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b pb-6">
-        <div className="space-y-2 flex-1">
+        <div className="space-y-2 flex-1 min-w-0">
           <Button variant="ghost" onClick={() => router.back()} className="text-muted-foreground group -ml-4">
             <ChevronLeft className="h-4 w-4 mr-1 group-hover:-translate-x-1 transition-transform" /> Regresar al Detalle
           </Button>
-          <h1 className="text-xl font-black text-primary leading-tight line-clamp-2">
+          <h1 className="text-2xl font-black text-primary leading-tight line-clamp-2 italic uppercase">
             {displayTitle}
           </h1>
-        </div>
-        <div className="flex flex-col items-end gap-2">
           <div className="flex items-center gap-2">
-            <Badge variant="outline" className="text-primary border-primary/20 uppercase font-black">Carpeta Digital de Licitación</Badge>
-            <Badge className="bg-primary text-white font-mono">{bidId}</Badge>
+            <Badge variant="outline" className="text-primary border-primary/20 uppercase font-black text-[10px]">Carpeta Digital de Licitación</Badge>
+            <Badge className="bg-primary text-white font-mono text-[10px]">{bidId}</Badge>
+            {isSyncing ? (
+              <Badge variant="ghost" className="text-muted-foreground text-[10px] animate-pulse flex items-center gap-1">
+                <Cloud className="h-3 w-3" /> Sincronizando...
+              </Badge>
+            ) : (
+              <Badge variant="ghost" className="text-emerald-600 text-[10px] flex items-center gap-1">
+                <CloudCheck className="h-3 w-3" /> Sincronizado
+              </Badge>
+            )}
           </div>
         </div>
       </div>
@@ -245,11 +275,11 @@ export default function BidApplyPage() {
             <CardContent className="space-y-4">
                <div className="flex justify-between items-center text-xs">
                  <span className="opacity-70">Documentos:</span>
-                 <span className="font-bold">{annexes.length}</span>
+                 <span className="font-bold">{stats.total}</span>
                </div>
                <div className="flex justify-between items-center text-xs text-emerald-400">
                  <span className="opacity-70">Auditados OK:</span>
-                 <span className="font-bold">{annexes.filter(a => a.status === 'uploaded' && a.auditResult?.isReady).length}</span>
+                 <span className="font-bold">{stats.ready}</span>
                </div>
                <div className="pt-4 border-t border-white/10">
                  <p className="text-[9px] font-bold uppercase opacity-60 mb-2">Seguridad</p>
@@ -263,7 +293,7 @@ export default function BidApplyPage() {
           <div className="flex items-center justify-between">
             <h2 className="text-2xl font-black text-primary uppercase italic tracking-tighter">Documentación Oficial</h2>
             <Badge variant="secondary" className="bg-accent/10 text-accent border-accent/20">
-              {annexes.filter(a => a.status !== 'pending').length} de {annexes.length} Archivos
+              {stats.uploaded} de {stats.total} Archivos
             </Badge>
           </div>
 

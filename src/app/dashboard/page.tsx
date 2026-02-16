@@ -189,32 +189,36 @@ export default function DashboardPage() {
                   {bookmarks.map((item) => {
                     const prepStatus = (item as any).preparationStatus || "En Estudio";
                     return (
-                      <Link key={item.id} href={`/bids/${item.bidId}`} className="flex items-center justify-between p-6 hover:bg-muted/30 transition-colors group">
-                        <div className="space-y-1 min-w-0 flex-1 mr-4">
-                          <div className="flex items-center gap-2">
-                             <Badge variant="outline" className="text-[10px] font-mono border-primary/20">{item.bidId}</Badge>
-                             <Badge className={cn(
-                               "text-[10px] uppercase font-bold",
-                               prepStatus === 'Presentada' ? "bg-emerald-500 text-white" :
-                               prepStatus === 'Lista para Envío' ? "bg-teal-600 text-white" : "bg-accent text-white"
-                             )}>
-                               {prepStatus}
-                             </Badge>
+                      <div key={item.id} className="flex items-center justify-between p-6 hover:bg-muted/30 transition-colors group relative">
+                        <Link href={`/bids/${item.bidId}`} className="flex-1 min-w-0 mr-4">
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2">
+                               <Badge variant="outline" className="text-[10px] font-mono border-primary/20">{item.bidId}</Badge>
+                               <Badge className={cn(
+                                 "text-[10px] uppercase font-bold",
+                                 prepStatus === 'Presentada' ? "bg-emerald-500 text-white" :
+                                 prepStatus === 'Lista para Envío' ? "bg-teal-600 text-white" : "bg-accent text-white"
+                               )}>
+                                 {prepStatus}
+                               </Badge>
+                            </div>
+                            <h4 className="font-bold text-primary group-hover:text-accent transition-colors truncate">{item.title}</h4>
+                            <p className="text-xs text-muted-foreground flex items-center gap-1">
+                              <Building2 className="h-3 w-3" /> {item.entity}
+                            </p>
                           </div>
-                          <h4 className="font-bold text-primary group-hover:text-accent transition-colors truncate">{item.title}</h4>
-                          <p className="text-xs text-muted-foreground flex items-center gap-1">
-                            <Building2 className="h-3 w-3" /> {item.entity}
-                          </p>
-                        </div>
+                        </Link>
                         <div className="flex items-center gap-4">
                           <Link href={`/bids/${item.bidId}/apply`} className="hidden md:block">
                             <Button variant="ghost" size="sm" className="h-8 text-[10px] font-bold gap-2 text-accent border border-accent/20">
                               <SendHorizontal className="h-3 w-3" /> Carpetas
                             </Button>
                           </Link>
-                          <ChevronRight className="h-5 w-5 text-muted-foreground group-hover:text-accent group-hover:translate-x-1 transition-all" />
+                          <Link href={`/bids/${item.bidId}`}>
+                            <ChevronRight className="h-5 w-5 text-muted-foreground group-hover:text-accent group-hover:translate-x-1 transition-all" />
+                          </Link>
                         </div>
-                      </Link>
+                      </div>
                     );
                   })}
                 </div>

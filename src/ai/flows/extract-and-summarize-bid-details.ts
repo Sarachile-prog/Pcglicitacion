@@ -1,6 +1,7 @@
 'use server';
 /**
  * @fileOverview Flujo de Genkit para asesoría experta en licitaciones y detección de leads.
+ * Incluye capacidad de scraping en tiempo real del portal de Mercado Público.
  */
 
 import {ai} from '@/ai/genkit';
@@ -40,10 +41,47 @@ const PostulationAdvisorOutputSchema = z.object({
 export type PostulationAdvisorOutput = z.infer<typeof PostulationAdvisorOutputSchema>;
 
 const ExtractAndSummarizeBidDetailsInputSchema = z.object({
-  bidDocumentText: z.string(),
-  bidId: z.string().optional(),
+  bidDocumentText: z.string().optional(),
+  bidId: z.string(),
+  useLivePortal: z.boolean().optional().describe('Indica si debe intentar hacer scraping del portal público.'),
 });
 export type ExtractAndSummarizeBidDetailsInput = z.infer<typeof ExtractAndSummarizeBidDetailsInputSchema>;
+
+/**
+ * Función interna para extraer texto del portal público de Mercado Público.
+ */
+async function scrapePublicPortal(bidId: string): Promise<string> {
+  const url = `https://www.mercadopublico.cl/Procurement/Modules/RFB/DetailsAcquisition.aspx?idLicitacion=${bidId}`;
+  console.log(`>>> [SCRAPER] Intentando obtener datos en vivo de: ${url}`);
+  
+  try {
+    const response = await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+      },
+      next: { revalidate: 0 } // No cachear para asegurar datos frescos
+    });
+
+    if (!response.ok) return `Error al acceder al portal: ${response.statusText}`;
+
+    const html = await response.text();
+    
+    // Limpieza básica del HTML para no saturar de tokens
+    // Extraemos solo el cuerpo principal y eliminamos scripts/estilos
+    const cleanContent = html
+      .replace(/<script\b[^>]*>([\s\S]*?)<\/script>/gmi, '')
+      .replace(/<style\b[^>]*>([\s\S]*?)<\/style>/gmi, '')
+      .replace(/<svg\b[^>]*>([\s\S]*?)<\/svg>/gmi, '')
+      .replace(/<[^>]*>?/gm, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    return cleanContent.substring(0, 50000); // Limitamos a 50k caracteres para seguridad de tokens
+  } catch (error: any) {
+    console.error(`>>> [SCRAPER_ERROR]: ${error.message}`);
+    return `Error de conexión con el portal público: ${error.message}`;
+  }
+}
 
 /**
  * Función de diagnóstico para probar la conexión con el modelo.
@@ -63,7 +101,7 @@ export async function testAiConnection() {
 }
 
 /**
- * Nueva función para listar modelos disponibles.
+ * Función para listar modelos disponibles.
  */
 export async function listModels() {
   try {
@@ -81,22 +119,35 @@ export async function listModels() {
 export async function extractAndSummarizeBidDetails(
   input: ExtractAndSummarizeBidDetailsInput
 ): Promise<PostulationAdvisorOutput> {
-  console.log(`>>> [AI_FLOW] Analizando licitación con Gemini 2.5: ${input.bidId || 'Sin ID'}`);
+  console.log(`>>> [AI_FLOW] Analizando licitación con Gemini 2.5: ${input.bidId}`);
   
+  let portalData = "";
+  if (input.useLivePortal) {
+    portalData = await scrapePublicPortal(input.bidId);
+  }
+
   try {
     const { output } = await ai.generate({
       model: 'googleai/gemini-2.5-flash',
       system: `Eres un Asesor Senior Experto en Licitaciones de Mercado Público Chile (Ley 19.886).
-      Tu objetivo es analizar bases administrativas y técnicas para detectar riesgos, facilitar la postulación (checklist) e identificar leads.`,
+      Tu objetivo es analizar los datos proporcionados para detectar riesgos, facilitar la postulación (checklist) e identificar leads.
+      
+      IMPORTANTE: Se te puede proporcionar texto crudo extraído directamente del portal público de Mercado Público. 
+      Este texto puede ser desordenado. Tu labor es encontrar los datos clave (fechas, montos, estados) dentro de ese ruido.`,
       prompt: `Analiza detalladamente esta licitación y genera el informe estratégico:
       
-      ID: ${input.bidId || 'N/A'}
-      TEXTO DEL DOCUMENTO:
-      ${input.bidDocumentText}
+      ID DE LICITACIÓN: ${input.bidId}
+      
+      DATOS DEL PORTAL EN VIVO (Scraping):
+      ${portalData || "No disponible"}
+      
+      TEXTO ADICIONAL / BASES:
+      ${input.bidDocumentText || "No proporcionado"}
       
       Instrucciones específicas:
-      - Si no encuentras montos explícitos, indica "A definir en bases".
-      - En el checklist de formularios, busca nombres como "Anexo N°1", "Formulario de Experiencia", etc.`,
+      - Si encuentras discrepancias entre los datos de bases y el portal, prioriza lo que diga el PORTAL EN VIVO sobre el estado actual (si está cerrada o abierta).
+      - En el checklist de formularios, busca nombres como "Anexo N°1", "Formulario de Experiencia", etc.
+      - Si el texto indica que está cerrada pero el usuario pregunta por qué, explícalo basándote en las fechas encontradas.`,
       output: {
         schema: PostulationAdvisorOutputSchema,
       },

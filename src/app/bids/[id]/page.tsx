@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useParams } from "next/navigation"
@@ -28,7 +27,9 @@ import {
   FileText,
   CheckSquare,
   FilePlus2,
-  BrainCircuit
+  BrainCircuit,
+  Zap,
+  Globe
 } from "lucide-react"
 import Link from "next/link"
 import { useToast } from "@/hooks/use-toast"
@@ -122,29 +123,35 @@ export default function BidDetailPage() {
     }
   }
 
-  const handleAnalyze = async (useManual = false) => {
+  const handleAnalyze = async (mode: 'fast' | 'deep') => {
     if (!bid) return
     setLoadingAI(true)
-    if (useManual) setIsDialogOpen(false)
+    if (mode === 'deep') setIsDialogOpen(false)
 
     try {
-      const contextText = useManual ? manualText : (bid.description || bid.title)
-      const fullText = `Título: ${bid.title}. Entidad: ${bid.entity}. Estado: ${bid.status}. CONTENIDO DE BASES: ${contextText}`
+      toast({
+        title: "Conectando con el Portal",
+        description: "Accediendo a la ficha pública en tiempo real...",
+      })
+
+      const contextText = mode === 'deep' ? manualText : (bid.description || bid.title)
       
       const result = await extractAndSummarizeBidDetails({ 
-        bidDocumentText: fullText,
-        bidId: bid.id 
+        bidId: bid.id,
+        bidDocumentText: contextText,
+        useLivePortal: true // Activamos el scraper en vivo
       })
+      
       setAnalysis(result)
       toast({
         title: "Asesoría Generada",
-        description: useManual ? "Análisis profundo completado con texto de bases." : "Análisis rápido completado con datos de API.",
+        description: "Análisis completado con datos en vivo del portal.",
       })
-    } catch (error) {
+    } catch (error: any) {
       toast({
         variant: "destructive",
         title: "Error de Análisis",
-        description: "La IA no pudo procesar los datos. Verifica tu conexión.",
+        description: error.message || "La IA no pudo procesar los datos.",
       })
     } finally {
       setLoadingAI(false)
@@ -217,6 +224,9 @@ export default function BidDetailPage() {
                "text-white",
                bid.status === 'Publicada' ? 'bg-emerald-500' : 'bg-blue-600'
             )}>{bid.status}</Badge>
+            <Badge variant="secondary" className="bg-accent/10 text-accent border-accent/20 flex items-center gap-1">
+              <Globe className="h-3 w-3" /> Live Portal Enabled
+            </Badge>
           </div>
           <h1 className="text-4xl font-black tracking-tight text-primary leading-tight">{bid.title}</h1>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -248,15 +258,15 @@ export default function BidDetailPage() {
           <CardContent className="p-6">
             {!analysis ? (
               <div className="space-y-4">
-                <p className="text-sm text-muted-foreground">Analizaremos los detalles para detectar riesgos y preparar tu postulación.</p>
+                <p className="text-sm text-muted-foreground">Analizaremos los datos en vivo del portal para detectar discrepancias y riesgos.</p>
                 
                 <div className="grid gap-2">
                   <Button 
-                    className="w-full bg-accent hover:bg-accent/90 text-white font-bold h-12" 
-                    onClick={() => handleAnalyze(false)}
+                    className="w-full bg-accent hover:bg-accent/90 text-white font-bold h-12 gap-2" 
+                    onClick={() => handleAnalyze('fast')}
                     disabled={loadingAI || isRefreshing}
                   >
-                    {loadingAI ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Analizando...</> : 'Análisis Rápido (API)'}
+                    {loadingAI ? <><Loader2 className="h-4 w-4 animate-spin" /> Escaneando Portal...</> : <><Zap className="h-4 w-4" /> Análisis Live (Portal)</>}
                   </Button>
 
                   <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
@@ -266,19 +276,19 @@ export default function BidDetailPage() {
                         className="w-full border-accent text-accent font-bold h-12 gap-2"
                         disabled={loadingAI || isRefreshing}
                       >
-                        <BrainCircuit className="h-4 w-4" /> Análisis Profundo (Bases)
+                        <BrainCircuit className="h-4 w-4" /> Análisis Senior (Portal + Bases)
                       </Button>
                     </DialogTrigger>
                     <DialogContent className="max-w-2xl">
                       <DialogHeader>
-                        <DialogTitle>Análisis Experto de Bases</DialogTitle>
+                        <DialogTitle>Análisis Experto Combinado</DialogTitle>
                         <DialogDescription>
-                          Para detectar multas, boletas de garantía y requisitos técnicos específicos, pega el texto de las bases administrativas aquí.
+                          La IA cruzará la información en vivo del portal con el texto de las bases que proporciones para detectar riesgos críticos.
                         </DialogDescription>
                       </DialogHeader>
                       <div className="space-y-4 py-4">
                         <Textarea 
-                          placeholder="Pega el contenido del PDF de bases aquí..." 
+                          placeholder="Pega aquí el texto de las bases administrativas/técnicas para un análisis 360°..." 
                           className="min-h-[300px] font-mono text-xs"
                           value={manualText}
                           onChange={(e) => setManualText(e.target.value)}
@@ -286,12 +296,12 @@ export default function BidDetailPage() {
                       </div>
                       <DialogFooter>
                         <Button 
-                          className="bg-accent hover:bg-accent/90 font-bold w-full" 
-                          onClick={() => handleAnalyze(true)}
+                          className="bg-accent hover:bg-accent/90 font-bold w-full h-12" 
+                          onClick={() => handleAnalyze('deep')}
                           disabled={!manualText || loadingAI}
                         >
                           {loadingAI ? <Loader2 className="animate-spin mr-2" /> : <Sparkles className="mr-2" />}
-                          Iniciar Análisis Senior
+                          Iniciar Análisis Senior + Portal
                         </Button>
                       </DialogFooter>
                     </DialogContent>
@@ -319,7 +329,7 @@ export default function BidDetailPage() {
           <TabsTrigger value="items" className="px-6">Ítems Solicitados</TabsTrigger>
           {analysis && (
             <TabsTrigger value="ai-advisor" className="px-6 data-[state=active]:bg-primary data-[state=active]:text-white">
-              <Target className="h-4 w-4 mr-2" /> Estrategia
+              <Target className="h-4 w-4 mr-2" /> Estrategia IA
             </TabsTrigger>
           )}
         </TabsList>
@@ -405,7 +415,7 @@ export default function BidDetailPage() {
                   <Card className="border-red-100 bg-red-50/30">
                     <CardHeader>
                       <CardTitle className="text-red-700 flex items-center gap-2">
-                        <AlertTriangle className="h-6 w-6" /> Alertas Críticas
+                        <AlertTriangle className="h-6 w-6" /> Alertas del Portal & Bases
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="grid gap-3">
@@ -421,9 +431,9 @@ export default function BidDetailPage() {
                   <Card>
                     <CardHeader>
                       <CardTitle className="text-primary flex items-center gap-2">
-                        <CheckSquare className="h-6 w-6 text-accent" /> Documentación Requerida
+                        <CheckSquare className="h-6 w-6 text-accent" /> Documentación Identificada
                       </CardTitle>
-                      <CardDescription>Formularios y anexos identificados por la IA en las bases.</CardDescription>
+                      <CardDescription>Formularios detectados en el análisis cruzado de portal y bases.</CardDescription>
                     </CardHeader>
                     <CardContent className="grid gap-4">
                       {analysis.formChecklist.map((form, i) => (
@@ -448,7 +458,7 @@ export default function BidDetailPage() {
                   <Card>
                     <CardHeader>
                       <CardTitle className="text-primary flex items-center gap-2">
-                        <Calendar className="h-6 w-6 text-accent" /> Hitos Clave
+                        <Calendar className="h-6 w-6 text-accent" /> Cronograma Estratégico
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
@@ -475,7 +485,7 @@ export default function BidDetailPage() {
                   <Card className="bg-primary text-white border-none shadow-xl h-fit">
                     <CardHeader>
                       <CardTitle className="flex items-center gap-2 text-xl">
-                        <Target className="h-6 w-6 text-accent" /> Veredicto IA
+                        <Target className="h-6 w-6 text-accent" /> Veredicto IA Live
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-6">
@@ -483,7 +493,7 @@ export default function BidDetailPage() {
                         {analysis.strategicAdvice}
                       </p>
                       <div className="p-4 bg-white/10 rounded-xl border border-white/20">
-                        <p className="text-[10px] uppercase font-bold text-accent mb-2">Razonamiento del Asesor</p>
+                        <p className="text-[10px] uppercase font-bold text-accent mb-2">Razonamiento</p>
                         <p className="text-xs italic opacity-80 leading-relaxed">
                           {analysis.reasoning}
                         </p>
@@ -496,7 +506,7 @@ export default function BidDetailPage() {
                     <Card className="border-accent/20 bg-accent/5">
                       <CardHeader>
                         <CardTitle className="text-sm font-bold flex items-center gap-2">
-                          <Building2 className="h-4 w-4 text-accent" /> Inteligencia de Leads
+                          <Building2 className="h-4 w-4 text-accent" /> Prospección de Leads
                         </CardTitle>
                       </CardHeader>
                       <CardContent className="space-y-3">

@@ -23,8 +23,10 @@ import {
   Calendar,
   ArrowUpRight,
   SendHorizontal,
-  RefreshCw
-} from "lucide-react"
+  RefreshCw,
+  Database,
+  ShieldCheck
+} from "lucide-center"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -93,6 +95,35 @@ export default function DashboardPage() {
             <Zap className="h-4 w-4" /> Nueva Sincronización Manual
           </Button>
         </Link>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <Card className="bg-blue-50 border-blue-200">
+          <CardContent className="p-4 flex items-center gap-4">
+            <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center shrink-0 text-blue-600">
+              <Database className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="text-xs font-bold text-blue-900">Cobertura de Mercado</p>
+              <p className="text-[10px] text-blue-700/80">
+                La base de datos se alimenta de sincronizaciones diarias. Si buscas una licitación antigua, impórtala desde la sección de Licitaciones.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="bg-emerald-50 border-emerald-200">
+          <CardContent className="p-4 flex items-center gap-4">
+            <div className="h-10 w-10 rounded-full bg-emerald-100 flex items-center justify-center shrink-0 text-emerald-600">
+              <ShieldCheck className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="text-xs font-bold text-emerald-900">Seguridad de Datos</p>
+              <p className="text-[10px] text-emerald-700/80">
+                Auto-Sincronización configurada: Lunes a Viernes a las 08:00 AM. Tu historial siempre estará al día.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {criticalAlerts.length > 0 && (

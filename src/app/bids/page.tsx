@@ -23,7 +23,10 @@ import {
   Settings as SettingsIcon,
   AlertTriangle,
   ChevronLast,
-  ChevronFirst
+  ChevronFirst,
+  Info,
+  Database,
+  CheckCircle2
 } from "lucide-react"
 import Link from "next/link"
 import { getBidsByDate } from "@/services/mercado-publico"
@@ -35,6 +38,7 @@ import { cn } from "@/lib/utils"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { CATEGORIES } from "@/app/lib/mock-data"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 
 const ITEMS_PER_PAGE = 50;
 
@@ -57,13 +61,12 @@ export default function BidsListPage() {
   })
   const { toast } = useToast()
 
-  // Consulta global de la base de datos con un límite más generoso
   const bidsQuery = useMemoFirebase(() => {
     if (!db) return null;
     return query(
       collection(db, "bids"),
       orderBy("scrapedAt", "desc"),
-      limit(1000) // Límite de carga para el prototipo
+      limit(1000) 
     )
   }, [db])
 
@@ -101,7 +104,6 @@ export default function BidsListPage() {
     }
   }
 
-  // Filtrado de datos
   const filteredBids = useMemo(() => {
     const allBids = bids || [];
     return allBids.filter(bid => {
@@ -124,7 +126,6 @@ export default function BidsListPage() {
     })
   }, [bids, searchTerm, selectedRubro])
 
-  // Lógica de Paginación
   const totalPages = Math.ceil(filteredBids.length / ITEMS_PER_PAGE);
   const pagedBids = useMemo(() => {
     const start = (currentPage - 1) * ITEMS_PER_PAGE;
@@ -196,6 +197,15 @@ export default function BidsListPage() {
         </div>
       </div>
 
+      <Alert className="bg-blue-50 border-blue-200">
+        <Info className="h-4 w-4 text-blue-600" />
+        <AlertTitle className="text-blue-800 font-bold">Nota sobre la Cobertura de Datos</AlertTitle>
+        <AlertDescription className="text-blue-700 text-xs">
+          La búsqueda y filtros se aplican sobre las licitaciones <strong>ya sincronizadas</strong> en tu base de datos local. 
+          El sistema auto-sincroniza nuevos datos cada mañana a las 08:00 AM. Si necesitas buscar en fechas pasadas, utiliza el importador superior.
+        </AlertDescription>
+      </Alert>
+
       {ticketError && (
         <Card className="bg-red-50 border-red-200">
           <CardContent className="pt-6 flex flex-col md:flex-row items-center gap-6">
@@ -230,7 +240,7 @@ export default function BidsListPage() {
                 value={searchTerm}
                 onChange={(e) => {
                   setSearchTerm(e.target.value);
-                  setCurrentPage(1); // Reset page on search
+                  setCurrentPage(1); 
                 }}
               />
             </div>
@@ -280,8 +290,8 @@ export default function BidsListPage() {
               {filteredBids.length} Licitaciones Filtradas
             </Badge>
             {bids && (
-              <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">
-                Base de Datos: {bids.length} Registros Recientes
+              <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest flex items-center gap-1">
+                <Database className="h-3 w-3" /> Registros en Caché: {bids.length}
               </span>
             )}
           </div>
@@ -337,7 +347,7 @@ export default function BidsListPage() {
                 </TooltipTrigger>
                 <TooltipContent className="max-w-xs p-4">
                   <p className="text-xs leading-relaxed font-medium">
-                    Mostramos hasta las últimas 1,000 licitaciones sincronizadas en tu base de datos global. Pagina de {ITEMS_PER_PAGE} en {ITEMS_PER_PAGE}.
+                    Mostramos hasta las últimas 1,000 licitaciones sincronizadas. Si buscas algo y no aparece, sincroniza el día de publicación usando el importador.
                   </p>
                 </TooltipContent>
               </Tooltip>
@@ -460,7 +470,6 @@ export default function BidsListPage() {
         </Card>
       )}
 
-      {/* Paginación Inferior */}
       {totalPages > 1 && (
         <div className="flex justify-center items-center gap-2 pt-4">
           <Button 

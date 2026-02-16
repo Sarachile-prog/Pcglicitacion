@@ -1,97 +1,229 @@
-
 {
   "entities": {
+    "Category": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Category",
+      "type": "object",
+      "description": "Represents a classification or industry for bid opportunities, allowing for organized browsing and filtering.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Category entity."
+        },
+        "name": {
+          "type": "string",
+          "description": "The name of the category (e.g., 'IT Services', 'Construction', 'Consulting')."
+        },
+        "description": {
+          "type": "string",
+          "description": "A detailed description of what the category encompasses."
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "description"
+      ]
+    },
+    "AwardingBody": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "AwardingBody",
+      "type": "object",
+      "description": "Represents the government or institutional entity responsible for issuing a bid.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the AwardingBody entity."
+        },
+        "name": {
+          "type": "string",
+          "description": "The official name of the awarding body (e.g., 'Ministerio de Obras Públicas', 'City Council of XYZ')."
+        },
+        "country": {
+          "type": "string",
+          "description": "The country where the awarding body is located."
+        },
+        "region": {
+          "type": "string",
+          "description": "The specific region, state, or province within the country where the awarding body operates, if applicable."
+        },
+        "contactInformation": {
+          "type": "string",
+          "description": "General contact information for the awarding body, such as a main email address or website URL."
+        },
+        "description": {
+          "type": "string",
+          "description": "A brief description of the awarding body and its mandate."
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "country"
+      ]
+    },
     "Bid": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Bid",
-      "description": "Una licitación pública sincronizada desde Mercado Público.",
       "type": "object",
+      "description": "Represents a single tender or bid opportunity scraped from various web sources.",
       "properties": {
-        "id": { "type": "string" },
-        "title": { "type": "string" },
-        "entity": { "type": "string" },
-        "status": { "type": "string" },
-        "amount": { "type": "number" },
-        "currency": { "type": "string" },
-        "deadlineDate": { "type": "string", "format": "date-time" },
-        "scrapedAt": { "type": "string", "format": "date-time" },
-        "sourceUrl": { "type": "string", "format": "uri" },
-        "aiAnalysis": { "type": "object" }
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Bid entity."
+        },
+        "title": {
+          "type": "string",
+          "description": "The title of the bid opportunity."
+        },
+        "description": {
+          "type": "string",
+          "description": "A summarized description of the bid, often extracted and refined by GenAI from the original document."
+        },
+        "originalUrl": {
+          "type": "string",
+          "description": "The URL of the original bid document or announcement on the source website.",
+          "format": "uri"
+        },
+        "publicationDate": {
+          "type": "string",
+          "description": "The date and time when the bid was officially published.",
+          "format": "date-time"
+        },
+        "deadline": {
+          "type": "string",
+          "description": "The deadline for submitting proposals or bids.",
+          "format": "date-time"
+        },
+        "estimatedAmount": {
+          "type": "number",
+          "description": "The estimated monetary value of the contract or bid, if available."
+        },
+        "currency": {
+          "type": "string",
+          "description": "The currency of the estimated amount (e.g., 'USD', 'EUR', 'CLP')."
+        },
+        "requirementsSummary": {
+          "type": "string",
+          "description": "A summary of the key requirements for the bid, extracted and summarized by GenAI."
+        },
+        "status": {
+          "type": "string",
+          "description": "The current status of the bid (e.g., 'Open', 'Closed', 'Awarded', 'Cancelled')."
+        },
+        "scrapeDate": {
+          "type": "string",
+          "description": "The date and time when this bid record was first scraped from its source.",
+          "format": "date-time"
+        },
+        "lastUpdateDate": {
+          "type": "string",
+          "description": "The date and time when this bid record was last updated, either from a scrape or internal processing.",
+          "format": "date-time"
+        },
+        "genAiReasoning": {
+          "type": "string",
+          "description": "Additional reasoning or insights provided by a GenAI tool to enhance comprehension of the bid."
+        },
+        "awardingBodyId": {
+          "type": "string",
+          "description": "Reference to the AwardingBody entity that issued this bid. (Relationship: AwardingBody 1:N Bid)"
+        },
+        "categoryIds": {
+          "type": "array",
+          "description": "References to Category entities that classify this bid. (Relationship: Category N:N Bid)",
+          "items": {
+            "type": "string"
+          }
+        }
       },
-      "required": ["id", "title"]
-    },
-    "Company": {
-      "title": "Company",
-      "description": "Cuenta de empresa que arrienda la plataforma.",
-      "type": "object",
-      "properties": {
-        "id": { "type": "string" },
-        "name": { "type": "string" },
-        "rut": { "type": "string" },
-        "plan": { "type": "string", "enum": ["Standard", "Enterprise"] },
-        "maxUsers": { "type": "number", "default": 2 },
-        "subscriptionStatus": { "type": "string", "enum": ["Active", "Inactive", "Trial"] },
-        "ufPriceBase": { "type": "number", "default": 1.5 },
-        "ufPriceExtraUser": { "type": "number", "default": 0.5 }
-      },
-      "required": ["id", "name", "plan"]
-    },
-    "Bookmark": {
-      "title": "Bookmark",
-      "description": "Licitación seguida y gestionada por una empresa.",
-      "type": "object",
-      "properties": {
-        "bidId": { "type": "string" },
-        "title": { "type": "string" },
-        "entity": { "type": "string" },
-        "status": { "type": "string" },
-        "preparationStatus": { "type": "string" },
-        "savedAt": { "type": "string", "format": "date-time" },
-        "timeline": { "type": "array" },
-        "annexes": { "type": "array" },
-        "aiAnalysis": { "type": "object" }
-      },
-      "required": ["bidId", "title"]
-    },
-    "UserProfile": {
-      "title": "UserProfile",
-      "description": "Datos del usuario y su vinculación corporativa.",
-      "type": "object",
-      "properties": {
-        "uid": { "type": "string" },
-        "email": { "type": "string" },
-        "companyId": { "type": "string" },
-        "role": { "type": "string", "enum": ["Admin", "User", "SuperAdmin"] },
-        "status": { "type": "string", "enum": ["Active", "Suspended"], "default": "Active" },
-        "aiUsageCount": { "type": "number", "default": 0, "description": "Cantidad de análisis IA realizados por un usuario Demo." },
-        "termsAccepted": { "type": "boolean", "default": false },
-        "termsAcceptedAt": { "type": "string", "format": "date-time" }
-      },
-      "required": ["uid", "role"]
+      "required": [
+        "id",
+        "title",
+        "description",
+        "originalUrl",
+        "publicationDate",
+        "deadline",
+        "status",
+        "scrapeDate",
+        "awardingBodyId",
+        "categoryIds"
+      ]
     }
   },
   "auth": {
-    "providers": ["password", "anonymous"]
+    "providers": [
+      "password",
+      "anonymous"
+    ]
   },
   "firestore": {
-    "bids/{bidId}": {
-      "schema": { "$ref": "#/backend/entities/Bid" },
-      "description": "Base de datos global de licitaciones sincronizadas."
-    },
-    "companies/{companyId}": {
-      "schema": { "$ref": "#/backend/entities/Company" },
-      "description": "Datos maestros de la empresa cliente."
-    },
-    "companies/{companyId}/bookmarks/{bidId}": {
-      "schema": { "$ref": "#/backend/entities/Bookmark" },
-      "description": "Cartera de licitaciones compartida por el equipo de la empresa."
-    },
-    "users/{userId}": {
-      "schema": { "$ref": "#/backend/entities/UserProfile" },
-      "description": "Perfiles y roles de acceso."
-    },
-    "settings/{settingId}": {
-      "schema": "object",
-      "description": "Configuraciones globales del sistema (Admin solamente)."
-    }
+    "structure": [
+      {
+        "path": "/categories/{categoryId}",
+        "definition": {
+          "entityName": "Category",
+          "schema": {
+            "$ref": "#/backend/entities/Category"
+          },
+          "description": "Stores distinct categories or industries for bid opportunities. These documents are publicly readable to facilitate browsing and filtering of bids. Write access is restricted to administrators.",
+          "params": [
+            {
+              "name": "categoryId",
+              "description": "Unique identifier for the Category document."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/awardingBodies/{awardingBodyId}",
+        "definition": {
+          "entityName": "AwardingBody",
+          "schema": {
+            "$ref": "#/backend/entities/AwardingBody"
+          },
+          "description": "Contains information about the government or institutional entities that issue bids. These documents are publicly readable to provide context for bids. Write access is restricted to administrators.",
+          "params": [
+            {
+              "name": "awardingBodyId",
+              "description": "Unique identifier for the AwardingBody document."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/bids/{bidId}",
+        "definition": {
+          "entityName": "Bid",
+          "schema": {
+            "$ref": "#/backend/entities/Bid"
+          },
+          "description": "Holds individual bid opportunities scraped from various sources. These documents are publicly readable to all users. Bid documents include direct references (awardingBodyId, categoryIds) but do not denormalize authorization context, as the bids themselves are public. Write access is primarily for the backend scraping process or administrators.",
+          "params": [
+            {
+              "name": "bidId",
+              "description": "Unique identifier for the Bid document."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/roles_admin/{userId}",
+        "definition": {
+          "entityName": "User",
+          "schema": {
+            "$ref": "#/backend/entities/User"
+          },
+          "description": "A collection used for Database Access Control (DBAC) to identify administrators. The existence of a document in this collection with a user's UID signifies administrative privileges. These documents are typically empty or contain minimal metadata like a creation timestamp. Authorization checks rely on the existence of this document for the `request.auth.uid`.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique Firebase Authentication UID of the user who is an administrator."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "The Firestore structure for 'Licitaciones Globales' is designed to be straightforward and highly scalable, prioritizing public data access for bid opportunities while allowing for administrative management of categorization and awarding bodies. The core principle driving this design is 'Authorization Independence' for all public-facing data and 'Structural Segregation' for different security postures.\n\n**Authorization Independence:** All primary data collections (`/categories`, `/awardingBodies`, `/bids`) are designed as top-level collections. This ensures that the security rules for any document in these collections do not rely on fetching data from a parent document (e.g., using `get()`). For example, a `Bid` document includes `awardingBodyId` and `categoryIds` as direct fields, referencing other entities. However, the authorization to read a `Bid` document does not depend on the content of its associated `AwardingBody` or `Category` documents. Since the application's primary goal is to present scraped public bid opportunities, all `Bid`, `Category`, and `AwardingBody` documents are intended to be publicly readable. This eliminates the need for complex, denormalized authorization fields within these documents, as their public nature means all relevant authorization context is 'true' by default for read operations.\n\n**Structural Segregation for QAPs (Queries as Permissions):**\n*   **Public Data:** The collections `/categories`, `/awardingBodies`, and `/bids` are structured to contain documents with a homogeneous security posture: public readability. This enables `list` operations to be inherently secure and efficient. Any user can query these collections (e.g., `/bids?awardingBodyId=abc`, `/bids?categoryIds=xyz`) without the Firestore security rules needing to perform server-side filtering or `get()` calls to validate each document's accessibility. The rule for these collections would simply be `allow read: if true;` for end-users, while backend processes or administrators would have write access.\n*   **Administrative Data:** The `/roles_admin/{userId}` collection implements a simple Database Access Control (DBAC) model. This collection segregates administrative roles from public data. An administrator's role is determined by the *existence* of a document with their UID in this collection (`exists(/roles_admin/$(request.auth.uid))`). This ensures that administrative checks are atomic and independent, avoiding complex logic or custom claims.\n\nThis design effectively minimizes rule complexity, enhances debuggability, and aligns perfectly with the application's goal of providing widely accessible bid information."
   }
 }

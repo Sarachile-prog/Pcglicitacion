@@ -31,27 +31,32 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [isAnonLoading, setIsAnonLoading] = useState(false)
 
+  // Solo redireccionamos automáticamente si el usuario YA estaba logueado al cargar la página
+  // y no estamos en medio de un proceso de login manual.
   useEffect(() => {
-    if (user && !isUserLoading) {
+    if (user && !isUserLoading && !isLoading && !isAnonLoading) {
       router.push("/dashboard")
     }
-  }, [user, isUserLoading, router])
+  }, [user, isUserLoading, router, isLoading, isAnonLoading])
 
   const ensureUserProfile = async (uid: string, userEmail: string | null) => {
     if (!db) return
     try {
       const userRef = doc(db, "users", uid)
+      // Usamos setDoc con merge para no sobreescribir datos si el usuario ya existía
       await setDoc(userRef, {
         uid,
         email: userEmail,
         role: userEmail === 'control@pcgoperacion.com' ? 'SuperAdmin' : 'User',
         lastLoginAt: serverTimestamp(),
         isAnonymous: !userEmail,
-        createdAt: serverTimestamp(),
-        termsAccepted: false // Forzará el modal de términos al entrar
+        updatedAt: serverTimestamp(),
+        // No sobreescribimos createdAt ni termsAccepted si ya existen
       }, { merge: true })
+      return true
     } catch (e) {
       console.error("Error al crear perfil:", e)
+      return false
     }
   }
 
@@ -68,13 +73,15 @@ export default function LoginPage() {
         toast({ title: "Bienvenido", description: "Acceso concedido al ecosistema PCG." })
       } else {
         const cred = await createUserWithEmailAndPassword(auth, email, password)
+        // CRÍTICO: Esperamos a que el perfil se cree en Firestore antes de mover al usuario
         await ensureUserProfile(cred.user.uid, cred.user.email)
-        toast({ title: "Cuenta Creada", description: "Ahora puedes solicitar tu vinculación corporativa." })
+        toast({ title: "Cuenta Creada", description: "Tu perfil ha sido registrado. Solicita tu activación corporativa." })
       }
+      router.push("/dashboard")
     } catch (error: any) {
       let message = "Hubo un problema con la autenticación."
       if (error.code === 'auth/email-already-in-use') message = "Este correo ya está registrado."
-      if (error.code === 'auth/wrong-password') message = "Contraseña incorrecta."
+      if (error.code === 'auth/invalid-credential') message = "Correo o contraseña incorrectos."
       if (error.code === 'auth/user-not-found') message = "Usuario no registrado."
       
       toast({
@@ -92,6 +99,7 @@ export default function LoginPage() {
     try {
       const cred = await signInAnonymously(auth)
       await ensureUserProfile(cred.user.uid, null)
+      router.push("/dashboard")
     } catch (error: any) {
       toast({
         variant: "destructive",

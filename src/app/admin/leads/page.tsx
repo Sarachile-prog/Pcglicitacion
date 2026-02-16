@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState } from "react"
@@ -20,7 +21,9 @@ import {
   CheckCircle2,
   AlertCircle,
   Mail,
-  UserCog
+  UserCog,
+  UserCheck,
+  Zap
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { 
@@ -57,13 +60,15 @@ export default function CompaniesManagementPage() {
 
   const { data: companies, isLoading: isCompaniesLoading } = useCollection(companiesRef)
 
-  // Colección de Usuarios para asignar (vincular)
+  // Colección de Usuarios
   const usersRef = useMemoFirebase(() => {
     if (!db) return null
     return collection(db, "users")
   }, [db])
 
   const { data: allUsers, isLoading: isUsersLoading } = useCollection(usersRef)
+
+  const prospects = allUsers?.filter(u => !u.companyId && u.role !== 'SuperAdmin') || []
 
   const handleCreateCompany = async () => {
     if (!db || !newCompanyName || !newCompanyRut) return
@@ -181,6 +186,98 @@ export default function CompaniesManagementPage() {
           </DialogContent>
         </Dialog>
       </div>
+
+      {/* SECCIÓN DE PROSPECTOS - VISIBILIDAD INMEDIATA */}
+      <Card className="border-accent/20 bg-accent/5 rounded-3xl overflow-hidden shadow-xl">
+        <CardHeader className="bg-accent/10 border-b p-6">
+          <div className="flex justify-between items-center">
+            <div className="space-y-1">
+              <CardTitle className="text-xl font-black flex items-center gap-2 text-primary uppercase italic tracking-tighter">
+                <Zap className="h-5 w-5 text-accent animate-pulse" /> Prospectos en Espera de Activación
+              </CardTitle>
+              <p className="text-xs text-muted-foreground font-medium italic">Usuarios registrados o demo que aún no pertenecen a ninguna corporación.</p>
+            </div>
+            <Badge className="bg-accent text-white font-black px-4">{prospects.length} PENDIENTES</Badge>
+          </div>
+        </CardHeader>
+        <CardContent className="p-0">
+          <div className="max-h-[300px] overflow-auto">
+            <Table>
+              <TableHeader className="bg-white/50 sticky top-0 z-10">
+                <TableRow>
+                  <TableHead className="font-black uppercase text-[10px] py-4">Usuario / Identificador</TableHead>
+                  <TableHead className="font-black uppercase text-[10px]">Tipo de Acceso</TableHead>
+                  <TableHead className="text-right font-black uppercase text-[10px] pr-6">Acción Rápida</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {isUsersLoading ? (
+                  <TableRow><TableCell colSpan={3} className="text-center py-10"><Loader2 className="animate-spin mx-auto opacity-20" /></TableCell></TableRow>
+                ) : prospects.length > 0 ? (
+                  prospects.map((u) => (
+                    <TableRow key={u.id} className="hover:bg-white/80">
+                      <TableCell className="py-4 pl-6">
+                        <div className="flex items-center gap-3">
+                          <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-[10px] font-black text-primary">
+                            {u.email?.[0].toUpperCase() || '?'}
+                          </div>
+                          <div className="flex flex-col">
+                            <span className="font-bold text-sm">{u.email || u.id}</span>
+                            <span className="text-[9px] font-mono text-muted-foreground uppercase">{u.id}</span>
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={u.email ? "outline" : "secondary"} className="text-[8px] font-black uppercase">
+                          {u.email ? "REGISTRADO" : "MODO DEMO"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right pr-6">
+                        <Dialog>
+                          <DialogTrigger asChild>
+                            <Button size="sm" className="bg-primary hover:bg-primary/90 font-black text-[10px] uppercase italic h-8 px-4 gap-2">
+                              <UserCheck className="h-3 w-3" /> Vincular a Empresa
+                            </Button>
+                          </DialogTrigger>
+                          <DialogContent className="max-w-md">
+                            <DialogHeader>
+                              <DialogTitle className="text-2xl font-black text-primary uppercase italic">Vincular Prospecto</DialogTitle>
+                              <DialogDescription className="font-medium italic">Selecciona a qué empresa pertenece este usuario.</DialogDescription>
+                            </DialogHeader>
+                            <div className="py-6 space-y-4">
+                              <div className="p-4 bg-muted/30 rounded-xl border space-y-1">
+                                <p className="text-[10px] font-black uppercase text-muted-foreground">Usuario Seleccionado</p>
+                                <p className="font-bold text-primary">{u.email || u.id}</p>
+                              </div>
+                              <div className="space-y-2">
+                                <Label className="text-[10px] font-black uppercase">Empresa Destino</Label>
+                                <Select onValueChange={(val) => handleAssignUser(u.id, val)}>
+                                  <SelectTrigger className="h-12 font-bold">
+                                    <SelectValue placeholder="Selecciona una empresa..." />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {companies?.map(c => (
+                                      <SelectItem key={c.id} value={c.id} className="font-bold">{c.name}</SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            </div>
+                          </DialogContent>
+                        </Dialog>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                ) : (
+                  <TableRow>
+                    <TableCell colSpan={3} className="text-center py-10 text-muted-foreground italic text-xs font-bold uppercase">No hay usuarios pendientes de vinculación.</TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </CardContent>
+      </Card>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card className="bg-primary/5 border-primary/10 shadow-sm rounded-2xl overflow-hidden relative">

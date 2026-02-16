@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState } from "react"
@@ -19,7 +18,9 @@ import {
   UserPlus,
   Settings2,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  Mail,
+  UserCog
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { 
@@ -95,10 +96,10 @@ export default function CompaniesManagementPage() {
     }
   }
 
-  const handleAssignUser = async (userId: string, companyId: string) => {
+  const handleAssignUser = async (userId: string, companyId: string, role: string = 'User') => {
     if (!db) return
     try {
-      await setDoc(doc(db, "users", userId), { companyId, role: 'User' }, { merge: true })
+      await setDoc(doc(db, "users", userId), { companyId, role }, { merge: true })
       toast({ title: "Usuario Vinculado", description: "El usuario ya tiene acceso al dashboard corporativo." })
     } catch (error: any) {
       toast({ variant: "destructive", title: "Error", description: error.message })
@@ -110,59 +111,70 @@ export default function CompaniesManagementPage() {
     c.rut.includes(searchTerm)
   )
 
-  if (!user || user.email !== 'control@pcgoperacion.com') {
+  const isSuperAdmin = user?.email === 'control@pcgoperacion.com'
+
+  if (!user || !isSuperAdmin) {
     return (
-      <div className="py-20 text-center space-y-4">
-        <AlertCircle className="h-12 w-12 text-red-500 mx-auto" />
-        <h2 className="text-2xl font-black text-primary uppercase italic">Acceso Denegado</h2>
-        <p className="text-muted-foreground">Solo el SuperAdministrador puede gestionar cuentas corporativas.</p>
+      <div className="py-20 text-center space-y-4 max-w-md mx-auto">
+        <div className="h-20 w-20 bg-red-50 rounded-full flex items-center justify-center mx-auto">
+          <AlertCircle className="h-10 w-10 text-red-500" />
+        </div>
+        <h2 className="text-2xl font-black text-primary uppercase italic tracking-tighter">Acceso de SuperAdministrador Requerido</h2>
+        <p className="text-muted-foreground font-medium italic">Esta consola es de uso exclusivo para PCG Operaciones. Por favor, inicia sesión con tu cuenta de control.</p>
+        <Button onClick={() => window.location.href = '/login'} className="w-full bg-primary font-black uppercase italic h-12">Ir al Login Administrativo</Button>
       </div>
     )
   }
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-700">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+    <div className="space-y-8 animate-in fade-in duration-700 max-w-7xl mx-auto">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b pb-6">
         <div>
-          <h2 className="text-3xl font-black tracking-tight text-primary uppercase italic">Consola de Control Tenancy</h2>
-          <p className="text-muted-foreground">Gestión centralizada de empresas, planes y vinculación de usuarios.</p>
+          <div className="flex items-center gap-2 mb-1">
+            <ShieldCheck className="h-5 w-5 text-accent" />
+            <h2 className="text-3xl font-black tracking-tight text-primary uppercase italic tracking-tighter">Consola de Control Tenancy</h2>
+          </div>
+          <p className="text-muted-foreground font-medium italic">Gestión centralizada de empresas, planes y vinculación de equipos.</p>
         </div>
         
         <Dialog open={isAddingCompany} onOpenChange={setIsAddingCompany}>
           <DialogTrigger asChild>
-            <Button className="bg-accent hover:bg-accent/90 font-black gap-2 uppercase italic shadow-lg">
-              <Plus className="h-4 w-4" /> Nueva Empresa
+            <Button className="bg-accent hover:bg-accent/90 font-black gap-2 uppercase italic shadow-lg h-12 px-6">
+              <Plus className="h-5 w-5" /> Nueva Empresa
             </Button>
           </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle className="text-2xl font-black text-primary uppercase italic">Alta de Nueva Empresa</DialogTitle>
-              <DialogDescription>Configura los parámetros del arrendamiento mensual.</DialogDescription>
+          <DialogContent className="max-w-md">
+            <DialogHeader className="space-y-2">
+              <div className="h-12 w-12 rounded-xl bg-accent/10 flex items-center justify-center mb-2">
+                <Building2 className="h-6 w-6 text-accent" />
+              </div>
+              <DialogTitle className="text-2xl font-black text-primary uppercase italic tracking-tighter">Alta de Nueva Empresa</DialogTitle>
+              <DialogDescription className="font-medium italic">Configura los parámetros del arrendamiento mensual para el nuevo cliente.</DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">
               <div className="space-y-2">
-                <Label>Nombre de la Empresa</Label>
-                <Input value={newCompanyName} onChange={(e) => setNewCompanyName(e.target.value)} placeholder="Ej: Construcciones Alfa S.A." />
+                <Label className="text-[10px] font-black uppercase tracking-widest">Nombre de la Empresa</Label>
+                <Input value={newCompanyName} onChange={(e) => setNewCompanyName(e.target.value)} placeholder="Ej: Construcciones Alfa S.A." className="h-11" />
               </div>
               <div className="space-y-2">
-                <Label>RUT / Tax ID</Label>
-                <Input value={newCompanyRut} onChange={(e) => setNewCompanyRut(e.target.value)} placeholder="76.XXX.XXX-X" />
+                <Label className="text-[10px] font-black uppercase tracking-widest">RUT / Tax ID</Label>
+                <Input value={newCompanyRut} onChange={(e) => setNewCompanyRut(e.target.value)} placeholder="76.XXX.XXX-X" className="h-11" />
               </div>
               <div className="space-y-2">
-                <Label>Plan de Suscripción</Label>
+                <Label className="text-[10px] font-black uppercase tracking-widest">Plan de Suscripción</Label>
                 <Select value={newCompanyPlan} onValueChange={setNewCompanyPlan}>
-                  <SelectTrigger>
+                  <SelectTrigger className="h-11 font-bold">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Standard">Standard (1.5 UF - 2 Users)</SelectItem>
-                    <SelectItem value="Enterprise">Enterprise (5.0 UF - 10 Users)</SelectItem>
+                    <SelectItem value="Standard" className="font-bold">Standard (1.5 UF - 2 Users)</SelectItem>
+                    <SelectItem value="Enterprise" className="font-bold">Enterprise (5.0 UF - 10 Users)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </div>
             <DialogFooter>
-              <Button onClick={handleCreateCompany} disabled={isSyncing} className="w-full h-12 font-black uppercase italic">
+              <Button onClick={handleCreateCompany} disabled={isSyncing} className="w-full h-14 font-black uppercase italic text-lg shadow-xl">
                 {isSyncing ? <Loader2 className="animate-spin" /> : "Confirmar Alta de Empresa"}
               </Button>
             </DialogFooter>
@@ -171,49 +183,58 @@ export default function CompaniesManagementPage() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card className="bg-primary/5 border-primary/10">
+        <Card className="bg-primary/5 border-primary/10 shadow-sm rounded-2xl overflow-hidden relative">
+          <div className="absolute top-0 right-0 p-4 opacity-5">
+            <Building2 className="h-12 w-12" />
+          </div>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-black flex items-center gap-2 uppercase tracking-widest text-primary">
-              <Building2 className="h-4 w-4" /> Total Clientes
+            <CardTitle className="text-[10px] font-black flex items-center gap-2 uppercase tracking-widest text-primary/60">
+              Total Clientes
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-black text-primary">{companies?.length || 0}</div>
-            <p className="text-[10px] font-bold text-muted-foreground uppercase mt-1">Empresas con contrato activo</p>
+            <div className="text-4xl font-black text-primary italic tracking-tighter">{companies?.length || 0}</div>
+            <p className="text-[10px] font-bold text-muted-foreground uppercase mt-1 italic">Empresas con contrato activo</p>
           </CardContent>
         </Card>
-        <Card className="bg-accent/5 border-accent/10">
+        <Card className="bg-accent/5 border-accent/10 shadow-sm rounded-2xl overflow-hidden relative">
+          <div className="absolute top-0 right-0 p-4 opacity-5">
+            <Users className="h-12 w-12" />
+          </div>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-black flex items-center gap-2 uppercase tracking-widest text-accent">
-              <Users className="h-4 w-4" /> Usuarios Totales
+            <CardTitle className="text-[10px] font-black flex items-center gap-2 uppercase tracking-widest text-accent">
+              Usuarios Totales
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-black text-accent">{allUsers?.length || 0}</div>
-            <p className="text-[10px] font-bold text-muted-foreground uppercase mt-1">Entre todas las corporaciones</p>
+            <div className="text-4xl font-black text-accent italic tracking-tighter">{allUsers?.length || 0}</div>
+            <p className="text-[10px] font-bold text-muted-foreground uppercase mt-1 italic">Entre todas las corporaciones</p>
           </CardContent>
         </Card>
-        <Card className="bg-emerald-50 border-emerald-100">
+        <Card className="bg-emerald-50 border-emerald-100 shadow-sm rounded-2xl overflow-hidden relative">
+          <div className="absolute top-0 right-0 p-4 opacity-5">
+            <ShieldCheck className="h-12 w-12" />
+          </div>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-black flex items-center gap-2 uppercase tracking-widest text-emerald-600">
-              <ShieldCheck className="h-4 w-4" /> Salud de Cuentas
+            <CardTitle className="text-[10px] font-black flex items-center gap-2 uppercase tracking-widest text-emerald-600">
+              Salud de Cuentas
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-black text-emerald-600">100%</div>
-            <p className="text-[10px] font-bold text-muted-foreground uppercase mt-1">Suscripciones vigentes</p>
+            <div className="text-4xl font-black text-emerald-600 italic tracking-tighter">100%</div>
+            <p className="text-[10px] font-bold text-muted-foreground uppercase mt-1 italic">Suscripciones vigentes</p>
           </CardContent>
         </Card>
       </div>
 
-      <Card>
-        <CardHeader className="border-b bg-muted/20">
+      <Card className="border-none shadow-xl overflow-hidden rounded-3xl">
+        <CardHeader className="border-b bg-muted/20 p-6">
           <div className="flex flex-col md:flex-row justify-between gap-4">
             <div className="relative flex-1">
               <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input 
                 placeholder="Buscar empresa por nombre o RUT..." 
-                className="pl-10 h-11"
+                className="pl-10 h-12 bg-white/50 border-none shadow-inner"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
@@ -224,75 +245,111 @@ export default function CompaniesManagementPage() {
           <Table>
             <TableHeader className="bg-muted/50">
               <TableRow>
-                <TableHead className="font-black uppercase text-[10px]">Empresa / Tenant</TableHead>
-                <TableHead className="font-black uppercase text-[10px]">Plan</TableHead>
-                <TableHead className="font-black uppercase text-[10px]">Capacidad</TableHead>
-                <TableHead className="font-black uppercase text-[10px]">Facturación</TableHead>
-                <TableHead className="text-right font-black uppercase text-[10px]">Gestión</TableHead>
+                <TableHead className="font-black uppercase text-[10px] tracking-widest py-4">Empresa / Tenant</TableHead>
+                <TableHead className="font-black uppercase text-[10px] tracking-widest">Plan</TableHead>
+                <TableHead className="font-black uppercase text-[10px] tracking-widest">Capacidad</TableHead>
+                <TableHead className="font-black uppercase text-[10px] tracking-widest">Facturación</TableHead>
+                <TableHead className="text-right font-black uppercase text-[10px] tracking-widest pr-6">Gestión</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isCompaniesLoading ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-20">
-                    <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto" />
+                  <TableCell colSpan={5} className="text-center py-24">
+                    <Loader2 className="h-10 w-10 animate-spin text-primary mx-auto opacity-20" />
                   </TableCell>
                 </TableRow>
               ) : filteredCompanies && filteredCompanies.length > 0 ? (
                 filteredCompanies.map((company) => (
-                  <TableRow key={company.id} className="hover:bg-muted/30 transition-colors">
-                    <TableCell>
+                  <TableRow key={company.id} className="hover:bg-muted/30 transition-colors group">
+                    <TableCell className="py-6 pl-6">
                       <div className="space-y-1">
-                        <p className="font-black text-primary uppercase italic">{company.name}</p>
-                        <p className="text-[10px] font-bold text-muted-foreground">{company.rut}</p>
+                        <p className="font-black text-primary uppercase italic tracking-tighter text-lg">{company.name}</p>
+                        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">{company.rut}</p>
                       </div>
                     </TableCell>
                     <TableCell>
-                      <Badge variant={company.plan === 'Enterprise' ? 'default' : 'secondary'} className="font-black text-[10px] uppercase">
+                      <Badge variant={company.plan === 'Enterprise' ? 'default' : 'secondary'} className="font-black text-[10px] uppercase px-3 py-1">
                         {company.plan}
                       </Badge>
                     </TableCell>
-                    <TableCell className="font-bold text-xs uppercase">
-                      {allUsers?.filter(u => u.companyId === company.id).length} / {company.maxUsers} USUARIOS
+                    <TableCell className="font-bold text-xs uppercase italic">
+                      <span className="text-primary font-black">{allUsers?.filter(u => u.companyId === company.id).length}</span>
+                      <span className="text-muted-foreground mx-1">/</span>
+                      <span>{company.maxUsers} USUARIOS</span>
                     </TableCell>
-                    <TableCell className="font-black text-primary text-xs italic uppercase">
-                      {company.ufPriceBase} UF / MES
+                    <TableCell className="font-black text-primary text-sm italic uppercase">
+                      {company.ufPriceBase} UF <span className="text-[9px] text-muted-foreground font-bold">/ MES</span>
                     </TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="text-right pr-6">
                        <Dialog>
                          <DialogTrigger asChild>
-                           <Button variant="outline" size="sm" className="font-black text-[10px] uppercase gap-2 border-primary text-primary">
-                             <UserPlus className="h-3 w-3" /> Vincular Equipo
+                           <Button variant="outline" size="sm" className="font-black text-[10px] uppercase gap-2 border-primary text-primary hover:bg-primary hover:text-white transition-all h-9 px-4">
+                             <UserPlus className="h-3.5 w-3.5" /> Vincular Equipo
                            </Button>
                          </DialogTrigger>
-                         <DialogContent className="max-w-2xl">
-                           <DialogHeader>
-                             <DialogTitle className="text-2xl font-black text-primary uppercase italic">Vincular Usuarios a {company.name}</DialogTitle>
-                             <DialogDescription>Asigna usuarios registrados a esta corporación.</DialogDescription>
+                         <DialogContent className="max-w-3xl rounded-3xl">
+                           <DialogHeader className="space-y-2">
+                             <div className="h-12 w-12 rounded-xl bg-primary/5 flex items-center justify-center mb-2">
+                               <UserCog className="h-6 w-6 text-primary" />
+                             </div>
+                             <DialogTitle className="text-3xl font-black text-primary uppercase italic tracking-tighter">Vincular Equipo a {company.name}</DialogTitle>
+                             <DialogDescription className="font-medium italic">Asigna usuarios registrados a esta corporación y define sus roles de acceso.</DialogDescription>
                            </DialogHeader>
-                           <div className="max-h-[400px] overflow-auto border rounded-xl">
+                           <div className="max-h-[450px] overflow-auto border-2 border-primary/5 rounded-2xl mt-4">
                               <Table>
+                                <TableHeader className="bg-muted/30 sticky top-0 z-10">
+                                  <TableRow>
+                                    <TableHead className="font-black uppercase text-[10px]">Usuario</TableHead>
+                                    <TableHead className="font-black uppercase text-[10px]">Estado Actual</TableHead>
+                                    <TableHead className="text-right font-black uppercase text-[10px]">Acción</TableHead>
+                                  </TableRow>
+                                </TableHeader>
                                 <TableBody>
                                   {allUsers?.map(u => (
-                                    <TableRow key={u.id}>
-                                      <TableCell className="font-bold text-xs">{u.email || u.id}</TableCell>
+                                    <TableRow key={u.id} className="hover:bg-muted/20">
+                                      <TableCell className="font-bold text-sm py-4">
+                                        <div className="flex items-center gap-3">
+                                          <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-[10px] font-black text-primary">
+                                            {u.email?.[0].toUpperCase() || '?'}
+                                          </div>
+                                          <div className="flex flex-col">
+                                            <span className="truncate max-w-[200px]">{u.email || u.id}</span>
+                                            <span className="text-[9px] text-muted-foreground uppercase font-black">{u.role || 'USER'}</span>
+                                          </div>
+                                        </div>
+                                      </TableCell>
                                       <TableCell>
                                         {u.companyId === company.id ? (
-                                          <Badge className="bg-emerald-500 font-black uppercase text-[8px]">YA VINCULADO</Badge>
+                                          <Badge className="bg-emerald-500 font-black uppercase text-[8px] tracking-widest">VINCULADO</Badge>
                                         ) : (
-                                          <Badge variant="outline" className="text-[8px] font-black uppercase">{u.companyId || 'SIN EMPRESA'}</Badge>
+                                          <Badge variant="outline" className="text-[8px] font-black uppercase tracking-widest border-primary/20 text-muted-foreground">
+                                            {u.companyId ? `EMPRESA: ${u.companyId}` : 'MODO DEMO'}
+                                          </Badge>
                                         )}
                                       </TableCell>
                                       <TableCell className="text-right">
-                                        <Button 
-                                          size="sm" 
-                                          variant="ghost" 
-                                          disabled={u.companyId === company.id}
-                                          onClick={() => handleAssignUser(u.id, company.id)}
-                                          className="text-accent font-black text-[10px] uppercase italic"
-                                        >
-                                          Vincular <ArrowRight className="h-3 w-3 ml-1" />
-                                        </Button>
+                                        <div className="flex justify-end gap-2">
+                                          <Button 
+                                            size="sm" 
+                                            variant="ghost" 
+                                            disabled={u.companyId === company.id}
+                                            onClick={() => handleAssignUser(u.id, company.id, 'User')}
+                                            className="text-accent font-black text-[10px] uppercase italic h-8"
+                                          >
+                                            Vincular <ArrowRight className="h-3 w-3 ml-1" />
+                                          </Button>
+                                          {u.companyId === company.id && (
+                                            <Button 
+                                              size="sm" 
+                                              variant="outline" 
+                                              onClick={() => handleAssignUser(u.id, company.id, u.role === 'Admin' ? 'User' : 'Admin')}
+                                              className="border-primary/20 text-[9px] font-black uppercase h-8"
+                                            >
+                                              {u.role === 'Admin' ? 'Degradar' : 'Hacer Admin'}
+                                            </Button>
+                                          )}
+                                        </div>
                                       </TableCell>
                                     </TableRow>
                                   ))}
@@ -306,7 +363,7 @@ export default function CompaniesManagementPage() {
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-20 text-muted-foreground italic">No hay empresas dadas de alta.</TableCell>
+                  <TableCell colSpan={5} className="text-center py-24 text-muted-foreground italic font-medium">No hay empresas dadas de alta en el sistema.</TableCell>
                 </TableRow>
               )}
             </TableBody>

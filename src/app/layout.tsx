@@ -1,4 +1,3 @@
-
 "use client"
 
 import type { Metadata } from 'next';
@@ -13,6 +12,7 @@ import { useUser, useAuth } from '@/firebase';
 import { signOut } from 'firebase/auth';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { WhatsAppButton } from '@/components/whatsapp-button';
 
 function LayoutContent({ children }: { children: React.ReactNode }) {
   const { user, isUserLoading } = useUser();
@@ -27,6 +27,7 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
       <div className="min-h-screen flex flex-col">
         <main className="flex-1">
           {children}
+          <WhatsAppButton />
         </main>
       </div>
     );
@@ -105,6 +106,7 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
           </header>
           <main className="flex-1 p-6 lg:p-10 space-y-10 max-w-7xl mx-auto w-full">
             {children}
+            <WhatsAppButton />
           </main>
         </SidebarInset>
       </div>

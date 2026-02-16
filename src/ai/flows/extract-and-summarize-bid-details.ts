@@ -61,7 +61,7 @@ const explainConceptTool = ai.defineTool(
   async (input) => {
     const { output } = await ai.generate({
       prompt: `Explica el término "${input.term}" en el contexto de licitaciones públicas chilenas.`,
-      model: 'googleai/gemini-2.5-flash',
+      model: 'googleai/gemini-1.5-flash',
     });
     return { explanation: output?.text || 'Sin explicación.' };
   }
@@ -75,7 +75,11 @@ const fetchRealBidDataTool = ai.defineTool(
     outputSchema: z.any(),
   },
   async (input) => {
-    return await getBidDetail(input.bidId);
+    try {
+      return await getBidDetail(input.bidId);
+    } catch (e) {
+      return { error: "No se pudo obtener el detalle en este momento." };
+    }
   }
 );
 
@@ -84,12 +88,20 @@ const postulationAdvisorPrompt = ai.definePrompt({
   input: { schema: ExtractAndSummarizeBidDetailsInputSchema },
   output: { schema: PostulationAdvisorOutputSchema },
   tools: [explainConceptTool, fetchRealBidDataTool],
+  config: {
+    safetySettings: [
+      { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
+      { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
+      { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' },
+      { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' },
+    ]
+  },
   prompt: `Actúa como un Asesor Senior de Postulaciones a Mercado Público Chile e Inteligencia de Mercado. 
   Tu objetivo es preparar al usuario para ganar la licitación e identificar oportunidades de negocio (leads).
 
   1. Analiza las bases adjuntas: {{{bidDocumentText}}}.
-  2. Si hay ID ({{{bidId}}}), valida plazos reales con la API.
-  3. Identifica "Alertas Rojas": ¿Piden una boleta de garantía muy alta? ¿El plazo de entrega es absurdo?
+  2. Si hay ID ({{{bidId}}}), valida plazos reales con la API usando la herramienta fetchRealBidData.
+  3. Identifica "Alertas Rojas": ¿Piden una boleta de garantía muy alta? ¿El plazo de entrega es absurdo? ¿Hay criterios de evaluación discriminatorios?
   4. Crea una guía de formularios y cronograma de hitos.
   5. DETECCIÓN DE LEADS: Identifica empresas que se mencionen (ej: el proveedor anterior, marcas sugeridas, o subcontratistas específicos requeridos). Si no hay nombres propios, identifica "Perfiles de Empresa" que serían el target ideal para invitar a esta plataforma.
   6. Da un consejo final estratégico.
@@ -105,7 +117,10 @@ const postulationAdvisorFlow = ai.defineFlow(
   },
   async (input) => {
     const { output } = await postulationAdvisorPrompt(input);
-    return output!;
+    if (!output) {
+      throw new Error("El asesor IA no pudo generar una respuesta válida.");
+    }
+    return output;
   }
 );
 

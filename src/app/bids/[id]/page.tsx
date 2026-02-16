@@ -465,7 +465,7 @@ export default function BidDetailPage() {
                         <p className="text-sm font-medium opacity-80 leading-relaxed italic">{analysis.reasoning}</p>
                       </div>
                     </CardContent>
-                  </div>
+                  </Card>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                     <Card className="border-none shadow-lg bg-red-50/50">

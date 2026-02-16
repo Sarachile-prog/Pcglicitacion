@@ -1,8 +1,9 @@
+
 "use client"
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { LayoutDashboard, Search, PieChart, Info, Settings, Users, Mail, Sparkles } from "lucide-react"
+import { LayoutDashboard, Search, PieChart, Info, Settings, Users, Mail, Sparkles, Calculator } from "lucide-react"
 import { 
   SidebarMenu, 
   SidebarMenuItem, 
@@ -35,6 +36,7 @@ export function SidebarNav() {
     { name: "Empresas y Leads", href: "/admin/leads", icon: Users },
     { name: "Campañas de Outreach", href: "/admin/outreach", icon: Mail },
     { name: "Test de IA", href: "/admin/ai-test", icon: Sparkles },
+    { name: "Costos de Operación", href: "/admin/costs", icon: Calculator },
   ]
 
   const supportItems = [

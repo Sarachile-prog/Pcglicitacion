@@ -1,3 +1,4 @@
+
 {
   "entities": {
     "Category": {
@@ -53,7 +54,8 @@
         "companyId": { "type": "string", "description": "Link to the Company entity." },
         "status": { "type": "string", "enum": ["Active", "Suspended"] },
         "termsAccepted": { "type": "boolean" },
-        "aiUsageCount": { "type": "number" }
+        "aiUsageCount": { "type": "number" },
+        "aiCredits": { "type": "number", "description": "Available credits for deep analysis." }
       },
       "required": ["uid", "role"]
     },

@@ -3,7 +3,7 @@
 
 import { useState } from "react"
 import { useCollection, useMemoFirebase, useUser, useFirestore } from "@/firebase"
-import { collection, doc, setDoc, query, where } from "firebase/firestore"
+import { collection, doc, setDoc, updateDoc, deleteDoc } from "firebase/firestore"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -23,7 +23,14 @@ import {
   Mail,
   UserCog,
   UserCheck,
-  Zap
+  Zap,
+  MoreVertical,
+  Edit3,
+  Ban,
+  Trash2,
+  ExternalLink,
+  ShieldAlert,
+  UserMinus
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { 
@@ -38,6 +45,14 @@ import {
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
+import { 
+  DropdownMenu, 
+  DropdownMenuContent, 
+  DropdownMenuItem, 
+  DropdownMenuLabel, 
+  DropdownMenuSeparator, 
+  DropdownMenuTrigger 
+} from "@/components/ui/dropdown-menu"
 
 export default function CompaniesManagementPage() {
   const db = useFirestore()
@@ -45,6 +60,8 @@ export default function CompaniesManagementPage() {
   const { toast } = useToast()
   const [searchTerm, setSearchTerm] = useState("")
   const [isAddingCompany, setIsAddingCompany] = useState(false)
+  const [isEditingCompany, setIsEditingCompany] = useState(false)
+  const [editingCompany, setEditingCompany] = useState<any>(null)
   const [isSyncing, setIsSyncing] = useState(false)
 
   // Form states
@@ -101,11 +118,57 @@ export default function CompaniesManagementPage() {
     }
   }
 
-  const handleAssignUser = async (userId: string, companyId: string, role: string = 'User') => {
+  const handleUpdateCompany = async () => {
+    if (!db || !editingCompany) return
+    setIsSyncing(true)
+    try {
+      const ref = doc(db, "companies", editingCompany.id)
+      await updateDoc(ref, {
+        name: editingCompany.name,
+        rut: editingCompany.rut,
+        plan: editingCompany.plan,
+        maxUsers: editingCompany.plan === 'Enterprise' ? 10 : 2,
+        ufPriceBase: editingCompany.plan === 'Enterprise' ? 5 : 1.5,
+      })
+      toast({ title: "Empresa Actualizada", description: "Los cambios han sido guardados." })
+      setIsEditingCompany(false)
+    } catch (error: any) {
+      toast({ variant: "destructive", title: "Error", description: error.message })
+    } finally {
+      setIsSyncing(false)
+    }
+  }
+
+  const handleToggleCompanyStatus = async (company: any) => {
+    if (!db) return
+    const newStatus = company.subscriptionStatus === 'Active' ? 'Inactive' : 'Active'
+    try {
+      await updateDoc(doc(db, "companies", company.id), { subscriptionStatus: newStatus })
+      toast({ title: "Estado Actualizado", description: `La empresa ahora está ${newStatus === 'Active' ? 'Activa' : 'Suspendida'}.` })
+    } catch (error: any) {
+      toast({ variant: "destructive", title: "Error", description: error.message })
+    }
+  }
+
+  const handleAssignUser = async (userId: string, companyId: string | null, role: string = 'User') => {
     if (!db) return
     try {
-      await setDoc(doc(db, "users", userId), { companyId, role }, { merge: true })
-      toast({ title: "Usuario Vinculado", description: "El usuario ya tiene acceso al dashboard corporativo." })
+      await setDoc(doc(db, "users", userId), { companyId, role, status: 'Active' }, { merge: true })
+      toast({ 
+        title: companyId ? "Usuario Vinculado" : "Usuario Desvinculado", 
+        description: companyId ? "El usuario ya tiene acceso al dashboard corporativo." : "El usuario ha vuelto al modo Prospecto."
+      })
+    } catch (error: any) {
+      toast({ variant: "destructive", title: "Error", description: error.message })
+    }
+  }
+
+  const handleToggleUserStatus = async (userProfile: any) => {
+    if (!db) return
+    const newStatus = userProfile.status === 'Suspended' ? 'Active' : 'Suspended'
+    try {
+      await updateDoc(doc(db, "users", userProfile.id), { status: newStatus })
+      toast({ title: "Usuario Actualizado", description: `Estado: ${newStatus === 'Active' ? 'Activo' : 'Suspendido'}` })
     } catch (error: any) {
       toast({ variant: "destructive", title: "Error", description: error.message })
     }
@@ -132,7 +195,7 @@ export default function CompaniesManagementPage() {
   }
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-700 max-w-7xl mx-auto">
+    <div className="space-y-8 animate-in fade-in duration-700 max-w-7xl mx-auto pb-20">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b pb-6">
         <div>
           <div className="flex items-center gap-2 mb-1">
@@ -187,7 +250,57 @@ export default function CompaniesManagementPage() {
         </Dialog>
       </div>
 
-      {/* SECCIÓN DE PROSPECTOS - VISIBILIDAD INMEDIATA */}
+      {/* MODAL DE EDICIÓN DE EMPRESA */}
+      <Dialog open={isEditingCompany} onOpenChange={setIsEditingCompany}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-black text-primary uppercase italic">Editar Empresa</DialogTitle>
+            <DialogDescription>Modifica los parámetros de contrato del cliente.</DialogDescription>
+          </DialogHeader>
+          {editingCompany && (
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label className="text-[10px] font-black uppercase tracking-widest">Nombre Comercial</Label>
+                <Input 
+                  value={editingCompany.name} 
+                  onChange={(e) => setEditingCompany({...editingCompany, name: e.target.value})} 
+                  className="h-11 font-bold"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-[10px] font-black uppercase tracking-widest">RUT Empresa</Label>
+                <Input 
+                  value={editingCompany.rut} 
+                  onChange={(e) => setEditingCompany({...editingCompany, rut: e.target.value})} 
+                  className="h-11 font-bold"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-[10px] font-black uppercase tracking-widest">Plan Contratado</Label>
+                <Select 
+                  value={editingCompany.plan} 
+                  onValueChange={(val) => setEditingCompany({...editingCompany, plan: val})}
+                >
+                  <SelectTrigger className="h-11 font-bold">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Standard" className="font-bold">Standard</SelectItem>
+                    <SelectItem value="Enterprise" className="font-bold">Enterprise</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button onClick={handleUpdateCompany} disabled={isSyncing} className="w-full h-14 font-black uppercase italic text-lg shadow-xl">
+              {isSyncing ? <Loader2 className="animate-spin" /> : "Guardar Cambios"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* SECCIÓN DE PROSPECTOS */}
       <Card className="border-accent/20 bg-accent/5 rounded-3xl overflow-hidden shadow-xl">
         <CardHeader className="bg-accent/10 border-b p-6">
           <div className="flex justify-between items-center">
@@ -279,51 +392,6 @@ export default function CompaniesManagementPage() {
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card className="bg-primary/5 border-primary/10 shadow-sm rounded-2xl overflow-hidden relative">
-          <div className="absolute top-0 right-0 p-4 opacity-5">
-            <Building2 className="h-12 w-12" />
-          </div>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-[10px] font-black flex items-center gap-2 uppercase tracking-widest text-primary/60">
-              Total Clientes
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-4xl font-black text-primary italic tracking-tighter">{companies?.length || 0}</div>
-            <p className="text-[10px] font-bold text-muted-foreground uppercase mt-1 italic">Empresas con contrato activo</p>
-          </CardContent>
-        </Card>
-        <Card className="bg-accent/5 border-accent/10 shadow-sm rounded-2xl overflow-hidden relative">
-          <div className="absolute top-0 right-0 p-4 opacity-5">
-            <Users className="h-12 w-12" />
-          </div>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-[10px] font-black flex items-center gap-2 uppercase tracking-widest text-accent">
-              Usuarios Totales
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-4xl font-black text-accent italic tracking-tighter">{allUsers?.length || 0}</div>
-            <p className="text-[10px] font-bold text-muted-foreground uppercase mt-1 italic">Entre todas las corporaciones</p>
-          </CardContent>
-        </Card>
-        <Card className="bg-emerald-50 border-emerald-100 shadow-sm rounded-2xl overflow-hidden relative">
-          <div className="absolute top-0 right-0 p-4 opacity-5">
-            <ShieldCheck className="h-12 w-12" />
-          </div>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-[10px] font-black flex items-center gap-2 uppercase tracking-widest text-emerald-600">
-              Salud de Cuentas
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-4xl font-black text-emerald-600 italic tracking-tighter">100%</div>
-            <p className="text-[10px] font-bold text-muted-foreground uppercase mt-1 italic">Suscripciones vigentes</p>
-          </CardContent>
-        </Card>
-      </div>
-
       <Card className="border-none shadow-xl overflow-hidden rounded-3xl">
         <CardHeader className="border-b bg-muted/20 p-6">
           <div className="flex flex-col md:flex-row justify-between gap-4">
@@ -344,8 +412,8 @@ export default function CompaniesManagementPage() {
               <TableRow>
                 <TableHead className="font-black uppercase text-[10px] tracking-widest py-4">Empresa / Tenant</TableHead>
                 <TableHead className="font-black uppercase text-[10px] tracking-widest">Plan</TableHead>
+                <TableHead className="font-black uppercase text-[10px] tracking-widest">Estado</TableHead>
                 <TableHead className="font-black uppercase text-[10px] tracking-widest">Capacidad</TableHead>
-                <TableHead className="font-black uppercase text-[10px] tracking-widest">Facturación</TableHead>
                 <TableHead className="text-right font-black uppercase text-[10px] tracking-widest pr-6">Gestión</TableHead>
               </TableRow>
             </TableHeader>
@@ -370,91 +438,136 @@ export default function CompaniesManagementPage() {
                         {company.plan}
                       </Badge>
                     </TableCell>
+                    <TableCell>
+                      <Badge className={company.subscriptionStatus === 'Active' ? "bg-emerald-500" : "bg-red-500"}>
+                        {company.subscriptionStatus === 'Active' ? "ACTIVO" : "SUSPENDIDO"}
+                      </Badge>
+                    </TableCell>
                     <TableCell className="font-bold text-xs uppercase italic">
                       <span className="text-primary font-black">{allUsers?.filter(u => u.companyId === company.id).length}</span>
                       <span className="text-muted-foreground mx-1">/</span>
                       <span>{company.maxUsers} USUARIOS</span>
                     </TableCell>
-                    <TableCell className="font-black text-primary text-sm italic uppercase">
-                      {company.ufPriceBase} UF <span className="text-[9px] text-muted-foreground font-bold">/ MES</span>
-                    </TableCell>
                     <TableCell className="text-right pr-6">
-                       <Dialog>
-                         <DialogTrigger asChild>
-                           <Button variant="outline" size="sm" className="font-black text-[10px] uppercase gap-2 border-primary text-primary hover:bg-primary hover:text-white transition-all h-9 px-4">
-                             <UserPlus className="h-3.5 w-3.5" /> Vincular Equipo
-                           </Button>
-                         </DialogTrigger>
-                         <DialogContent className="max-w-3xl rounded-3xl">
-                           <DialogHeader className="space-y-2">
-                             <div className="h-12 w-12 rounded-xl bg-primary/5 flex items-center justify-center mb-2">
-                               <UserCog className="h-6 w-6 text-primary" />
-                             </div>
-                             <DialogTitle className="text-3xl font-black text-primary uppercase italic tracking-tighter">Vincular Equipo a {company.name}</DialogTitle>
-                             <DialogDescription className="font-medium italic">Asigna usuarios registrados a esta corporación y define sus roles de acceso.</DialogDescription>
-                           </DialogHeader>
-                           <div className="max-h-[450px] overflow-auto border-2 border-primary/5 rounded-2xl mt-4">
-                              <Table>
-                                <TableHeader className="bg-muted/30 sticky top-0 z-10">
-                                  <TableRow>
-                                    <TableHead className="font-black uppercase text-[10px]">Usuario</TableHead>
-                                    <TableHead className="font-black uppercase text-[10px]">Estado Actual</TableHead>
-                                    <TableHead className="text-right font-black uppercase text-[10px]">Acción</TableHead>
-                                  </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                  {allUsers?.map(u => (
-                                    <TableRow key={u.id} className="hover:bg-muted/20">
-                                      <TableCell className="font-bold text-sm py-4">
-                                        <div className="flex items-center gap-3">
-                                          <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-[10px] font-black text-primary">
-                                            {u.email?.[0].toUpperCase() || '?'}
-                                          </div>
-                                          <div className="flex flex-col">
-                                            <span className="truncate max-w-[200px]">{u.email || u.id}</span>
-                                            <span className="text-[9px] text-muted-foreground uppercase font-black">{u.role || 'USER'}</span>
-                                          </div>
-                                        </div>
-                                      </TableCell>
-                                      <TableCell>
-                                        {u.companyId === company.id ? (
-                                          <Badge className="bg-emerald-500 font-black uppercase text-[8px] tracking-widest">VINCULADO</Badge>
-                                        ) : (
-                                          <Badge variant="outline" className="text-[8px] font-black uppercase tracking-widest border-primary/20 text-muted-foreground">
-                                            {u.companyId ? `EMPRESA: ${u.companyId}` : 'MODO DEMO'}
-                                          </Badge>
-                                        )}
-                                      </TableCell>
-                                      <TableCell className="text-right">
-                                        <div className="flex justify-end gap-2">
-                                          <Button 
-                                            size="sm" 
-                                            variant="ghost" 
-                                            disabled={u.companyId === company.id}
-                                            onClick={() => handleAssignUser(u.id, company.id, 'User')}
-                                            className="text-accent font-black text-[10px] uppercase italic h-8"
-                                          >
-                                            Vincular <ArrowRight className="h-3 w-3 ml-1" />
-                                          </Button>
-                                          {u.companyId === company.id && (
-                                            <Button 
-                                              size="sm" 
-                                              variant="outline" 
-                                              onClick={() => handleAssignUser(u.id, company.id, u.role === 'Admin' ? 'User' : 'Admin')}
-                                              className="border-primary/20 text-[9px] font-black uppercase h-8"
-                                            >
-                                              {u.role === 'Admin' ? 'Degradar' : 'Hacer Admin'}
-                                            </Button>
-                                          )}
-                                        </div>
-                                      </TableCell>
-                                    </TableRow>
-                                  ))}
-                                </TableBody>
-                              </Table>
-                           </div>
-                         </DialogContent>
-                       </Dialog>
+                       <div className="flex justify-end items-center gap-2">
+                          <Dialog>
+                            <DialogTrigger asChild>
+                              <Button variant="outline" size="sm" className="font-black text-[10px] uppercase gap-2 border-primary text-primary hover:bg-primary hover:text-white transition-all h-9 px-4">
+                                <UserPlus className="h-3.5 w-3.5" /> Vincular Equipo
+                              </Button>
+                            </DialogTrigger>
+                            <DialogContent className="max-w-3xl rounded-3xl">
+                              <DialogHeader className="space-y-2">
+                                <div className="h-12 w-12 rounded-xl bg-primary/5 flex items-center justify-center mb-2">
+                                  <UserCog className="h-6 w-6 text-primary" />
+                                </div>
+                                <DialogTitle className="text-3xl font-black text-primary uppercase italic tracking-tighter">Vincular Equipo a {company.name}</DialogTitle>
+                                <DialogDescription className="font-medium italic">Asigna usuarios registrados a esta corporación y define sus roles de acceso.</DialogDescription>
+                              </DialogHeader>
+                              <div className="max-h-[450px] overflow-auto border-2 border-primary/5 rounded-2xl mt-4">
+                                  <Table>
+                                    <TableHeader className="bg-muted/30 sticky top-0 z-10">
+                                      <TableRow>
+                                        <TableHead className="font-black uppercase text-[10px]">Usuario</TableHead>
+                                        <TableHead className="font-black uppercase text-[10px]">Estado</TableHead>
+                                        <TableHead className="text-right font-black uppercase text-[10px]">Acciones</TableHead>
+                                      </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                      {allUsers?.map(u => (
+                                        <TableRow key={u.id} className="hover:bg-muted/20">
+                                          <TableCell className="font-bold text-sm py-4">
+                                            <div className="flex items-center gap-3">
+                                              <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-[10px] font-black text-primary">
+                                                {u.email?.[0].toUpperCase() || '?'}
+                                              </div>
+                                              <div className="flex flex-col">
+                                                <span className="truncate max-w-[200px]">{u.email || u.id}</span>
+                                                <span className="text-[9px] text-muted-foreground uppercase font-black">{u.role || 'USER'}</span>
+                                              </div>
+                                            </div>
+                                          </TableCell>
+                                          <TableCell>
+                                            <div className="flex items-center gap-2">
+                                              {u.companyId === company.id ? (
+                                                <Badge className="bg-emerald-500 font-black uppercase text-[8px] tracking-widest">VINCULADO</Badge>
+                                              ) : (
+                                                <Badge variant="outline" className="text-[8px] font-black uppercase tracking-widest border-primary/20 text-muted-foreground">
+                                                  {u.companyId ? `EMPRESA: ${u.companyId}` : 'PROSPECTO'}
+                                                </Badge>
+                                              )}
+                                              {u.status === 'Suspended' && <Badge variant="destructive" className="text-[8px] font-black uppercase">BLOQUEADO</Badge>}
+                                            </div>
+                                          </TableCell>
+                                          <TableCell className="text-right">
+                                            <div className="flex justify-end gap-2">
+                                              {u.companyId !== company.id ? (
+                                                <Button 
+                                                  size="sm" 
+                                                  variant="ghost" 
+                                                  onClick={() => handleAssignUser(u.id, company.id, 'User')}
+                                                  className="text-accent font-black text-[10px] uppercase italic h-8"
+                                                >
+                                                  Vincular <ArrowRight className="h-3 w-3 ml-1" />
+                                                </Button>
+                                              ) : (
+                                                <>
+                                                  <Button 
+                                                    size="sm" 
+                                                    variant="outline" 
+                                                    onClick={() => handleAssignUser(u.id, company.id, u.role === 'Admin' ? 'User' : 'Admin')}
+                                                    className="border-primary/20 text-[9px] font-black uppercase h-8"
+                                                  >
+                                                    {u.role === 'Admin' ? 'Hacer User' : 'Hacer Admin'}
+                                                  </Button>
+                                                  <DropdownMenu>
+                                                    <DropdownMenuTrigger asChild>
+                                                      <Button variant="ghost" size="icon" className="h-8 w-8"><MoreVertical className="h-4 w-4" /></Button>
+                                                    </DropdownMenuTrigger>
+                                                    <DropdownMenuContent align="end">
+                                                      <DropdownMenuLabel className="text-[10px] font-black uppercase">Seguridad Usuario</DropdownMenuLabel>
+                                                      <DropdownMenuItem onClick={() => handleToggleUserStatus(u)} className="text-red-600 font-bold gap-2">
+                                                        <Ban className="h-4 w-4" /> {u.status === 'Suspended' ? 'Reactivar Cuenta' : 'Suspender Cuenta'}
+                                                      </DropdownMenuItem>
+                                                      <DropdownMenuItem onClick={() => handleAssignUser(u.id, null)} className="text-orange-600 font-bold gap-2">
+                                                        <UserMinus className="h-4 w-4" /> Desvincular de Empresa
+                                                      </DropdownMenuItem>
+                                                    </DropdownMenuContent>
+                                                  </DropdownMenu>
+                                                </>
+                                              )}
+                                            </div>
+                                          </TableCell>
+                                        </TableRow>
+                                      ))}
+                                    </TableBody>
+                                  </Table>
+                              </div>
+                            </DialogContent>
+                          </Dialog>
+
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-10 w-10 hover:bg-muted/50 rounded-full border border-transparent hover:border-primary/10">
+                                <MoreVertical className="h-5 w-5 text-muted-foreground" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-56">
+                              <DropdownMenuLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Acciones Empresa</DropdownMenuLabel>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem onClick={() => { setEditingCompany(company); setIsEditingCompany(true); }} className="gap-3 font-bold">
+                                <Edit3 className="h-4 w-4 text-primary" /> Editar Datos Contrato
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleToggleCompanyStatus(company)} className={company.subscriptionStatus === 'Active' ? "text-red-600 gap-3 font-bold" : "text-emerald-600 gap-3 font-bold"}>
+                                <Ban className="h-4 w-4" /> {company.subscriptionStatus === 'Active' ? 'Suspender Servicio' : 'Activar Servicio'}
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem className="text-muted-foreground gap-3 font-bold">
+                                <Trash2 className="h-4 w-4" /> Eliminar (Solo si no hay usuarios)
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                       </div>
                     </TableCell>
                   </TableRow>
                 ))

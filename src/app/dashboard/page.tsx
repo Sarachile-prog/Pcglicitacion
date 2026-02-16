@@ -1,8 +1,8 @@
 
 "use client"
 
-import { useCollection, useMemoFirebase, useFirestore, useUser } from "@/firebase"
-import { collection, query, orderBy, limit } from "firebase/firestore"
+import { useCollection, useMemoFirebase, useFirestore, useUser, useDoc } from "@/firebase"
+import { collection, query, orderBy, limit, doc } from "firebase/firestore"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { 
@@ -14,18 +14,16 @@ import {
   Zap,
   Sparkles,
   Target,
-  BarChart3,
   Bookmark,
   Loader2,
   TrendingUp,
-  Mail,
   AlertTriangle,
-  Calendar,
   ArrowUpRight,
   SendHorizontal,
   RefreshCw,
   Database,
-  ShieldCheck
+  ShieldCheck,
+  Users
 } from "lucide-react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
@@ -35,6 +33,15 @@ export default function DashboardPage() {
   const db = useFirestore()
   const { user, isUserLoading } = useUser()
 
+  // Obtenemos el perfil para saber el companyId
+  const profileRef = useMemoFirebase(() => {
+    if (!db || !user) return null
+    return doc(db, "users", user.uid)
+  }, [db, user])
+
+  const { data: profile, isLoading: isProfileLoading } = useDoc(profileRef)
+
+  // Licitaciones globales recientes
   const bidsQuery = useMemoFirebase(() => {
     if (!db) return null
     return query(
@@ -46,13 +53,14 @@ export default function DashboardPage() {
 
   const { data: bids, isLoading: isBidsLoading } = useCollection(bidsQuery)
 
+  // Bookmarks corporativos (compartidos por el equipo)
   const bookmarksQuery = useMemoFirebase(() => {
-    if (!db || !user) return null
+    if (!db || !profile?.companyId) return null
     return query(
-      collection(db, "users", user.uid, "bookmarks"),
+      collection(db, "companies", profile.companyId, "bookmarks"),
       orderBy("savedAt", "desc")
     )
-  }, [db, user])
+  }, [db, profile])
 
   const { data: bookmarks, isLoading: isBookmarksLoading } = useCollection(bookmarksQuery)
 
@@ -69,11 +77,32 @@ export default function DashboardPage() {
       }))
   }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()).slice(0, 3) || []
 
-  if (isUserLoading) {
+  if (isUserLoading || isProfileLoading) {
     return (
       <div className="flex flex-col items-center justify-center py-20 gap-4">
         <Loader2 className="h-10 w-10 animate-spin text-primary" />
-        <p className="text-muted-foreground">Cargando tu espacio de trabajo...</p>
+        <p className="text-muted-foreground">Cargando inteligencia corporativa...</p>
+      </div>
+    )
+  }
+
+  // Si no tiene perfil, es un usuario nuevo o invitado
+  if (!profile && user) {
+    return (
+      <div className="max-w-md mx-auto py-20 text-center space-y-6">
+        <div className="h-20 w-20 bg-primary/5 rounded-full flex items-center justify-center mx-auto">
+          <ShieldCheck className="h-10 w-10 text-primary" />
+        </div>
+        <h2 className="text-2xl font-black text-primary uppercase italic">Acceso en Proceso</h2>
+        <p className="text-muted-foreground">
+          Tu cuenta ha sido detectada pero aún no estás vinculado a una empresa. Contacta a tu administrador para que te asigne un <b>Company ID</b>.
+        </p>
+        <div className="p-4 bg-muted rounded-xl text-[10px] font-mono break-all">
+          UID: {user.uid}
+        </div>
+        <Link href="/">
+          <Button variant="outline">Volver al Inicio</Button>
+        </Link>
       </div>
     )
   }
@@ -83,16 +112,16 @@ export default function DashboardPage() {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div className="space-y-1">
           <div className="flex items-center gap-2">
-            <h2 className="text-3xl font-black tracking-tight text-primary italic uppercase">Panel de Control</h2>
-            <Badge className="bg-emerald-500 text-white gap-1 animate-pulse border-none">
-              <RefreshCw className="h-3 w-3" /> Auto-Sync Activo
+            <h2 className="text-3xl font-black tracking-tight text-primary italic uppercase">Dashboard Equipo</h2>
+            <Badge className="bg-emerald-500 text-white gap-1 border-none font-bold text-[10px]">
+              {profile?.companyId ? `EMPRESA: ${profile.companyId}` : 'SINCRO'}
             </Badge>
           </div>
-          <p className="text-muted-foreground">Bienvenido a tu centro de inteligencia estratégica.</p>
+          <p className="text-muted-foreground font-medium italic">Visión compartida de todas las licitaciones en estudio.</p>
         </div>
         <Link href="/bids">
-          <Button className="bg-accent hover:bg-accent/90 gap-2 font-bold shadow-lg">
-            <Zap className="h-4 w-4" /> Nueva Sincronización Manual
+          <Button className="bg-accent hover:bg-accent/90 gap-2 font-black shadow-lg uppercase italic">
+            <Zap className="h-4 w-4" /> Buscar Oportunidades
           </Button>
         </Link>
       </div>
@@ -104,9 +133,9 @@ export default function DashboardPage() {
               <Database className="h-5 w-5" />
             </div>
             <div>
-              <p className="text-xs font-bold text-blue-900">Cobertura de Mercado</p>
-              <p className="text-[10px] text-blue-700/80">
-                La base de datos se alimenta de sincronizaciones diarias. Si buscas una licitación antigua, impórtala desde la sección de Licitaciones.
+              <p className="text-xs font-bold text-blue-900">Historial Corporativo</p>
+              <p className="text-[10px] text-blue-700/80 uppercase font-bold">
+                Todo tu equipo visualiza los mismos análisis y documentos aquí.
               </p>
             </div>
           </CardContent>
@@ -117,9 +146,9 @@ export default function DashboardPage() {
               <ShieldCheck className="h-5 w-5" />
             </div>
             <div>
-              <p className="text-xs font-bold text-emerald-900">Seguridad de Datos</p>
-              <p className="text-[10px] text-emerald-700/80">
-                Auto-Sincronización configurada: Lunes a Viernes a las 08:00 AM. Tu historial siempre estará al día.
+              <p className="text-xs font-bold text-emerald-900">SLA Mercado Público</p>
+              <p className="text-[10px] text-emerald-700/80 uppercase font-bold">
+                Auto-Sincronización: 08:00 AM. Próxima actualización en camino.
               </p>
             </div>
           </CardContent>
@@ -137,11 +166,11 @@ export default function DashboardPage() {
                   </div>
                   <div className="space-y-1 overflow-hidden">
                     <div className="flex justify-between items-center">
-                      <span className="text-[10px] font-black uppercase text-red-700 tracking-tighter">Hito Crítico</span>
+                      <span className="text-[10px] font-black uppercase text-red-700 tracking-tighter">Hito Crítico de Equipo</span>
                       <ArrowUpRight className="h-3 w-3 text-red-400 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
                     </div>
                     <p className="text-xs font-bold text-red-900 truncate">{alert.event}</p>
-                    <p className="text-[10px] text-red-700/70 truncate">{alert.bidTitle}</p>
+                    <p className="text-[10px] text-red-700/70 truncate uppercase font-bold">{alert.bidTitle}</p>
                     <div className="flex items-center gap-1.5 pt-1">
                       <Clock className="h-3 w-3 text-red-600" />
                       <span className="text-[10px] font-black text-red-600">{alert.date}</span>
@@ -161,7 +190,7 @@ export default function DashboardPage() {
               <Briefcase className="h-6 w-6 text-primary" />
             </div>
             <div>
-              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Total Mercado</p>
+              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Mercado Global</p>
               <h3 className="text-2xl font-black text-primary">{bids?.length || 0}+</h3>
             </div>
           </CardContent>
@@ -173,7 +202,7 @@ export default function DashboardPage() {
               <DollarSign className="h-6 w-6 text-accent" />
             </div>
             <div>
-              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Monto Sincronizado</p>
+              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Flujo Analizado</p>
               <h3 className="text-2xl font-black text-primary">
                 {new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(totalAmount)}
               </h3>
@@ -187,7 +216,7 @@ export default function DashboardPage() {
               <Bookmark className="h-6 w-6 text-orange-600" />
             </div>
             <div>
-              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">En Cartera</p>
+              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Nuestra Cartera</p>
               <h3 className="text-2xl font-black text-orange-600">{bookmarks?.length || 0}</h3>
             </div>
           </CardContent>
@@ -199,8 +228,8 @@ export default function DashboardPage() {
               <TrendingUp className="h-6 w-6 text-teal-600" />
             </div>
             <div>
-              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Eficiencia IA</p>
-              <h3 className="text-2xl font-black text-teal-600">92%</h3>
+              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Rol de Acceso</p>
+              <h3 className="text-2xl font-black text-teal-600 uppercase">{profile?.role || 'USER'}</h3>
             </div>
           </CardContent>
         </Card>
@@ -211,12 +240,12 @@ export default function DashboardPage() {
           <Card className="border-none shadow-md overflow-hidden">
             <CardHeader className="bg-primary/5 border-b flex flex-row items-center justify-between p-6">
               <div className="space-y-1">
-                <CardTitle className="text-xl font-bold flex items-center gap-2 text-primary">
-                  <Bookmark className="h-5 w-5 text-accent" /> Licitaciones Seguidas
+                <CardTitle className="text-xl font-bold flex items-center gap-2 text-primary uppercase italic">
+                  <Bookmark className="h-5 w-5 text-accent" /> Cartera del Equipo
                 </CardTitle>
-                <p className="text-xs text-muted-foreground">Tu selección estratégica de oportunidades.</p>
+                <p className="text-xs text-muted-foreground font-medium italic">Colaboración en tiempo real sobre procesos seleccionados.</p>
               </div>
-              <Badge variant="outline" className="bg-white">{bookmarks?.length || 0}</Badge>
+              <Badge variant="outline" className="bg-white font-black">{bookmarks?.length || 0} ACTIVAS</Badge>
             </CardHeader>
             <CardContent className="p-0">
               {isBookmarksLoading ? (
@@ -239,16 +268,16 @@ export default function DashboardPage() {
                                  {prepStatus}
                                </Badge>
                             </div>
-                            <h4 className="font-bold text-primary group-hover:text-accent transition-colors truncate">{item.title}</h4>
-                            <p className="text-xs text-muted-foreground flex items-center gap-1">
+                            <h4 className="font-bold text-primary group-hover:text-accent transition-colors truncate uppercase italic">{item.title}</h4>
+                            <p className="text-xs text-muted-foreground flex items-center gap-1 uppercase font-bold text-[10px]">
                               <Building2 className="h-3 w-3" /> {item.entity}
                             </p>
                           </div>
                         </Link>
                         <div className="flex items-center gap-4">
                           <Link href={`/bids/${item.bidId}/apply`} className="hidden md:block">
-                            <Button variant="ghost" size="sm" className="h-8 text-[10px] font-bold gap-2 text-accent border border-accent/20">
-                              <SendHorizontal className="h-3 w-3" /> Carpetas
+                            <Button variant="ghost" size="sm" className="h-8 text-[10px] font-bold gap-2 text-accent border border-accent/20 uppercase italic">
+                              <SendHorizontal className="h-3 w-3" /> Carpeta Digital
                             </Button>
                           </Link>
                           <Link href={`/bids/${item.bidId}`}>
@@ -264,9 +293,9 @@ export default function DashboardPage() {
                   <div className="h-12 w-12 bg-muted rounded-full flex items-center justify-center mx-auto">
                     <Bookmark className="h-6 w-6 text-muted-foreground/40" />
                   </div>
-                  <p className="text-muted-foreground text-sm italic">Aún no sigues ninguna licitación. Marca algunas en el buscador.</p>
+                  <p className="text-muted-foreground text-sm italic font-bold">Tu empresa no tiene licitaciones en seguimiento.</p>
                   <Link href="/bids">
-                    <Button variant="outline" size="sm">Explorar Mercado</Button>
+                    <Button variant="outline" size="sm" className="font-black uppercase italic">Explorar Mercado Público</Button>
                   </Link>
                 </div>
               )}
@@ -280,43 +309,38 @@ export default function DashboardPage() {
                <Sparkles className="h-24 w-24" />
              </div>
              <CardHeader>
-               <CardTitle className="text-lg flex items-center gap-2">
-                 <Sparkles className="h-5 w-5 text-accent" /> Insight del Día
+               <CardTitle className="text-lg flex items-center gap-2 uppercase font-black italic">
+                 <Sparkles className="h-5 w-5 text-accent" /> IA Colaborativa
                </CardTitle>
              </CardHeader>
              <CardContent className="space-y-4">
                <p className="text-sm text-primary-foreground/90 leading-relaxed font-medium">
-                 La base de datos se actualizó hoy a las 08:00 AM. Se detectaron <span className="text-accent font-black">nuevas oportunidades</span> en el sector de servicios profesionales.
+                 Cualquier miembro de tu equipo puede realizar auditorías IA sobre los documentos cargados. Los resultados son visibles para todos.
                </p>
                <div className="p-4 bg-white/10 rounded-xl border border-white/20">
-                 <p className="text-[10px] uppercase font-bold text-accent mb-1 tracking-widest">Recomendación IA</p>
-                 <p className="text-xs font-semibold">El mercado de Obras Civiles está altamente competitivo hoy. Asegúrate de revisar tus costos.</p>
+                 <p className="text-[10px] uppercase font-bold text-accent mb-1 tracking-widest">Sugerencia del Sistema</p>
+                 <p className="text-xs font-semibold">Recuerda que los estados de gestión ayudan a coordinar quién está trabajando en qué anexo.</p>
                </div>
              </CardContent>
           </Card>
 
           <Card className="border-accent/20 bg-accent/5">
             <CardHeader>
-              <CardTitle className="text-sm font-bold flex items-center gap-2">
-                <Target className="h-4 w-4 text-accent" /> Objetivos Semanales
+              <CardTitle className="text-sm font-bold flex items-center gap-2 uppercase font-black">
+                <Users className="h-4 w-4 text-accent" /> Miembros Activos
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              {[
-                { label: "Analizar 5 bases", progress: 60 },
-                { label: "Seguir 10 procesos", progress: 40 },
-                { label: "Detectar 2 leads", progress: 0 }
-              ].map((obj, i) => (
-                <div key={i} className="space-y-1.5">
-                  <div className="flex justify-between text-[10px] font-bold uppercase">
-                    <span>{obj.label}</span>
-                    <span>{obj.progress}%</span>
-                  </div>
-                  <div className="h-1.5 w-full bg-accent/10 rounded-full overflow-hidden">
-                    <div className="h-full bg-accent transition-all" style={{ width: `${obj.progress}%` }} />
-                  </div>
+              <div className="flex items-center gap-3">
+                <div className="h-8 w-8 rounded-full bg-accent flex items-center justify-center text-white font-bold text-xs italic">
+                  {user?.email?.[0].toUpperCase()}
                 </div>
-              ))}
+                <div className="flex-1 overflow-hidden">
+                  <p className="text-xs font-bold truncate">{user?.email}</p>
+                  <p className="text-[9px] text-accent uppercase font-black">{profile?.role || 'Usuario'}</p>
+                </div>
+                <Badge className="bg-emerald-500 text-[8px]">ONLINE</Badge>
+              </div>
             </CardContent>
           </Card>
         </div>

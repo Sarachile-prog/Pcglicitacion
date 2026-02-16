@@ -54,6 +54,14 @@ export default function BidDetailPage() {
   const [manualText, setManualText] = useState("")
   const [isDialogOpen, setIsDialogOpen] = useState(false)
 
+  // Perfil para obtener el companyId
+  const profileRef = useMemoFirebase(() => {
+    if (!db || !user) return null
+    return doc(db, "users", user.uid)
+  }, [db, user])
+
+  const { data: profile } = useDoc(profileRef)
+
   const bidRef = useMemoFirebase(() => {
     if (!db || !bidId) return null
     return doc(db, "bids", bidId)
@@ -61,10 +69,11 @@ export default function BidDetailPage() {
 
   const { data: bid, isLoading: isDocLoading } = useDoc(bidRef)
 
+  // Bookmarks ahora se guardan en la empresa
   const bookmarkRef = useMemoFirebase(() => {
-    if (!db || !user || !bidId) return null
-    return doc(db, "users", user.uid, "bookmarks", bidId)
-  }, [db, user, bidId])
+    if (!db || !profile?.companyId || !bidId) return null
+    return doc(db, "companies", profile.companyId, "bookmarks", bidId)
+  }, [db, profile, bidId])
 
   const { data: bookmark, isLoading: isBookmarkLoading } = useDoc(bookmarkRef)
 
@@ -104,8 +113,8 @@ export default function BidDetailPage() {
   }
 
   const handleToggleFollow = async () => {
-    if (!user) {
-      toast({ title: "Inicia sesión", description: "Debes estar autenticado." })
+    if (!user || !profile?.companyId) {
+      toast({ title: "Acceso Restringido", description: "Debes estar vinculado a una empresa para seguir procesos." })
       return
     }
     if (!bid || !bookmarkRef) return
@@ -113,7 +122,7 @@ export default function BidDetailPage() {
     try {
       if (bookmark) {
         await deleteDoc(bookmarkRef)
-        toast({ title: "Licitación eliminada", description: "Ya no sigues este proceso." })
+        toast({ title: "Eliminado de Cartera", description: "El proceso ya no es visible para tu equipo." })
       } else {
         const currentAnalysis = analysis || (bid.aiAnalysis as any) || null
         const timelineSnapshot = currentAnalysis?.timeline || []
@@ -128,7 +137,7 @@ export default function BidDetailPage() {
           timeline: timelineSnapshot,
           aiAnalysis: currentAnalysis
         })
-        toast({ title: "Licitación seguida", description: "Se ha guardado en tu cartera con toda la inteligencia detectada." })
+        toast({ title: "Guardado en Equipo", description: "Ahora todo tu equipo puede ver y colaborar en este proceso." })
       }
     } catch (e) {
       toast({ variant: "destructive", title: "Error", description: "No se pudo actualizar." })
@@ -179,7 +188,6 @@ export default function BidDetailPage() {
     ? new Intl.NumberFormat('es-CL', { style: 'currency', currency: bid.currency || 'CLP' }).format(bid.amount) 
     : 'Por Definir';
 
-  // Determinación de color de estado
   const getStatusColor = (status: string) => {
     const s = status?.toLowerCase();
     if (s?.includes('publicada') || s?.includes('abierta')) return 'bg-emerald-600';
@@ -191,7 +199,6 @@ export default function BidDetailPage() {
 
   return (
     <div className="space-y-8 max-w-7xl mx-auto animate-in fade-in duration-500">
-      {/* CABECERA SUPERIOR */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <Link href="/bids">
           <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-primary">
@@ -201,7 +208,7 @@ export default function BidDetailPage() {
         <div className="flex gap-2">
           {bookmark && (
             <Link href={`/bids/${bidId}/apply`}>
-              <Button className="bg-emerald-600 hover:bg-emerald-700 font-bold gap-2 shadow-lg">
+              <Button className="bg-emerald-600 hover:bg-emerald-700 font-bold gap-2 shadow-lg uppercase italic">
                 <SendHorizontal className="h-4 w-4" /> Preparar Oferta
               </Button>
             </Link>
@@ -210,10 +217,10 @@ export default function BidDetailPage() {
             variant={bookmark ? "default" : "outline"} 
             size="sm" 
             onClick={handleToggleFollow}
-            className={cn("gap-2", bookmark ? "bg-accent hover:bg-accent/90" : "border-accent text-accent")}
+            className={cn("gap-2 uppercase font-black italic", bookmark ? "bg-accent hover:bg-accent/90" : "border-accent text-accent")}
           >
             {bookmark ? <BookmarkCheck className="h-4 w-4" /> : <Bookmark className="h-4 w-4" />}
-            {bookmark ? "Siguiendo" : "Seguir"}
+            {bookmark ? "En Cartera" : "Seguir"}
           </Button>
           <Button variant="outline" size="sm" onClick={() => handleRefreshData(true)} disabled={isRefreshing} className="gap-2 border-primary/20">
             <RefreshCw className={cn("h-4 w-4", isRefreshing && "animate-spin")} />
@@ -221,18 +228,17 @@ export default function BidDetailPage() {
         </div>
       </div>
 
-      {/* TÍTULO Y ESTADO DESTACADO */}
       <div className="bg-white rounded-3xl p-8 border-2 border-primary/5 shadow-xl space-y-6">
         <div className="flex flex-col md:flex-row justify-between items-start gap-4">
           <div className="space-y-4 flex-1">
             <div className="flex flex-wrap items-center gap-3">
               <Badge variant="outline" className="text-xs font-black uppercase tracking-widest border-primary/20 text-primary">ID: {bid.id}</Badge>
               <Badge className={cn("text-xs font-black uppercase tracking-widest py-1.5 px-4 shadow-lg", getStatusColor(bid.status))}>
-                ESTADO: {bid.status || 'NO DEFINIDO'}
+                {bid.status || 'NO DEFINIDO'}
               </Badge>
               {bid.aiAnalysis && (
                 <Badge variant="secondary" className="bg-teal-50 text-teal-700 text-xs font-bold px-3">
-                  <Database className="h-3.5 w-3.5 mr-1.5" /> INTELIGENCIA IA DISPONIBLE
+                  <Database className="h-3.5 w-3.5 mr-1.5" /> IA ACTIVA
                 </Badge>
               )}
             </div>
@@ -242,7 +248,7 @@ export default function BidDetailPage() {
           </div>
           
           <div className="flex flex-col items-end gap-2 bg-primary/5 p-4 rounded-2xl border border-primary/10">
-            <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Monto Referencial</p>
+            <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Presupuesto Referencial</p>
             <p className="text-3xl font-black text-primary leading-none">{formattedAmount}</p>
             <p className="text-[10px] font-bold text-accent uppercase">{bid.currency || 'CLP'}</p>
           </div>
@@ -254,7 +260,7 @@ export default function BidDetailPage() {
               <Building2 className="h-5 w-5 text-primary" />
             </div>
             <div className="min-w-0">
-              <p className="text-[10px] uppercase font-black text-muted-foreground/60 tracking-widest">Institución Pública</p>
+              <p className="text-[10px] uppercase font-black text-muted-foreground/60 tracking-widest">Institución</p>
               <p className="text-sm font-bold truncate text-primary uppercase">{bid.entity || "No especificada"}</p>
             </div>
           </div>
@@ -263,7 +269,7 @@ export default function BidDetailPage() {
               <Calendar className="h-5 w-5 text-primary" />
             </div>
             <div>
-              <p className="text-[10px] uppercase font-black text-muted-foreground/60 tracking-widest">Cierre de Ofertas</p>
+              <p className="text-[10px] uppercase font-black text-muted-foreground/60 tracking-widest">Cierre</p>
               <p className="text-sm font-bold text-primary">
                 {bid.deadlineDate ? new Date(bid.deadlineDate).toLocaleDateString() : 'No definido'}
               </p>
@@ -274,23 +280,22 @@ export default function BidDetailPage() {
               <ShieldCheck className="h-5 w-5 text-primary" />
             </div>
             <div>
-              <p className="text-[10px] uppercase font-black text-muted-foreground/60 tracking-widest">Ley de Compras</p>
-              <p className="text-sm font-bold text-primary">N° 19.886</p>
+              <p className="text-[10px] uppercase font-black text-muted-foreground/60 tracking-widest">Colaboración</p>
+              <p className="text-sm font-bold text-primary uppercase">{profile?.companyId ? 'EQUIPO ACTIVO' : 'MODO SOLO'}</p>
             </div>
           </div>
         </div>
       </div>
 
-      {/* SECCIÓN IA ASESORA */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         <div className="lg:col-span-8 space-y-8">
           <Tabs defaultValue={analysis ? "ai-advisor" : "description"} className="w-full">
-            <TabsList className="bg-muted p-1 h-14 mb-6">
-              <TabsTrigger value="description" className="px-8 font-bold text-xs uppercase tracking-widest">Detalle del Proceso</TabsTrigger>
-              <TabsTrigger value="items" className="px-8 font-bold text-xs uppercase tracking-widest">Listado de Ítems</TabsTrigger>
+            <TabsList className="bg-muted p-1 h-14 mb-6 w-full md:w-auto">
+              <TabsTrigger value="description" className="px-8 font-black text-[10px] uppercase tracking-widest">Descripción</TabsTrigger>
+              <TabsTrigger value="items" className="px-8 font-black text-[10px] uppercase tracking-widest">Ítems</TabsTrigger>
               {(analysis || bid?.aiAnalysis) && (
-                <TabsTrigger value="ai-advisor" className="px-8 font-bold text-xs uppercase tracking-widest data-[state=active]:bg-primary data-[state=active]:text-white">
-                  <Target className="h-4 w-4 mr-2" /> Inteligencia Estratégica
+                <TabsTrigger value="ai-advisor" className="px-8 font-black text-[10px] uppercase tracking-widest data-[state=active]:bg-primary data-[state=active]:text-white">
+                  <Target className="h-4 w-4 mr-2" /> Inteligencia
                 </TabsTrigger>
               )}
             </TabsList>
@@ -300,15 +305,15 @@ export default function BidDetailPage() {
                 <CardContent className="pt-8 space-y-6">
                   <div className="flex items-center gap-2 mb-4">
                     <FileText className="h-6 w-6 text-accent" />
-                    <h3 className="text-2xl font-black text-primary uppercase italic">Descripción del Objeto</h3>
+                    <h3 className="text-2xl font-black text-primary uppercase italic">Detalle del Proceso</h3>
                   </div>
-                  <div className="text-lg leading-relaxed whitespace-pre-wrap text-muted-foreground">
+                  <div className="text-lg leading-relaxed whitespace-pre-wrap text-muted-foreground font-medium">
                     {bid.description || "No hay una descripción detallada disponible. Intente refrescar los datos."}
                   </div>
                   <div className="pt-6 border-t flex flex-wrap gap-4">
-                    <Button asChild variant="outline" className="gap-2 border-primary text-primary font-bold">
+                    <Button asChild variant="outline" className="gap-2 border-primary text-primary font-black uppercase italic">
                       <a href={bid.sourceUrl} target="_blank" rel="noopener noreferrer">
-                        Ver Ficha en Mercado Público <ExternalLink className="h-4 w-4" />
+                        Ficha Oficial <ExternalLink className="h-4 w-4" />
                       </a>
                     </Button>
                   </div>
@@ -321,7 +326,7 @@ export default function BidDetailPage() {
                 <CardContent className="pt-8">
                   <div className="flex items-center gap-2 mb-6">
                     <CheckSquare className="h-6 w-6 text-accent" />
-                    <h3 className="text-2xl font-black text-primary uppercase italic">Detalle Técnico de Ítems</h3>
+                    <h3 className="text-2xl font-black text-primary uppercase italic">Listado Técnico</h3>
                   </div>
                   {bid.items ? (
                     <div className="grid gap-4">
@@ -329,10 +334,10 @@ export default function BidDetailPage() {
                         <div key={i} className="p-5 bg-muted/20 rounded-2xl border-2 border-transparent hover:border-accent/20 transition-all flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                           <div className="space-y-1">
                             <p className="font-black text-primary uppercase">{item.NombreProducto}</p>
-                            <p className="text-xs font-bold text-accent uppercase">{item.Categoria}</p>
-                            <p className="text-xs text-muted-foreground line-clamp-1">{item.Descripcion}</p>
+                            <p className="text-[10px] font-black text-accent uppercase">{item.Categoria}</p>
+                            <p className="text-xs text-muted-foreground line-clamp-1 font-medium italic">{item.Descripcion}</p>
                           </div>
-                          <div className="bg-white px-6 py-2 rounded-xl border-2 border-primary/5 text-center">
+                          <div className="bg-white px-6 py-2 rounded-xl border-2 border-primary/5 text-center shadow-sm">
                             <p className="text-2xl font-black text-primary">{item.Cantidad}</p>
                             <p className="text-[10px] font-black uppercase text-muted-foreground">{item.UnidadMedida}</p>
                           </div>
@@ -342,8 +347,8 @@ export default function BidDetailPage() {
                   ) : (
                     <div className="py-20 text-center space-y-4">
                       <RefreshCw className="h-12 w-12 text-muted-foreground/20 mx-auto" />
-                      <p className="text-muted-foreground font-medium italic">No se han cargado ítems para esta licitación.</p>
-                      <Button variant="outline" onClick={() => handleRefreshData(true)}>Refrescar Datos</Button>
+                      <p className="text-muted-foreground font-bold italic uppercase text-xs">Sin ítems cargados.</p>
+                      <Button variant="outline" onClick={() => handleRefreshData(true)} className="font-black uppercase italic">Sincronizar Ítems</Button>
                     </div>
                   )}
                 </CardContent>
@@ -353,55 +358,52 @@ export default function BidDetailPage() {
             {analysis && (
               <TabsContent value="ai-advisor" className="animate-in slide-in-from-bottom-4 duration-500">
                 <div className="space-y-8">
-                  {/* ALERTA MAESTRA */}
                   <Card className="bg-primary text-white border-none shadow-2xl overflow-hidden">
                     <CardHeader className="bg-white/10 p-8">
                       <div className="flex items-center gap-3 mb-2">
                         <Sparkles className="h-6 w-6 text-accent" />
-                        <CardTitle className="text-2xl font-black italic uppercase tracking-widest">Veredicto del Asesor</CardTitle>
+                        <CardTitle className="text-2xl font-black italic uppercase tracking-widest">Análisis del Equipo</CardTitle>
                       </div>
                       <p className="text-xl font-medium leading-relaxed italic">"{analysis.strategicAdvice}"</p>
                     </CardHeader>
                     <CardContent className="p-8 bg-black/5">
                       <div className="flex items-start gap-4">
                         <Info className="h-5 w-5 text-accent shrink-0 mt-1" />
-                        <p className="text-sm font-medium opacity-80 leading-relaxed">{analysis.reasoning}</p>
+                        <p className="text-sm font-medium opacity-80 leading-relaxed italic">{analysis.reasoning}</p>
                       </div>
                     </CardContent>
                   </Card>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                    {/* ALERTAS ROJAS */}
                     <Card className="border-none shadow-lg bg-red-50/50">
                       <CardHeader>
-                        <CardTitle className="text-red-700 flex items-center gap-3 uppercase font-black italic">
-                          <AlertTriangle className="h-6 w-6" /> Riesgos de Descalificación
+                        <CardTitle className="text-red-700 flex items-center gap-3 uppercase font-black italic text-lg">
+                          <AlertTriangle className="h-6 w-6" /> Riesgos Críticos
                         </CardTitle>
                       </CardHeader>
                       <CardContent className="space-y-4">
                         {analysis.strategicAlerts.map((alert, i) => (
                           <div key={i} className="p-4 bg-white rounded-xl border-l-4 border-l-red-600 shadow-sm">
-                            <p className="text-sm font-bold text-red-900 leading-relaxed">{alert}</p>
+                            <p className="text-xs font-bold text-red-900 leading-relaxed uppercase">{alert}</p>
                           </div>
                         ))}
                       </CardContent>
                     </Card>
 
-                    {/* CHECKLIST */}
                     <Card className="border-none shadow-lg">
                       <CardHeader>
-                        <CardTitle className="text-primary flex items-center gap-3 uppercase font-black italic">
-                          <CheckSquare className="h-6 w-6 text-accent" /> Checklist Administrativo
+                        <CardTitle className="text-primary flex items-center gap-3 uppercase font-black italic text-lg">
+                          <CheckSquare className="h-6 w-6 text-accent" /> Documentación
                         </CardTitle>
                       </CardHeader>
                       <CardContent className="space-y-4">
                         {analysis.formChecklist.map((form, i) => (
                           <div key={i} className="p-4 bg-muted/20 rounded-xl border space-y-2 group hover:bg-white hover:shadow-md transition-all">
-                            <h4 className="font-black text-primary uppercase text-sm">{form.formName}</h4>
-                            <p className="text-xs text-muted-foreground leading-relaxed">{form.purpose}</p>
+                            <h4 className="font-black text-primary uppercase text-[11px]">{form.formName}</h4>
+                            <p className="text-[10px] text-muted-foreground leading-relaxed font-bold italic">{form.purpose}</p>
                             <div className="flex flex-wrap gap-1.5 pt-2">
                               {form.dataRequired.map((d, j) => (
-                                <Badge key={j} variant="outline" className="bg-white text-[9px] font-bold uppercase">{d}</Badge>
+                                <Badge key={j} variant="outline" className="bg-white text-[8px] font-black uppercase">{d}</Badge>
                               ))}
                             </div>
                           </div>
@@ -415,15 +417,14 @@ export default function BidDetailPage() {
           </Tabs>
         </div>
 
-        {/* COLUMNA LATERAL - HERRAMIENTAS IA */}
         <div className="lg:col-span-4 space-y-6">
           <Card className="border-2 border-primary/20 shadow-2xl overflow-hidden sticky top-24">
             <CardHeader className="bg-primary text-white p-6">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-lg font-black uppercase tracking-widest flex items-center gap-2">
-                  <Zap className="h-5 w-5 text-accent" /> Panel IA
+                  <Zap className="h-5 w-5 text-accent" /> Motor IA
                 </CardTitle>
-                <Badge variant="outline" className="border-accent text-accent animate-pulse">LIVE</Badge>
+                <Badge variant="outline" className="border-accent text-accent animate-pulse font-black text-[8px]">EMPRESA</Badge>
               </div>
             </CardHeader>
             <CardContent className="p-6 space-y-6">
@@ -433,9 +434,9 @@ export default function BidDetailPage() {
                     <div className="h-16 w-16 bg-primary/5 rounded-full flex items-center justify-center mx-auto mb-4">
                       <BrainCircuit className="h-8 w-8 text-primary" />
                     </div>
-                    <h4 className="font-bold text-primary mb-2">Análisis Estratégico Pendiente</h4>
-                    <p className="text-xs text-muted-foreground leading-relaxed">
-                      Ejecute el motor de IA para detectar riesgos ocultos en las bases y recibir consejos para ganar.
+                    <h4 className="font-black text-primary mb-2 uppercase italic text-xs">Análisis no ejecutado</h4>
+                    <p className="text-[10px] text-muted-foreground leading-relaxed font-bold">
+                      Activa la IA para detectar requisitos ocultos y riesgos de inadmisibilidad.
                     </p>
                   </div>
                   
@@ -451,22 +452,20 @@ export default function BidDetailPage() {
                     
                     <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                       <DialogTrigger asChild>
-                        <Button variant="outline" className="w-full border-accent text-accent font-black h-12 gap-2 uppercase">
-                          <FileText className="h-4 w-4" /> Entrenar con Bases
+                        <Button variant="outline" className="w-full border-accent text-accent font-black h-12 gap-2 uppercase italic">
+                          <FileText className="h-4 w-4" /> Entrenar con PDF
                         </Button>
                       </DialogTrigger>
                       <DialogContent className="max-w-2xl">
                         <DialogHeader>
-                          <DialogTitle className="text-2xl font-black text-primary uppercase italic">Inteligencia de Bases (Análisis Profundo)</DialogTitle>
-                          <DialogDescription className="text-md">
-                            Al pegar el texto de las Bases Administrativas, entrenas a la IA para este proceso específico. 
-                            <span className="block mt-2 font-bold text-primary">¡Esta inteligencia quedará guardada en la base de datos para toda la comunidad!</span>
+                          <DialogTitle className="text-2xl font-black text-primary uppercase italic">Análisis Profundo de Bases</DialogTitle>
+                          <DialogDescription className="text-md font-medium">
+                            Pega el texto extraído de las bases administrativas para que la IA identifique multas, garantías y requisitos específicos de tu rubro.
                           </DialogDescription>
                         </DialogHeader>
                         <div className="space-y-4 py-4">
-                          <Label className="font-bold uppercase text-xs">Contenido de Bases / Anexos (PDF a Texto)</Label>
                           <Textarea 
-                            placeholder="Pega aquí el contenido extraído de los PDFs de bases o anexos administrativos para un análisis exhaustivo..." 
+                            placeholder="Contenido de las bases..." 
                             className="min-h-[300px] font-mono text-xs p-4 bg-muted/30 border-2"
                             value={manualText}
                             onChange={(e) => setManualText(e.target.value)}
@@ -479,7 +478,7 @@ export default function BidDetailPage() {
                             disabled={!manualText || loadingAI}
                           >
                             {loadingAI ? <Loader2 className="animate-spin" /> : <Sparkles />}
-                            Generar Inteligencia Colectiva
+                            Generar Inteligencia
                           </Button>
                         </DialogFooter>
                       </DialogContent>
@@ -491,17 +490,17 @@ export default function BidDetailPage() {
                   {analysis.timeline && (
                     <div className="space-y-4">
                       <h5 className="text-[10px] font-black uppercase text-muted-foreground tracking-widest flex items-center gap-2">
-                        <Clock className="h-3 w-3" /> Hitos Críticos Detectados
+                        <Clock className="h-3 w-3" /> Hitos de Equipo
                       </h5>
                       <div className="space-y-2">
                         {analysis.timeline.map((item, i) => (
                           <div key={i} className={cn(
-                            "p-3 rounded-xl border flex justify-between items-center transition-all",
+                            "p-3 rounded-xl border flex justify-between items-center transition-all shadow-sm",
                             item.criticality === 'alta' ? "bg-red-50 border-red-200" : "bg-white"
                           )}>
                              <div className="min-w-0 flex-1">
                                <p className="text-[9px] font-black uppercase text-muted-foreground truncate">{item.event}</p>
-                               <p className="text-xs font-bold text-primary">{item.date}</p>
+                               <p className="text-xs font-black text-primary">{item.date}</p>
                              </div>
                              {item.criticality === 'alta' && <AlertTriangle className="h-4 w-4 text-red-600 animate-pulse shrink-0 ml-2" />}
                           </div>
@@ -511,8 +510,8 @@ export default function BidDetailPage() {
                   )}
                   
                   <div className="pt-6 border-t">
-                    <Button variant="ghost" className="w-full text-xs font-bold text-muted-foreground hover:text-primary" onClick={() => setAnalysis(null)}>
-                      Cambiar Modo de Análisis
+                    <Button variant="ghost" className="w-full text-[10px] font-black text-muted-foreground hover:text-primary uppercase italic" onClick={() => setAnalysis(null)}>
+                      Volver a Analizar
                     </Button>
                   </div>
                 </div>

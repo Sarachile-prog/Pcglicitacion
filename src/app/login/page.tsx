@@ -1,8 +1,9 @@
+
 "use client"
 
 import { useState, useEffect } from "react"
 import { useAuth, useUser } from "@/firebase"
-import { initiateAnonymousSignIn, initiateEmailSignIn } from "@/firebase/non-blocking-login"
+import { signInWithEmailAndPassword, signInAnonymously } from "firebase/auth"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -20,6 +21,7 @@ export default function LoginPage() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [isEmailLoading, setIsEmailLoading] = useState(false)
+  const [isAnonLoading, setIsAnonLoading] = useState(false)
 
   useEffect(() => {
     if (user && !isUserLoading) {
@@ -27,23 +29,44 @@ export default function LoginPage() {
     }
   }, [user, isUserLoading, router])
 
-  const handleEmailLogin = async (e: React.FormEvent) => {
+  const handleEmailLogin = (e: React.FormEvent) => {
     e.preventDefault()
     if (!email || !password) return
     
     setIsEmailLoading(true)
-    try {
-      // Usamos el helper de login no bloqueante
-      initiateEmailSignIn(auth, email, password)
-      // La redirección ocurrirá en el useEffect al detectar el cambio de estado de auth
-    } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Error de acceso",
-        description: "Credenciales incorrectas o usuario no registrado."
+    
+    // Iniciamos sesión capturando posibles errores de credenciales
+    signInWithEmailAndPassword(auth, email, password)
+      .catch((error: any) => {
+        let message = "Credenciales incorrectas o usuario no registrado."
+        
+        // Mapeo de errores comunes de Firebase Auth
+        if (error.code === 'auth/invalid-credential' || error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
+          message = "Correo o contraseña incorrectos. Por favor, verifica tus datos."
+        } else if (error.code === 'auth/too-many-requests') {
+          message = "Demasiados intentos fallidos. Tu cuenta ha sido bloqueada temporalmente."
+        }
+        
+        toast({
+          variant: "destructive",
+          title: "Error de acceso",
+          description: message
+        })
+        setIsEmailLoading(false)
       })
-      setIsEmailLoading(false)
-    }
+  }
+
+  const handleAnonLogin = () => {
+    setIsAnonLoading(true)
+    signInAnonymously(auth)
+      .catch((error: any) => {
+        toast({
+          variant: "destructive",
+          title: "Error de acceso demo",
+          description: "No se pudo iniciar el modo demo. Intenta nuevamente en unos segundos."
+        })
+        setIsAnonLoading(false)
+      })
   }
 
   return (
@@ -68,7 +91,7 @@ export default function LoginPage() {
                   id="email" 
                   type="email" 
                   placeholder="admin@empresa.cl" 
-                  className="pl-10 h-12"
+                  className="pl-10 h-12 bg-white"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
@@ -83,7 +106,7 @@ export default function LoginPage() {
                   id="password" 
                   type="password" 
                   placeholder="••••••••" 
-                  className="pl-10 h-12"
+                  className="pl-10 h-12 bg-white"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
@@ -92,8 +115,8 @@ export default function LoginPage() {
             </div>
             <Button 
               type="submit" 
-              className="w-full h-12 font-black uppercase italic text-lg" 
-              disabled={isEmailLoading || isUserLoading}
+              className="w-full h-12 font-black uppercase italic text-lg shadow-xl" 
+              disabled={isEmailLoading || isUserLoading || isAnonLoading}
             >
               {isEmailLoading ? <Loader2 className="animate-spin" /> : "Entrar al Sistema"}
             </Button>
@@ -104,24 +127,24 @@ export default function LoginPage() {
               <span className="w-full border-t" />
             </div>
             <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-background px-2 text-muted-foreground font-bold">O accede como prospecto</span>
+              <span className="bg-background px-4 text-muted-foreground font-bold italic tracking-tighter">O accede como prospecto</span>
             </div>
           </div>
 
           <Button 
             variant="outline"
-            className="w-full h-12 text-md font-bold border-accent text-accent hover:bg-accent/5 gap-2 uppercase italic" 
-            onClick={() => initiateAnonymousSignIn(auth)}
-            disabled={isUserLoading || isEmailLoading}
+            className="w-full h-12 text-md font-bold border-accent text-accent hover:bg-accent/5 gap-2 uppercase italic shadow-sm" 
+            onClick={handleAnonLogin}
+            disabled={isUserLoading || isEmailLoading || isAnonLoading}
           >
-            {isUserLoading ? <Loader2 className="animate-spin" /> : <><Zap className="h-4 w-4" /> Acceso Rápido (Modo Demo)</>}
+            {isAnonLoading ? <Loader2 className="animate-spin" /> : <><Zap className="h-4 w-4" /> Acceso Rápido (Modo Demo)</>}
           </Button>
 
-          <div className="p-4 bg-muted/30 rounded-xl border border-border text-xs space-y-2">
+          <div className="p-4 bg-muted/30 rounded-xl border border-border text-[10px] space-y-2">
             <div className="flex items-start gap-3">
               <ShieldCheck className="h-4 w-4 text-primary mt-0.5 shrink-0" />
-              <p className="font-medium text-muted-foreground italic">
-                El acceso está protegido por encriptación de grado militar. Si eres administrador y olvidaste tu clave, contacta a soporte técnico.
+              <p className="font-bold text-muted-foreground italic leading-tight">
+                El acceso está protegido por encriptación. Si eres un administrador corporativo y has olvidado tu contraseña, por favor contacta a soporte técnico de PCG.
               </p>
             </div>
           </div>

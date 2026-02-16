@@ -52,7 +52,7 @@ export async function testAiConnection() {
   console.log('>>> [AI_DIAGNOSTIC] Probando conexión con Gemini...');
   try {
     const { text } = await ai.generate({
-      model: 'googleai/gemini-1.5-flash',
+      model: 'gemini-1.5-flash',
       prompt: 'Hola, responde brevemente: ¿Estás activo?',
     });
     return { success: true, response: text };
@@ -72,7 +72,7 @@ export async function extractAndSummarizeBidDetails(
   
   try {
     const { output } = await ai.generate({
-      model: 'googleai/gemini-1.5-flash',
+      model: 'gemini-1.5-flash',
       system: `Eres un Asesor Senior Experto en Licitaciones de Mercado Público Chile (Ley 19.886).
       Tu objetivo es analizar bases administrativas y técnicas para detectar riesgos, facilitar la postulación (checklist) e identificar leads.`,
       prompt: `Analiza detalladamente esta licitación y genera el informe estratégico:

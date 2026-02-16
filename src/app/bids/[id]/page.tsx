@@ -56,6 +56,7 @@ export default function BidDetailPage() {
   const [analysis, setAnalysis] = useState<PostulationAdvisorOutput | null>(null)
   const [manualText, setManualText] = useState("")
   const [isDialogOpen, setIsDialogOpen] = useState(false)
+  const [activeTab, setActiveTab] = useState<string>("description")
 
   // Perfil para obtener el companyId
   const profileRef = useMemoFirebase(() => {
@@ -85,6 +86,7 @@ export default function BidDetailPage() {
   useEffect(() => {
     if (bid?.aiAnalysis) {
       setAnalysis(bid.aiAnalysis as PostulationAdvisorOutput)
+      setActiveTab("ai-advisor")
     }
   }, [bid])
 
@@ -177,6 +179,7 @@ export default function BidDetailPage() {
       }
 
       setAnalysis(result)
+      setActiveTab("ai-advisor")
       toast({ title: "Análisis Finalizado", description: "La inteligencia ha sido guardada y sincronizada." })
     } catch (error: any) {
       toast({ variant: "destructive", title: "Error de Análisis", description: error.message })
@@ -298,13 +301,20 @@ export default function BidDetailPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         <div className="lg:col-span-8 space-y-8">
-          <Tabs defaultValue={analysis ? "ai-advisor" : "description"} className="w-full">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className="bg-muted p-1 h-14 mb-6 w-full md:w-auto">
               <TabsTrigger value="description" className="px-8 font-black text-[10px] uppercase tracking-widest">Descripción</TabsTrigger>
               <TabsTrigger value="items" className="px-8 font-black text-[10px] uppercase tracking-widest">Ítems</TabsTrigger>
               {(analysis || bid?.aiAnalysis) && (
-                <TabsTrigger value="ai-advisor" className="px-8 font-black text-[10px] uppercase tracking-widest data-[state=active]:bg-primary data-[state=active]:text-white">
-                  <Target className="h-4 w-4 mr-2" /> Inteligencia
+                <TabsTrigger 
+                  value="ai-advisor" 
+                  className={cn(
+                    "px-8 font-black text-[10px] uppercase tracking-widest transition-all duration-500",
+                    "data-[state=active]:bg-primary data-[state=active]:text-white",
+                    analysis && activeTab !== 'ai-advisor' && "border-2 border-accent text-accent shadow-[0_0_20px_rgba(38,166,154,0.3)] animate-pulse"
+                  )}
+                >
+                  <Sparkles className="h-4 w-4 mr-2" /> Inteligencia IA
                 </TabsTrigger>
               )}
             </TabsList>
@@ -561,7 +571,7 @@ export default function BidDetailPage() {
                   )}
                   
                   <div className="pt-6 border-t">
-                    <Button variant="ghost" className="w-full text-[10px] font-black text-muted-foreground hover:text-primary uppercase italic" onClick={() => setAnalysis(null)}>
+                    <Button variant="ghost" className="w-full text-[10px] font-black text-muted-foreground hover:text-primary uppercase italic" onClick={() => { setAnalysis(null); setActiveTab("description"); }}>
                       Volver a Analizar
                     </Button>
                   </div>

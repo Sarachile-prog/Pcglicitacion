@@ -8,9 +8,6 @@ import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 import { getBidDetail } from '@/services/mercado-publico';
 
-// Configuración de tiempo de ejecución para Next.js
-export const maxDuration = 60;
-
 // Esquema de Hito del Cronograma
 const TimelineEventSchema = z.object({
   event: z.string().describe('Nombre del hito o evento (ej: Cierre de consultas).'),

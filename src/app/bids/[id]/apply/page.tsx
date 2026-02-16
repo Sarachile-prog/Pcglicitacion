@@ -148,14 +148,14 @@ export default function BidApplyPage() {
 
       const updatedAnnexes: AnnexDocument[] = annexes.map(a => 
         a.name === annex.name 
-          ? { ...a, auditResult: result, status: result.isReady ? 'uploaded' : 'error' as const } 
+          ? { ...a, auditResult: result || null, status: result?.isReady ? 'uploaded' : 'error' as const } 
           : a
       )
 
       await updateDoc(bookmarkRef, { annexes: updatedAnnexes })
       setAnnexes(updatedAnnexes)
       
-      if (!result.isReady) {
+      if (!result?.isReady) {
         toast({ variant: "destructive", title: "Alerta de Cumplimiento", description: "Se detectaron errores críticos en el PDF." })
       } else {
         toast({ title: "PDF Validado", description: "El documento está listo para ser enviado." })
@@ -193,15 +193,24 @@ export default function BidApplyPage() {
   const criticalEvents = (bookmark as any).timeline?.filter((e: any) => e.criticality === 'alta') || 
                          (bid as any)?.aiAnalysis?.timeline?.filter((e: any) => e.criticality === 'alta') || []
 
+  const displayTitle = bid?.title || bookmark?.title || "Cargando licitación..."
+
   return (
     <div className="max-w-7xl mx-auto space-y-8 animate-in fade-in duration-500">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <Button variant="ghost" onClick={() => router.back()} className="text-muted-foreground group">
-          <ChevronLeft className="h-4 w-4 mr-1 group-hover:-translate-x-1 transition-transform" /> Regresar al Detalle
-        </Button>
-        <div className="flex items-center gap-2">
-          <Badge variant="outline" className="text-primary border-primary/20 uppercase font-black">Carpeta Digital de Licitación</Badge>
-          <Badge className="bg-primary text-white font-mono">{bidId}</Badge>
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b pb-6">
+        <div className="space-y-2 flex-1">
+          <Button variant="ghost" onClick={() => router.back()} className="text-muted-foreground group -ml-4">
+            <ChevronLeft className="h-4 w-4 mr-1 group-hover:-translate-x-1 transition-transform" /> Regresar al Detalle
+          </Button>
+          <h1 className="text-xl font-black text-primary leading-tight line-clamp-2">
+            {displayTitle}
+          </h1>
+        </div>
+        <div className="flex flex-col items-end gap-2">
+          <div className="flex items-center gap-2">
+            <Badge variant="outline" className="text-primary border-primary/20 uppercase font-black">Carpeta Digital de Licitación</Badge>
+            <Badge className="bg-primary text-white font-mono">{bidId}</Badge>
+          </div>
         </div>
       </div>
 
@@ -349,7 +358,7 @@ export default function BidApplyPage() {
                       <Button 
                         variant="outline" 
                         className="h-10 text-[10px] font-bold gap-2 border-accent text-accent"
-                        disabled={annex.status === 'pending' || isAuditing}
+                        disabled={annexes.length === 0 || annex.status === 'pending' || isAuditing}
                         onClick={() => handleAuditAnnex(annex)}
                       >
                         {isAuditing ? <Loader2 className="animate-spin h-3 w-3" /> : <BrainCircuit className="h-3 w-3" />}

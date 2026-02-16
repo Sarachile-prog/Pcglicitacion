@@ -8,6 +8,9 @@ import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 import { getBidDetail } from '@/services/mercado-publico';
 
+// Configuración de tiempo de ejecución para Next.js
+export const maxDuration = 60;
+
 // Esquema de Hito del Cronograma
 const TimelineEventSchema = z.object({
   event: z.string().describe('Nombre del hito o evento (ej: Cierre de consultas).'),
@@ -59,18 +62,17 @@ const explainConceptTool = ai.defineTool(
     outputSchema: z.object({ explanation: z.string() }),
   },
   async (input) => {
-    const { output } = await ai.generate({
+    const { text } = await ai.generate({
       prompt: `Explica el término "${input.term}" en el contexto de licitaciones públicas chilenas.`,
-      model: 'googleai/gemini-1.5-flash',
     });
-    return { explanation: output?.text || 'Sin explicación.' };
+    return { explanation: text || 'Sin explicación.' };
   }
 );
 
 const fetchRealBidDataTool = ai.defineTool(
   {
     name: 'fetchRealBidData',
-    description: 'Consulta datos vivos de la API.',
+    description: 'Consulta datos vivos de la API de Mercado Público.',
     inputSchema: z.object({ bidId: z.string() }),
     outputSchema: z.any(),
   },
@@ -88,25 +90,20 @@ const postulationAdvisorPrompt = ai.definePrompt({
   input: { schema: ExtractAndSummarizeBidDetailsInputSchema },
   output: { schema: PostulationAdvisorOutputSchema },
   tools: [explainConceptTool, fetchRealBidDataTool],
-  config: {
-    safetySettings: [
-      { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
-      { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
-      { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' },
-      { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' },
-    ]
-  },
-  prompt: `Actúa como un Asesor Senior de Postulaciones a Mercado Público Chile e Inteligencia de Mercado. 
+  system: `Actúa como un Asesor Senior de Postulaciones a Mercado Público Chile e Inteligencia de Mercado. 
   Tu objetivo es preparar al usuario para ganar la licitación e identificar oportunidades de negocio (leads).
+  Utiliza un tono profesional y chileno.`,
+  prompt: `Analiza la siguiente oportunidad de licitación:
 
-  1. Analiza las bases adjuntas: {{{bidDocumentText}}}.
-  2. Si hay ID ({{{bidId}}}), valida plazos reales con la API usando la herramienta fetchRealBidData.
-  3. Identifica "Alertas Rojas": ¿Piden una boleta de garantía muy alta? ¿El plazo de entrega es absurdo? ¿Hay criterios de evaluación discriminatorios?
-  4. Crea una guía de formularios y cronograma de hitos.
-  5. DETECCIÓN DE LEADS: Identifica empresas que se mencionen (ej: el proveedor anterior, marcas sugeridas, o subcontratistas específicos requeridos). Si no hay nombres propios, identifica "Perfiles de Empresa" que serían el target ideal para invitar a esta plataforma.
-  6. Da un consejo final estratégico.
+  ID de Licitación: {{{bidId}}}
+  Texto de las Bases: {{{bidDocumentText}}}
 
-  Responde en español chileno profesional.`,
+  Instrucciones:
+  1. Si hay un ID de licitación, utiliza la herramienta fetchRealBidData para obtener datos actualizados.
+  2. Identifica "Alertas Rojas" (garantías, multas, requisitos excluyentes).
+  3. Crea una guía de formularios necesaria.
+  4. Identifica empresas mencionadas para oportunidades de Outreach.
+  5. Proporciona un consejo estratégico final.`,
 });
 
 const postulationAdvisorFlow = ai.defineFlow(
@@ -116,9 +113,11 @@ const postulationAdvisorFlow = ai.defineFlow(
     outputSchema: PostulationAdvisorOutputSchema,
   },
   async (input) => {
-    const { output } = await postulationAdvisorPrompt(input);
+    const response = await postulationAdvisorPrompt(input);
+    const output = response.output;
+    
     if (!output) {
-      throw new Error("El asesor IA no pudo generar una respuesta válida.");
+      throw new Error("El asesor IA no pudo generar una respuesta estructurada.");
     }
     return output;
   }

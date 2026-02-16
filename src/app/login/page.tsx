@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useEffect } from "react"
@@ -17,6 +16,7 @@ import { Globe, ShieldCheck, Mail, Lock, Loader2, Building2, ArrowRight } from "
 import { useRouter } from "next/navigation"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
+import Link from "next/link"
 
 export default function LoginPage() {
   const auth = useAuth()

@@ -288,91 +288,93 @@ export default function BidDetailPage() {
             </TabsContent>
 
             <TabsContent value="ai-advisor" className="animate-in slide-in-from-bottom-4 duration-500 space-y-8">
-              <div className="space-y-8">
-                {isDemo && (
-                  <Card className="bg-accent border-none text-white shadow-2xl overflow-hidden relative group">
-                    <div className="absolute top-0 right-0 p-6 opacity-10 group-hover:rotate-12 transition-all duration-700">
-                      <Sparkles className="h-32 w-32" />
-                    </div>
-                    <CardContent className="p-8 space-y-6 relative z-10">
-                      <div className="flex flex-col md:flex-row justify-between items-center gap-6">
-                        <div className="space-y-3 flex-1 text-center md:text-left">
-                          <Badge className="bg-white text-accent font-black uppercase text-[10px]">Potencia tu Equipo</Badge>
-                          <h3 className="text-2xl font-black italic uppercase tracking-tighter leading-tight">
-                            Has desbloqueado el 10% del poder de PCG Licitación.
-                          </h3>
-                          <p className="text-sm font-medium opacity-90 leading-relaxed italic">
-                            Este análisis es solo el comienzo. Activa el **Plan Empresas** para colaborar con tus colegas, subir anexos y recibir auditorías técnicas ilimitadas.
-                          </p>
-                        </div>
-                        <div className="flex flex-col gap-3 min-w-[200px] w-full md:w-auto">
-                           <div className="bg-white/10 rounded-xl p-4 border border-white/20 text-center animate-bounce duration-[3000ms]">
-                             <p className="text-[10px] font-black uppercase tracking-widest text-white mb-2">Paso 1: Presiona Aquí</p>
-                             <ArrowUpRight className="h-6 w-6 mx-auto" />
-                           </div>
-                           <Button asChild className="bg-white text-accent hover:bg-gray-100 font-black uppercase italic h-12 shadow-xl gap-2">
-                             <a href={WHATSAPP_URL} target="_blank"><MessageCircle className="h-4 w-4" /> Activar Plan Empresas</a>
-                           </Button>
-                        </div>
+              {analysis && (
+                <div className="space-y-8">
+                  {isDemo && (
+                    <Card className="bg-accent border-none text-white shadow-2xl overflow-hidden relative group">
+                      <div className="absolute top-0 right-0 p-6 opacity-10 group-hover:rotate-12 transition-all duration-700">
+                        <Sparkles className="h-32 w-32" />
                       </div>
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-4 border-t border-white/10">
-                        <div className="text-center space-y-1">
-                          <Users className="h-4 w-4 mx-auto opacity-60" />
-                          <p className="text-[8px] font-black uppercase">Multiusuario</p>
+                      <CardContent className="p-8 space-y-6 relative z-10">
+                        <div className="flex flex-col md:flex-row justify-between items-center gap-6">
+                          <div className="space-y-3 flex-1 text-center md:text-left">
+                            <Badge className="bg-white text-accent font-black uppercase text-[10px]">Potencia tu Equipo</Badge>
+                            <h3 className="text-2xl font-black italic uppercase tracking-tighter leading-tight">
+                              Has desbloqueado el 10% del poder de PCG Licitación.
+                            </h3>
+                            <p className="text-sm font-medium opacity-90 leading-relaxed italic">
+                              Este análisis es solo el comienzo. Activa el **Plan Empresas** para colaborar con tus colegas, subir anexos y recibir auditorías técnicas ilimitadas.
+                            </p>
+                          </div>
+                          <div className="flex flex-col gap-3 min-w-[200px] w-full md:w-auto">
+                            <div className="bg-white/10 rounded-xl p-4 border border-white/20 text-center animate-bounce duration-[3000ms]">
+                              <p className="text-[10px] font-black uppercase tracking-widest text-white mb-2">Paso 1: Presiona Aquí</p>
+                              <ArrowUpRight className="h-6 w-6 mx-auto" />
+                            </div>
+                            <Button asChild className="bg-white text-accent hover:bg-gray-100 font-black uppercase italic h-12 shadow-xl gap-2">
+                              <a href={WHATSAPP_URL} target="_blank"><MessageCircle className="h-4 w-4" /> Activar Plan Empresas</a>
+                            </Button>
+                          </div>
                         </div>
-                        <div className="text-center space-y-1">
-                          <FileText className="h-4 w-4 mx-auto opacity-60" />
-                          <p className="text-[8px] font-black uppercase">Carpeta Digital</p>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-4 border-t border-white/10">
+                          <div className="text-center space-y-1">
+                            <Users className="h-4 w-4 mx-auto opacity-60" />
+                            <p className="text-[8px] font-black uppercase">Multiusuario</p>
+                          </div>
+                          <div className="text-center space-y-1">
+                            <FileText className="h-4 w-4 mx-auto opacity-60" />
+                            <p className="text-[8px] font-black uppercase">Carpeta Digital</p>
+                          </div>
+                          <div className="text-center space-y-1">
+                            <ShieldCheck className="h-4 w-4 mx-auto opacity-60" />
+                            <p className="text-[8px] font-black uppercase">Auditoría PDF</p>
+                          </div>
+                          <div className="text-center space-y-1">
+                            <Scale className="h-4 w-4 mx-auto opacity-60" />
+                            <p className="text-[8px] font-black uppercase">Soporte Legal</p>
+                          </div>
                         </div>
-                        <div className="text-center space-y-1">
-                          <ShieldCheck className="h-4 w-4 mx-auto opacity-60" />
-                          <p className="text-[8px] font-black uppercase">Auditoría PDF</p>
-                        </div>
-                        <div className="text-center space-y-1">
-                          <Scale className="h-4 w-4 mx-auto opacity-60" />
-                          <p className="text-[8px] font-black uppercase">Soporte Legal</p>
-                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  <Card className="bg-primary text-white border-none shadow-2xl overflow-hidden">
+                    <CardHeader className="bg-white/10 p-8">
+                      <div className="flex items-center gap-3 mb-2">
+                        <Sparkles className="h-6 w-6 text-accent" />
+                        <CardTitle className="text-2xl font-black italic uppercase tracking-widest">Consejo Estratégico</CardTitle>
                       </div>
-                    </CardContent>
-                  </Card>
-                )}
-
-                <Card className="bg-primary text-white border-none shadow-2xl overflow-hidden">
-                  <CardHeader className="bg-white/10 p-8">
-                    <div className="flex items-center gap-3 mb-2">
-                      <Sparkles className="h-6 w-6 text-accent" />
-                      <CardTitle className="text-2xl font-black italic uppercase tracking-widest">Consejo Estratégico</CardTitle>
-                    </div>
-                    <p className="text-xl font-medium leading-relaxed italic">"{analysis.strategicAdvice}"</p>
-                  </CardHeader>
-                  <CardContent className="p-8">
-                    <p className="text-sm font-medium opacity-80 italic">{analysis.reasoning}</p>
-                  </CardContent>
-                </Card>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                  <Card className="border-none shadow-lg bg-red-50/50">
-                    <CardHeader><CardTitle className="text-red-700 text-lg uppercase font-black italic">Riesgos de Descalificación</CardTitle></CardHeader>
-                    <CardContent className="space-y-4">
-                      {analysis.strategicAlerts.map((alert, i) => (
-                        <div key={i} className="p-4 bg-white rounded-xl border-l-4 border-l-red-600 shadow-sm text-xs font-bold text-red-900 uppercase">{alert}</div>
-                      ))}
+                      <p className="text-xl font-medium leading-relaxed italic">"{analysis.strategicAdvice}"</p>
+                    </CardHeader>
+                    <CardContent className="p-8">
+                      <p className="text-sm font-medium opacity-80 italic">{analysis.reasoning}</p>
                     </CardContent>
                   </Card>
 
-                  <Card className="border-none shadow-lg">
-                    <CardHeader><CardTitle className="text-primary text-lg uppercase font-black italic">Documentación Requerida</CardTitle></CardHeader>
-                    <CardContent className="space-y-4">
-                      {analysis.formChecklist.map((form, i) => (
-                        <div key={i} className="p-4 bg-muted/20 rounded-xl border space-y-2">
-                          <h4 className="font-black text-primary uppercase text-[11px]">{form.formName}</h4>
-                          <p className="text-[10px] text-muted-foreground font-bold italic">{form.purpose}</p>
-                        </div>
-                      ))}
-                    </CardContent>
-                  </Card>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <Card className="border-none shadow-lg bg-red-50/50">
+                      <CardHeader><CardTitle className="text-red-700 text-lg uppercase font-black italic">Riesgos de Descalificación</CardTitle></CardHeader>
+                      <CardContent className="space-y-4">
+                        {analysis.strategicAlerts.map((alert, i) => (
+                          <div key={i} className="p-4 bg-white rounded-xl border-l-4 border-l-red-600 shadow-sm text-xs font-bold text-red-900 uppercase">{alert}</div>
+                        ))}
+                      </CardContent>
+                    </Card>
+
+                    <Card className="border-none shadow-lg">
+                      <CardHeader><CardTitle className="text-primary text-lg uppercase font-black italic">Documentación Requerida</CardTitle></CardHeader>
+                      <CardContent className="space-y-4">
+                        {analysis.formChecklist.map((form, i) => (
+                          <div key={i} className="p-4 bg-muted/20 rounded-xl border space-y-2">
+                            <h4 className="font-black text-primary uppercase text-[11px]">{form.formName}</h4>
+                            <p className="text-[10px] text-muted-foreground font-bold italic">{form.purpose}</p>
+                          </div>
+                        ))}
+                      </CardContent>
+                    </Card>
+                  </div>
                 </div>
-              </div>
+              )}
             </TabsContent>
           </Tabs>
         </div>

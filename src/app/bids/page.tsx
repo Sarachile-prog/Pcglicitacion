@@ -26,7 +26,9 @@ import {
   ChevronFirst,
   Info,
   Database,
-  CheckCircle2
+  CheckCircle2,
+  Clock,
+  ArrowUpRight
 } from "lucide-react"
 import Link from "next/link"
 import { getBidsByDate } from "@/services/mercado-publico"
@@ -139,6 +141,19 @@ export default function BidsListPage() {
       currency: currency || 'CLP', 
       maximumFractionDigits: 0 
     }).format(amount);
+  }
+
+  const formatDate = (dateString?: string) => {
+    if (!dateString) return '---';
+    try {
+      return new Date(dateString).toLocaleDateString('es-CL', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric'
+      });
+    } catch (e) {
+      return '---';
+    }
   }
 
   return (
@@ -387,6 +402,22 @@ export default function BidsListPage() {
                         <Building2 className="h-4 w-4 shrink-0 text-accent mt-0.5" />
                         <span className="line-clamp-2 font-medium leading-tight uppercase text-xs">{bid.entity}</span>
                       </div>
+                      <div className="grid grid-cols-2 gap-2 pt-2">
+                        <div className="flex items-center gap-1.5">
+                          <CalendarIcon className="h-3 w-3 text-primary/40" />
+                          <div className="flex flex-col">
+                            <span className="text-[8px] uppercase font-black opacity-50">Publicación</span>
+                            <span className="text-[10px] font-bold text-primary">{formatDate(bid.publishedDate)}</span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <Clock className="h-3 w-3 text-red-400/60" />
+                          <div className="flex flex-col">
+                            <span className="text-[8px] uppercase font-black opacity-50 text-red-400">Cierre</span>
+                            <span className="text-[10px] font-bold text-primary">{formatDate(bid.deadlineDate)}</span>
+                          </div>
+                        </div>
+                      </div>
                     </div>
                     <div className="mt-6 pt-6 border-t border-border flex items-center justify-between">
                       <div className="flex flex-col">
@@ -410,8 +441,10 @@ export default function BidsListPage() {
               <Table>
                 <TableHeader className="bg-muted/50">
                   <TableRow>
-                    <TableHead className="w-[150px] font-bold">ID</TableHead>
-                    <TableHead className="min-w-[300px] font-bold">Título / Institución</TableHead>
+                    <TableHead className="w-[120px] font-bold">ID</TableHead>
+                    <TableHead className="min-w-[250px] font-bold">Título / Institución</TableHead>
+                    <TableHead className="font-bold">Publicación</TableHead>
+                    <TableHead className="font-bold text-red-600">Cierre</TableHead>
                     <TableHead className="font-bold">Estado</TableHead>
                     <TableHead className="text-right font-bold">Monto Estimado</TableHead>
                     <TableHead className="w-[50px]"></TableHead>
@@ -431,9 +464,15 @@ export default function BidsListPage() {
                           </p>
                         </Link>
                       </TableCell>
+                      <TableCell className="text-xs font-medium text-muted-foreground">
+                        {formatDate(bid.publishedDate)}
+                      </TableCell>
+                      <TableCell className="text-xs font-bold text-primary">
+                        {formatDate(bid.deadlineDate)}
+                      </TableCell>
                       <TableCell>
                         <Badge className={cn(
-                          "text-[10px] uppercase font-bold text-white",
+                          "text-[10px] uppercase font-bold text-white whitespace-nowrap",
                           bid.status?.includes('Publicada') || bid.status?.includes('Abierta') ? 'bg-emerald-500' : 
                           bid.status?.includes('Adjudicada') ? 'bg-blue-600' :
                           bid.status?.includes('Cerrada') ? 'bg-gray-500' : 'bg-orange-500'

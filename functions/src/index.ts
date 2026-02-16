@@ -85,6 +85,7 @@ async function performSync(date: string) {
       title,
       entity,
       status,
+      publishedDate: bid.FechaPublicacion || null,
       deadlineDate: bid.FechaCierre || bid.FechaCierreLicitacion || null,
       amount,
       currency: bid.Moneda || 'CLP',

@@ -25,7 +25,9 @@ import {
   ShieldCheck,
   Users,
   Lock,
-  LogOut
+  LogOut,
+  Search,
+  ArrowRight
 } from "lucide-react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
@@ -94,25 +96,38 @@ export default function DashboardPage() {
   }
 
   // ESTADO 1: USUARIO REGISTRADO PERO NO VINCULADO (ACCESO EN PROCESO)
-  // Esto ocurre si el usuario NO es SuperAdmin y NO tiene empresa asignada
   if (user && !isSuperAdmin && !isLinkedToCompany) {
     return (
-      <div className="max-w-2xl mx-auto py-20 animate-in zoom-in-95 duration-500">
+      <div className="max-w-3xl mx-auto py-10 animate-in zoom-in-95 duration-500 space-y-8">
         <Card className="border-2 border-primary/10 shadow-2xl overflow-hidden rounded-3xl">
-          <CardHeader className="bg-primary/5 text-center py-10 space-y-4">
-            <div className="h-20 w-20 bg-white rounded-2xl shadow-xl flex items-center justify-center mx-auto transform -rotate-3 border border-primary/10">
-              <ShieldCheck className="h-10 w-10 text-primary animate-pulse" />
+          <CardHeader className="bg-primary/5 text-center py-8 space-y-4">
+            <div className="h-16 w-16 bg-white rounded-2xl shadow-xl flex items-center justify-center mx-auto transform -rotate-3 border border-primary/10">
+              <ShieldCheck className="h-8 w-8 text-primary animate-pulse" />
             </div>
             <div className="space-y-2">
               <Badge className="bg-accent text-white uppercase font-black text-[10px] px-4">Modo Prospecto Activo</Badge>
               <h2 className="text-3xl font-black text-primary uppercase italic tracking-tighter">Acceso en Proceso de Activación</h2>
             </div>
           </CardHeader>
-          <CardContent className="p-10 space-y-8 text-center">
-            <p className="text-muted-foreground text-lg leading-relaxed font-medium italic">
-              Hola. Tu cuenta ha sido detectada por el sistema de seguridad de <b>PCGLICITACIÓN</b>. <br />
-              Actualmente estás en el <b>Modo Demo</b>. Para acceder a las herramientas de equipo, carpeta digital y auditoría técnica, debes ser vinculado a una empresa.
-            </p>
+          <CardContent className="p-10 space-y-8">
+            <div className="text-center space-y-4">
+              <p className="text-muted-foreground text-lg leading-relaxed font-medium italic">
+                Hola. Tu cuenta ha sido detectada por el sistema de seguridad de <b>PCGLICITACIÓN</b>.
+              </p>
+              <div className="bg-amber-50 border-2 border-amber-100 rounded-2xl p-6 text-left space-y-4">
+                <div className="flex items-center gap-3 text-amber-800 font-black uppercase text-xs tracking-widest">
+                  <Zap className="h-4 w-4" /> Funciones Disponibles Ahora
+                </div>
+                <p className="text-sm text-amber-900/80 font-bold leading-relaxed italic">
+                  Mientras esperas la vinculación a tu empresa, ya puedes usar nuestras herramientas de búsqueda. Explora el mercado oficial y utiliza el motor de Inteligencia Artificial para analizar tus primeros procesos.
+                </p>
+                <Link href="/bids">
+                  <Button className="w-full h-12 bg-amber-600 hover:bg-amber-700 text-white font-black uppercase italic shadow-md gap-2 mt-2">
+                    <Search className="h-4 w-4" /> Ir al Buscador de Licitaciones <ArrowRight className="h-4 w-4" />
+                  </Button>
+                </Link>
+              </div>
+            </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-left">
               <div className="p-4 bg-muted/30 rounded-xl border space-y-1">
@@ -125,8 +140,8 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            <div className="pt-6 border-t space-y-4">
-              <p className="text-xs font-bold text-muted-foreground uppercase italic tracking-widest">¿Ya contrataste un plan?</p>
+            <div className="pt-6 border-t space-y-4 text-center">
+              <p className="text-xs font-bold text-muted-foreground uppercase italic tracking-widest">¿Necesitas ayuda con la activación?</p>
               <Button asChild className="w-full h-14 bg-[#25D366] hover:bg-[#20ba5a] text-white font-black uppercase italic text-lg shadow-xl gap-3">
                 <a href={`https://wa.me/56941245316?text=Hola,%20mi%20UID%20es%20${user.uid}%20y%20necesito%20activar%20mi%20cuenta%20corporativa.`} target="_blank">
                   Contactar a Soporte Técnico
@@ -141,9 +156,6 @@ export default function DashboardPage() {
                 >
                   <LogOut className="h-3 w-3" /> Cerrar Sesión / Cambiar Cuenta
                 </Button>
-                <Link href="/" className="block">
-                  <Button variant="ghost" className="w-full text-muted-foreground font-bold uppercase italic text-[10px] underline underline-offset-4">Volver a la página principal</Button>
-                </Link>
               </div>
             </div>
           </CardContent>

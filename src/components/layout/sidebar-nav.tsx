@@ -3,7 +3,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { LayoutDashboard, Search, PieChart, Info, Settings, Users, Mail, Sparkles, Calculator, ShieldCheck, Building2 } from "lucide-react"
+import { LayoutDashboard, Search, PieChart, Info, Settings, Users, Mail, Sparkles, Calculator, ShieldCheck, Building2, Zap } from "lucide-react"
 import { 
   SidebarMenu, 
   SidebarMenuItem, 
@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/sidebar"
 import { useUser, useDoc, useFirestore, useMemoFirebase } from "@/firebase"
 import { doc } from "firebase/firestore"
+import { Badge } from "@/components/ui/badge"
 
 export function SidebarNav() {
   const pathname = usePathname()
@@ -32,6 +33,7 @@ export function SidebarNav() {
 
   const isSuperAdmin = profile?.role === 'SuperAdmin' || user?.email === 'control@pcgoperacion.com'
   const isAdmin = profile?.role === 'Admin' || isSuperAdmin
+  const isDemo = user && !profile?.companyId && !isSuperAdmin
 
   const handleLinkClick = () => {
     if (isMobile) {
@@ -41,7 +43,7 @@ export function SidebarNav() {
 
   const navItems = [
     { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-    { name: "Licitaciones", href: "/bids", icon: Search },
+    { name: "Licitaciones", href: "/bids", icon: Search, badge: isDemo ? "Probar" : null },
     { name: "Análisis y Tendencias", href: "/trends", icon: PieChart },
   ]
 
@@ -71,9 +73,16 @@ export function SidebarNav() {
                   tooltip={item.name}
                   onClick={handleLinkClick}
                 >
-                  <Link href={item.href} className="flex items-center gap-3">
-                    <item.icon className="h-4 w-4" />
-                    <span className="font-medium">{item.name}</span>
+                  <Link href={item.href} className="flex items-center justify-between gap-3 w-full">
+                    <div className="flex items-center gap-3">
+                      <item.icon className="h-4 w-4" />
+                      <span className="font-medium">{item.name}</span>
+                    </div>
+                    {item.badge && (
+                      <Badge className="bg-accent text-[8px] h-4 px-1.5 font-black uppercase italic animate-pulse group-data-[collapsible=icon]:hidden">
+                        {item.badge}
+                      </Badge>
+                    )}
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>

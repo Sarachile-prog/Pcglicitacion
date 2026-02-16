@@ -23,7 +23,9 @@ import {
   Settings as SettingsIcon,
   AlertTriangle,
   LayoutGrid,
-  List
+  List,
+  Filter,
+  Tooltip as TooltipIcon
 } from "lucide-react"
 import Link from "next/link"
 import { getBidsByDate } from "@/services/mercado-publico"
@@ -33,10 +35,14 @@ import { Calendar } from "@/components/ui/calendar"
 import { format, subDays } from "date-fns"
 import { es } from "date-fns/locale"
 import { cn } from "@/lib/utils"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { CATEGORIES } from "@/app/lib/mock-data"
 
 export default function BidsListPage() {
   const db = useFirestore()
   const [searchTerm, setSearchTerm] = useState("")
+  const [selectedRubro, setSelectedRubro] = useState("all")
   const [isSyncing, setIsSyncing] = useState(false)
   const [ticketError, setTicketError] = useState(false)
   const [isCalendarOpen, setIsCalendarOpen] = useState(false)
@@ -95,11 +101,23 @@ export default function BidsListPage() {
   }
 
   const filteredBids = (bids || []).filter(bid => {
+    const searchString = searchTerm.toLowerCase()
     const matchesSearch = 
-      bid.title?.toLowerCase().includes(searchTerm.toLowerCase()) || 
-      bid.entity?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      bid.id?.toLowerCase().includes(searchTerm.toLowerCase())
-    return matchesSearch
+      bid.title?.toLowerCase().includes(searchString) || 
+      bid.entity?.toLowerCase().includes(searchString) ||
+      bid.id?.toLowerCase().includes(searchString)
+    
+    let matchesRubro = true
+    if (selectedRubro !== "all") {
+      const rubroLower = selectedRubro.toLowerCase()
+      // Filtramos por palabras clave asociadas al rubro si el dato no es explícito
+      matchesRubro = 
+        bid.title?.toLowerCase().includes(rubroLower) || 
+        bid.entity?.toLowerCase().includes(rubroLower) ||
+        (bid.items && bid.items.some((item: any) => item.Categoria?.toLowerCase().includes(rubroLower)))
+    }
+
+    return matchesSearch && matchesRubro
   })
 
   const formatCurrency = (amount: number, currency: string) => {
@@ -202,11 +220,42 @@ export default function BidsListPage() {
         </Card>
       )}
 
-      <div className="flex items-center gap-4 bg-primary/5 p-4 rounded-xl border border-primary/10">
-        <Zap className="h-5 w-5 text-primary" />
-        <p className="text-sm text-primary font-medium">
-          <span className="font-bold">Tip:</span> Pulsa en cualquier licitación para obtener su detalle completo, montos reales y análisis IA.
-        </p>
+      <div className="flex flex-col md:flex-row items-center gap-4 bg-primary/5 p-4 rounded-xl border border-primary/10">
+        <div className="flex items-center gap-4 flex-1 w-full">
+          <Zap className="h-5 w-5 text-primary shrink-0" />
+          <p className="text-sm text-primary font-medium">
+            <span className="font-bold">Tip:</span> Pulsa en cualquier licitación para obtener su detalle completo, montos reales y análisis IA.
+          </p>
+        </div>
+        
+        <div className="flex items-center gap-2 w-full md:w-auto">
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="flex items-center gap-2">
+                  <Filter className="h-4 w-4 text-muted-foreground" />
+                  <Select value={selectedRubro} onValueChange={setSelectedRubro}>
+                    <SelectTrigger className="w-[180px] h-9 bg-white">
+                      <SelectValue placeholder="Todos los Rubros" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos los Rubros</SelectItem>
+                      {CATEGORIES.map((cat) => (
+                        <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <TooltipIcon className="h-4 w-4 text-muted-foreground cursor-help" />
+                </div>
+              </TooltipTrigger>
+              <TooltipContent className="max-w-xs p-3">
+                <p className="text-xs leading-relaxed">
+                  <b>Filtro Inteligente:</b> Los rubros agrupan licitaciones buscando palabras clave comunes en títulos, instituciones y categorías técnicas de los productos solicitados.
+                </p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        </div>
       </div>
 
       <Card className="bg-muted/30 border-none">
@@ -325,9 +374,9 @@ export default function BidsListPage() {
             <div className="h-16 w-16 rounded-full bg-white flex items-center justify-center shadow-sm">
               <Info className="h-8 w-8 text-primary/40" />
             </div>
-            <h3 className="text-xl font-bold text-primary">No hay licitaciones sincronizadas</h3>
+            <h3 className="text-xl font-bold text-primary">No hay licitaciones que coincidan</h3>
             <p className="text-muted-foreground max-w-sm">
-              Selecciona una fecha (ej. el miércoles pasado) y pulsa "Sincronizar" para importar datos desde Mercado Público.
+              Intenta cambiar el rubro o la fecha de búsqueda para encontrar más oportunidades.
             </p>
           </CardContent>
         </Card>

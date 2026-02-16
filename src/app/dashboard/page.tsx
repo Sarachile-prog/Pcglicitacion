@@ -41,6 +41,8 @@ export default function DashboardPage() {
 
   const { data: profile, isLoading: isProfileLoading } = useDoc(profileRef)
 
+  const isSuperAdmin = user?.email === 'control@pcgoperacion.com' || profile?.role === 'SuperAdmin'
+
   // Licitaciones globales recientes
   const bidsQuery = useMemoFirebase(() => {
     if (!db) return null
@@ -86,8 +88,8 @@ export default function DashboardPage() {
     )
   }
 
-  // Si no tiene perfil, es un usuario nuevo o invitado
-  if (!profile && user) {
+  // Si no tiene perfil ni es SuperAdmin, es un usuario nuevo o invitado
+  if (!profile && user && !isSuperAdmin) {
     return (
       <div className="max-w-md mx-auto py-20 text-center space-y-6">
         <div className="h-20 w-20 bg-primary/5 rounded-full flex items-center justify-center mx-auto">
@@ -112,12 +114,19 @@ export default function DashboardPage() {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div className="space-y-1">
           <div className="flex items-center gap-2">
-            <h2 className="text-3xl font-black tracking-tight text-primary italic uppercase">Dashboard Equipo</h2>
-            <Badge className="bg-emerald-500 text-white gap-1 border-none font-bold text-[10px]">
-              {profile?.companyId ? `EMPRESA: ${profile.companyId}` : 'SINCRO'}
+            <h2 className="text-3xl font-black tracking-tight text-primary italic uppercase">
+              {isSuperAdmin ? "Consola Global PCG" : "Dashboard Equipo"}
+            </h2>
+            <Badge className={cn(
+              "text-white gap-1 border-none font-bold text-[10px]",
+              isSuperAdmin ? "bg-primary" : "bg-emerald-500"
+            )}>
+              {isSuperAdmin ? "MODO SUPERADMIN" : `EMPRESA: ${profile?.companyId || 'SINCRO'}`}
             </Badge>
           </div>
-          <p className="text-muted-foreground font-medium italic">Visión compartida de todas las licitaciones en estudio.</p>
+          <p className="text-muted-foreground font-medium italic">
+            {isSuperAdmin ? "Control maestro de todas las operaciones del ecosistema." : "Visión compartida de todas las licitaciones en estudio."}
+          </p>
         </div>
         <Link href="/bids">
           <Button className="bg-accent hover:bg-accent/90 gap-2 font-black shadow-lg uppercase italic">
@@ -133,9 +142,9 @@ export default function DashboardPage() {
               <Database className="h-5 w-5" />
             </div>
             <div>
-              <p className="text-xs font-bold text-blue-900">Historial Corporativo</p>
+              <p className="text-xs font-bold text-blue-900">{isSuperAdmin ? "Estado de Base de Datos" : "Historial Corporativo"}</p>
               <p className="text-[10px] text-blue-700/80 uppercase font-bold">
-                Todo tu equipo visualiza los mismos análisis y documentos aquí.
+                {isSuperAdmin ? "Visualizando registros acumulados de todas las sincronizaciones." : "Todo tu equipo visualiza los mismos análisis y documentos aquí."}
               </p>
             </div>
           </CardContent>
@@ -216,7 +225,9 @@ export default function DashboardPage() {
               <Bookmark className="h-6 w-6 text-orange-600" />
             </div>
             <div>
-              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Nuestra Cartera</p>
+              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                {isSuperAdmin ? "Empresas Activas" : "Nuestra Cartera"}
+              </p>
               <h3 className="text-2xl font-black text-orange-600">{bookmarks?.length || 0}</h3>
             </div>
           </CardContent>
@@ -229,7 +240,7 @@ export default function DashboardPage() {
             </div>
             <div>
               <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Rol de Acceso</p>
-              <h3 className="text-2xl font-black text-teal-600 uppercase">{profile?.role || 'USER'}</h3>
+              <h3 className="text-2xl font-black text-teal-600 uppercase">{isSuperAdmin ? 'SUPERADMIN' : (profile?.role || 'USER')}</h3>
             </div>
           </CardContent>
         </Card>
@@ -241,9 +252,11 @@ export default function DashboardPage() {
             <CardHeader className="bg-primary/5 border-b flex flex-row items-center justify-between p-6">
               <div className="space-y-1">
                 <CardTitle className="text-xl font-bold flex items-center gap-2 text-primary uppercase italic">
-                  <Bookmark className="h-5 w-5 text-accent" /> Cartera del Equipo
+                  <Bookmark className="h-5 w-5 text-accent" /> {isSuperAdmin ? "Monitoreo de Procesos" : "Cartera del Equipo"}
                 </CardTitle>
-                <p className="text-xs text-muted-foreground font-medium italic">Colaboración en tiempo real sobre procesos seleccionados.</p>
+                <p className="text-xs text-muted-foreground font-medium italic">
+                  {isSuperAdmin ? "Vista de las licitaciones más seguidas por los clientes." : "Colaboración en tiempo real sobre procesos seleccionados."}
+                </p>
               </div>
               <Badge variant="outline" className="bg-white font-black">{bookmarks?.length || 0} ACTIVAS</Badge>
             </CardHeader>
@@ -275,11 +288,13 @@ export default function DashboardPage() {
                           </div>
                         </Link>
                         <div className="flex items-center gap-4">
-                          <Link href={`/bids/${item.bidId}/apply`} className="hidden md:block">
-                            <Button variant="ghost" size="sm" className="h-8 text-[10px] font-bold gap-2 text-accent border border-accent/20 uppercase italic">
-                              <SendHorizontal className="h-3 w-3" /> Carpeta Digital
-                            </Button>
-                          </Link>
+                          {!isSuperAdmin && (
+                            <Link href={`/bids/${item.bidId}/apply`} className="hidden md:block">
+                              <Button variant="ghost" size="sm" className="h-8 text-[10px] font-bold gap-2 text-accent border border-accent/20 uppercase italic">
+                                <SendHorizontal className="h-3 w-3" /> Carpeta Digital
+                              </Button>
+                            </Link>
+                          )}
                           <Link href={`/bids/${item.bidId}`}>
                             <ChevronRight className="h-5 w-5 text-muted-foreground group-hover:text-accent group-hover:translate-x-1 transition-all" />
                           </Link>
@@ -293,7 +308,9 @@ export default function DashboardPage() {
                   <div className="h-12 w-12 bg-muted rounded-full flex items-center justify-center mx-auto">
                     <Bookmark className="h-6 w-6 text-muted-foreground/40" />
                   </div>
-                  <p className="text-muted-foreground text-sm italic font-bold">Tu empresa no tiene licitaciones en seguimiento.</p>
+                  <p className="text-muted-foreground text-sm italic font-bold">
+                    {isSuperAdmin ? "No hay procesos seguidos por empresas actualmente." : "Tu empresa no tiene licitaciones en seguimiento."}
+                  </p>
                   <Link href="/bids">
                     <Button variant="outline" size="sm" className="font-black uppercase italic">Explorar Mercado Público</Button>
                   </Link>
@@ -310,16 +327,20 @@ export default function DashboardPage() {
              </div>
              <CardHeader>
                <CardTitle className="text-lg flex items-center gap-2 uppercase font-black italic">
-                 <Sparkles className="h-5 w-5 text-accent" /> IA Colaborativa
+                 <Sparkles className="h-5 w-5 text-accent" /> {isSuperAdmin ? "Control de IA" : "IA Colaborativa"}
                </CardTitle>
              </CardHeader>
              <CardContent className="space-y-4">
                <p className="text-sm text-primary-foreground/90 leading-relaxed font-medium">
-                 Cualquier miembro de tu equipo puede realizar auditorías IA sobre los documentos cargados. Los resultados son visibles para todos.
+                 {isSuperAdmin 
+                   ? "Monitorea el uso de tokens y la efectividad de los modelos Gemini Flash en las auditorías PDF."
+                   : "Cualquier miembro de tu equipo puede realizar auditorías IA sobre los documentos cargados. Los resultados son visibles para todos."}
                </p>
                <div className="p-4 bg-white/10 rounded-xl border border-white/20">
                  <p className="text-[10px] uppercase font-bold text-accent mb-1 tracking-widest">Sugerencia del Sistema</p>
-                 <p className="text-xs font-semibold">Recuerda que los estados de gestión ayudan a coordinar quién está trabajando en qué anexo.</p>
+                 <p className="text-xs font-semibold">
+                   {isSuperAdmin ? "Revisa la sección de costos para optimizar el margen operativo." : "Recuerda que los estados de gestión ayudan a coordinar quién está trabajando en qué anexo."}
+                 </p>
                </div>
              </CardContent>
           </Card>
@@ -337,7 +358,7 @@ export default function DashboardPage() {
                 </div>
                 <div className="flex-1 overflow-hidden">
                   <p className="text-xs font-bold truncate">{user?.email}</p>
-                  <p className="text-[9px] text-accent uppercase font-black">{profile?.role || 'Usuario'}</p>
+                  <p className="text-[9px] text-accent uppercase font-black">{isSuperAdmin ? 'SuperAdmin' : (profile?.role || 'Usuario')}</p>
                 </div>
                 <Badge className="bg-emerald-500 text-[8px]">ONLINE</Badge>
               </div>

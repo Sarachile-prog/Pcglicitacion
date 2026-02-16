@@ -2,8 +2,9 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useAuth, useUser } from "@/firebase"
+import { useAuth, useUser, useFirestore } from "@/firebase"
 import { signInWithEmailAndPassword, signInAnonymously } from "firebase/auth"
+import { doc, setDoc, serverTimestamp } from "firebase/firestore"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -14,6 +15,7 @@ import { useToast } from "@/hooks/use-toast"
 
 export default function LoginPage() {
   const auth = useAuth()
+  const db = useFirestore()
   const { user, isUserLoading } = useUser()
   const router = useRouter()
   const { toast } = useToast()
@@ -29,44 +31,67 @@ export default function LoginPage() {
     }
   }, [user, isUserLoading, router])
 
-  const handleEmailLogin = (e: React.FormEvent) => {
+  const ensureUserProfile = async (uid: string, userEmail: string | null) => {
+    if (!db) return
+    try {
+      // Creamos o actualizamos el perfil básico para que el SuperAdmin pueda verlo
+      const userRef = doc(db, "users", uid)
+      await setDoc(userRef, {
+        uid,
+        email: userEmail,
+        role: userEmail === 'control@pcgoperacion.com' ? 'SuperAdmin' : 'User',
+        lastLoginAt: serverTimestamp(),
+        // Si no tiene email, es un prospecto anónimo
+        isAnonymous: !userEmail,
+        createdAt: serverTimestamp()
+      }, { merge: true })
+    } catch (e) {
+      console.error("Error al crear perfil:", e)
+    }
+  }
+
+  const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!email || !password) return
     
     setIsEmailLoading(true)
     
-    // Iniciamos sesión capturando posibles errores de credenciales
-    signInWithEmailAndPassword(auth, email, password)
-      .catch((error: any) => {
-        let message = "Credenciales incorrectas o usuario no registrado."
-        
-        // Mapeo de errores comunes de Firebase Auth
-        if (error.code === 'auth/invalid-credential' || error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
-          message = "Correo o contraseña incorrectos. Por favor, verifica tus datos."
-        } else if (error.code === 'auth/too-many-requests') {
-          message = "Demasiados intentos fallidos. Tu cuenta ha sido bloqueada temporalmente."
-        }
-        
-        toast({
-          variant: "destructive",
-          title: "Error de acceso",
-          description: message
-        })
-        setIsEmailLoading(false)
+    try {
+      const cred = await signInWithEmailAndPassword(auth, email, password)
+      await ensureUserProfile(cred.user.uid, cred.user.email)
+    } catch (error: any) {
+      let message = "Credenciales incorrectas o usuario no registrado."
+      if (error.code === 'auth/invalid-credential' || error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
+        message = "Correo o contraseña incorrectos. Por favor, verifica tus datos."
+      } else if (error.code === 'auth/too-many-requests') {
+        message = "Demasiados intentos fallidos. Tu cuenta ha sido bloqueada temporalmente."
+      }
+      
+      toast({
+        variant: "destructive",
+        title: "Error de acceso",
+        description: message
       })
+    } finally {
+      setIsEmailLoading(false)
+    }
   }
 
-  const handleAnonLogin = () => {
+  const handleAnonLogin = async () => {
     setIsAnonLoading(true)
-    signInAnonymously(auth)
-      .catch((error: any) => {
-        toast({
-          variant: "destructive",
-          title: "Error de acceso demo",
-          description: "No se pudo iniciar el modo demo. Intenta nuevamente en unos segundos."
-        })
-        setIsAnonLoading(false)
+    try {
+      const cred = await signInAnonymously(auth)
+      // Muy importante: Crear el registro en Firestore para que el SuperAdmin lo vea
+      await ensureUserProfile(cred.user.uid, null)
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error de acceso demo",
+        description: "No se pudo iniciar el modo demo. Intenta nuevamente en unos segundos."
       })
+    } finally {
+      setIsAnonLoading(false)
+    }
   }
 
   return (

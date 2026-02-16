@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
-import { doc, updateDoc } from 'firebase/firestore';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import {
   Dialog,
   DialogContent,
@@ -34,7 +34,8 @@ export function TermsAcceptanceModal() {
 
   useEffect(() => {
     // Si el usuario está logueado pero no ha aceptado los términos en su perfil
-    if (user && !isLoading && profile && profile.termsAccepted !== true) {
+    // O si el perfil ni siquiera existe todavía (usuario nuevo)
+    if (user && !isLoading && (!profile || profile.termsAccepted !== true)) {
       setIsOpen(true);
     } else {
       setIsOpen(false);
@@ -45,10 +46,12 @@ export function TermsAcceptanceModal() {
     if (!profileRef || !accepted) return;
     setIsSaving(true);
     try {
-      await updateDoc(profileRef, {
+      // Usamos setDoc con merge: true para crear el documento si no existe
+      await setDoc(profileRef, {
         termsAccepted: true,
         termsAcceptedAt: new Date().toISOString(),
-      });
+        lastUpdated: serverTimestamp()
+      }, { merge: true });
       setIsOpen(false);
     } catch (error) {
       console.error('Error al aceptar términos:', error);

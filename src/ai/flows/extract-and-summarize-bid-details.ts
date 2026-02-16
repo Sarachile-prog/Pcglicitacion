@@ -6,7 +6,6 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
-import { getBidDetail } from '@/services/mercado-publico';
 
 // Esquemas de datos
 const TimelineEventSchema = z.object({
@@ -51,11 +50,17 @@ export type ExtractAndSummarizeBidDetailsInput = z.infer<typeof ExtractAndSummar
  * Función de diagnóstico para probar la conexión con el modelo.
  */
 export async function testAiConnection() {
+  console.log('>>> [AI_DIAGNOSTIC] Probando conexión con Gemini...');
   try {
-    const { text } = await ai.generate('Hola, ¿puedes responder?');
+    const { text } = await ai.generate('Hola, responde brevemente: ¿Estás activo?');
+    console.log('>>> [AI_DIAGNOSTIC] Respuesta exitosa:', text);
     return { success: true, response: text };
   } catch (error: any) {
-    console.error('[AI_DIAGNOSTIC_ERROR]:', error);
+    console.error('>>> [AI_DIAGNOSTIC_ERROR]:', {
+      message: error.message,
+      stack: error.stack,
+      code: error.code
+    });
     return { success: false, error: error.message };
   }
 }
@@ -98,11 +103,10 @@ export async function extractAndSummarizeBidDetails(
     console.log('>>> [AI_FLOW] Análisis completado con éxito.');
     return output;
   } catch (error: any) {
-    // Este log aparecerá en la terminal del servidor/consola de desarrollo
     console.error('>>> [AI_FLOW_FATAL_ERROR]:', {
       message: error.message,
       stack: error.stack,
-      cause: error.cause
+      bidId: input.bidId
     });
     
     throw new Error(`Error en el servicio de IA: ${error.message}`);

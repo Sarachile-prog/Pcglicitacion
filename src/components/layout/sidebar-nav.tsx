@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { LayoutDashboard, Search, PieChart, Info, Settings, Users, Mail } from "lucide-react"
+import { LayoutDashboard, Search, PieChart, Info, Settings, Users, Mail, Sparkles } from "lucide-react"
 import { 
   SidebarMenu, 
   SidebarMenuItem, 
@@ -34,6 +34,7 @@ export function SidebarNav() {
   const adminItems = [
     { name: "Empresas y Leads", href: "/admin/leads", icon: Users },
     { name: "Campañas de Outreach", href: "/admin/outreach", icon: Mail },
+    { name: "Test de IA", href: "/admin/ai-test", icon: Sparkles },
   ]
 
   const supportItems = [

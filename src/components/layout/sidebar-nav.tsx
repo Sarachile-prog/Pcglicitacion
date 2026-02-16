@@ -3,7 +3,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { LayoutDashboard, Search, PieChart, Info, Settings, Users, Mail, Sparkles, Calculator, ShieldCheck } from "lucide-react"
+import { LayoutDashboard, Search, PieChart, Info, Settings, Users, Mail, Sparkles, Calculator, ShieldCheck, Building2 } from "lucide-react"
 import { 
   SidebarMenu, 
   SidebarMenuItem, 
@@ -46,7 +46,7 @@ export function SidebarNav() {
   ]
 
   const adminItems = [
-    { name: "Empresas y Leads", href: "/admin/leads", icon: Users, show: isSuperAdmin },
+    { name: "Empresas y Usuarios", href: "/admin/leads", icon: Building2, show: isSuperAdmin },
     { name: "Campañas de Outreach", href: "/admin/outreach", icon: Mail, show: isSuperAdmin },
     { name: "Test de IA", href: "/admin/ai-test", icon: Sparkles, show: isSuperAdmin },
     { name: "Costos de Operación", href: "/admin/costs", icon: Calculator, show: isSuperAdmin },

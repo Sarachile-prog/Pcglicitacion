@@ -34,7 +34,6 @@ import {
   Trash2,
   FileUp,
   FileCheck,
-  CloudCheck,
   Cloud
 } from "lucide-react"
 import { auditBidProposal, AuditOutput } from "@/ai/flows/audit-bid-proposal"
@@ -237,7 +236,7 @@ export default function BidApplyPage() {
               </Badge>
             ) : (
               <Badge variant="ghost" className="text-emerald-600 text-[10px] flex items-center gap-1">
-                <CloudCheck className="h-3 w-3" /> Sincronizado
+                <Cloud className="h-3 w-3" /> Sincronizado
               </Badge>
             )}
           </div>

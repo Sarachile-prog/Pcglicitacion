@@ -5,7 +5,8 @@ import { useState, useEffect } from "react"
 import { useAuth, useUser, useFirestore } from "@/firebase"
 import { 
   signInWithEmailAndPassword, 
-  createUserWithEmailAndPassword 
+  createUserWithEmailAndPassword,
+  sendPasswordResetEmail
 } from "firebase/auth"
 import { doc, setDoc, serverTimestamp, getDoc } from "firebase/firestore"
 import { Button } from "@/components/ui/button"
@@ -105,13 +106,39 @@ export default function LoginPage() {
     }
   }
 
+  const handleForgotPassword = async () => {
+    if (!email) {
+      toast({ 
+        variant: "destructive", 
+        title: "Email requerido", 
+        description: "Ingresa tu correo en el campo de email para recuperar tu clave." 
+      })
+      return
+    }
+    try {
+      await sendPasswordResetEmail(auth, email)
+      toast({ 
+        title: "Correo de Recuperación Enviado", 
+        description: "Revisa tu bandeja de entrada (y spam) para restablecer tu contraseña." 
+      })
+    } catch (error: any) {
+      toast({ 
+        variant: "destructive", 
+        title: "Error al enviar", 
+        description: "Verifica que el correo sea correcto o intenta más tarde." 
+      })
+    }
+  }
+
   return (
-    <div className="flex items-center justify-center min-h-[80vh] animate-in fade-in duration-500 p-4">
-      <Card className="w-full max-w-md border-2 border-primary/10 shadow-2xl overflow-hidden rounded-3xl">
+    <div className="flex items-center justify-center min-h-screen animate-in fade-in duration-500 p-4 bg-muted/30">
+      <Card className="w-full max-w-md border-2 border-primary/10 shadow-2xl overflow-hidden rounded-3xl bg-white">
         <CardHeader className="text-center space-y-4 bg-primary/5 pb-8">
-          <div className="mx-auto h-16 w-16 rounded-2xl bg-primary flex items-center justify-center shadow-lg transform -rotate-3 mt-4">
-            <Globe className="h-10 w-10 text-white" />
-          </div>
+          <Link href="/" className="mx-auto block">
+            <div className="mx-auto h-16 w-16 rounded-2xl bg-primary flex items-center justify-center shadow-lg transform -rotate-3 mt-4 hover:rotate-0 transition-transform">
+              <Globe className="h-10 w-10 text-white" />
+            </div>
+          </Link>
           <div className="space-y-1">
             <CardTitle className="text-3xl font-black tracking-tight text-primary uppercase italic leading-none">PCGLICITACIÓN</CardTitle>
             <CardDescription className="text-muted-foreground font-medium uppercase text-[10px] tracking-widest pt-2">Inteligencia SaaS de Mercado Público</CardDescription>
@@ -173,11 +200,19 @@ export default function LoginPage() {
               <div className="flex justify-between items-center px-1">
                 <Label htmlFor="password" className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Contraseña</Label>
                 {isLoginMode && (
-                  <button type="button" className="text-[9px] font-black text-primary hover:underline uppercase italic">¿Olvidaste tu clave?</button>
+                  <button 
+                    type="button" 
+                    onClick={handleForgotPassword}
+                    className="text-[9px] font-black text-primary hover:underline uppercase italic"
+                  >
+                    ¿Olvidaste tu clave?
+                  </button>
                 )}
               </div>
               <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <div className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                  <Lock className="h-4 w-4" />
+                </div>
                 <Input 
                   id="password" 
                   type="password" 

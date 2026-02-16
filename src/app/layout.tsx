@@ -21,10 +21,10 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
   const auth = useAuth();
   const pathname = usePathname();
   
-  // Determinamos si es la página de inicio para aplicar un layout de landing page
-  const isHomePage = pathname === '/';
+  // Determinamos si es la página de inicio o login para aplicar un layout sin sidebar
+  const isPublicPage = pathname === '/' || pathname === '/login';
 
-  if (isHomePage) {
+  if (isPublicPage) {
     return (
       <div className="min-h-screen flex flex-col">
         <main className="flex-1">

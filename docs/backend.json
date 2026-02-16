@@ -60,7 +60,8 @@
         "uid": { "type": "string" },
         "email": { "type": "string" },
         "companyId": { "type": "string" },
-        "role": { "type": "string", "enum": ["Admin", "User", "SuperAdmin"] }
+        "role": { "type": "string", "enum": ["Admin", "User", "SuperAdmin"] },
+        "aiUsageCount": { "type": "number", "default": 0, "description": "Cantidad de análisis IA realizados por un usuario Demo." }
       },
       "required": ["uid", "companyId", "role"]
     }

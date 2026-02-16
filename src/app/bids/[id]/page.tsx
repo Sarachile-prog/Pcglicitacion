@@ -35,14 +35,17 @@ import {
   ShieldCheck,
   ArrowUpRight,
   Lock,
-  CheckCircle2
+  CheckCircle2,
+  LockKeyhole
 } from "lucide-react"
 import Link from "next/link"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import { getBidDetail } from "@/services/mercado-publico"
 import { useDoc, useFirestore, useMemoFirebase, useUser } from "@/firebase"
-import { doc, setDoc, deleteDoc, updateDoc } from "firebase/firestore"
+import { doc, setDoc, deleteDoc, updateDoc, increment } from "firebase/firestore"
+
+const DEMO_AI_LIMIT = 3;
 
 export default function BidDetailPage() {
   const params = useParams()
@@ -58,7 +61,7 @@ export default function BidDetailPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [activeTab, setActiveTab] = useState<string>("description")
 
-  // Perfil para obtener el companyId
+  // Perfil para obtener el companyId y conteo de IA
   const profileRef = useMemoFirebase(() => {
     if (!db || !user) return null
     return doc(db, "users", user.uid)
@@ -73,20 +76,24 @@ export default function BidDetailPage() {
 
   const { data: bid, isLoading: isDocLoading } = useDoc(bidRef)
 
-  // Bookmarks ahora se guardan en la empresa
+  // Bookmarks corporativos
   const bookmarkRef = useMemoFirebase(() => {
     if (!db || !profile?.companyId || !bidId) return null
     return doc(db, "companies", profile.companyId, "bookmarks", bidId)
   }, [db, profile, bidId])
 
-  const { data: bookmark, isLoading: isBookmarkLoading } = useDoc(bookmarkRef)
+  const { data: bookmark } = useDoc(bookmarkRef)
 
   const isDemo = user && (!profile || !profile.companyId);
+  const demoUsage = profile?.aiUsageCount || 0;
+  const isLimitReached = isDemo && demoUsage >= DEMO_AI_LIMIT;
 
   useEffect(() => {
     if (bid?.aiAnalysis) {
       setAnalysis(bid.aiAnalysis as PostulationAdvisorOutput)
-      setActiveTab("ai-advisor")
+      if (activeTab !== "ai-advisor") {
+        setActiveTab("ai-advisor")
+      }
     }
   }, [bid])
 
@@ -152,7 +159,16 @@ export default function BidDetailPage() {
   }
 
   const handleAnalyze = async (mode: 'fast' | 'deep') => {
-    if (!bid || !bidRef) return
+    if (!bid || !bidRef || !profileRef) return
+
+    if (isLimitReached) {
+      toast({ 
+        variant: "destructive", 
+        title: "Límite de Demo", 
+        description: "Has agotado tus 3 análisis de prueba. Activa tu cuenta empresa para continuar." 
+      })
+      return
+    }
 
     setLoadingAI(true)
     if (mode === 'deep') setIsDialogOpen(false)
@@ -166,10 +182,18 @@ export default function BidDetailPage() {
         useLivePortal: true
       })
       
+      // Actualizar licitación
       await updateDoc(bidRef, {
         aiAnalysis: result,
         lastAnalyzedAt: new Date().toISOString()
       })
+
+      // Si es demo, descontar crédito
+      if (isDemo) {
+        await updateDoc(profileRef, {
+          aiUsageCount: increment(1)
+        })
+      }
 
       if (bookmarkRef && bookmark) {
         await updateDoc(bookmarkRef, {
@@ -216,7 +240,7 @@ export default function BidDetailPage() {
         <div className="flex gap-2">
           {bookmark && (
             <Link href={`/bids/${bidId}/apply`}>
-              <Button className="bg-emerald-600 hover:bg-emerald-700 font-bold gap-2 shadow-lg uppercase italic">
+              <Button className="bg-emerald-600 hover:bg-emerald-700 font-bold gap-2 shadow-lg uppercase italic text-xs">
                 <SendHorizontal className="h-4 w-4" /> Preparar Oferta
               </Button>
             </Link>
@@ -311,7 +335,7 @@ export default function BidDetailPage() {
                   className={cn(
                     "px-8 font-black text-[10px] uppercase tracking-widest transition-all duration-500",
                     "data-[state=active]:bg-primary data-[state=active]:text-white",
-                    analysis && activeTab !== 'ai-advisor' && "border-2 border-accent text-accent shadow-[0_0_20px_rgba(38,166,154,0.3)] animate-pulse"
+                    activeTab !== 'ai-advisor' && "border-2 border-accent text-accent shadow-[0_0_20px_rgba(38,166,154,0.3)] animate-pulse"
                   )}
                 >
                   <Sparkles className="h-4 w-4 mr-2" /> Inteligencia IA
@@ -485,27 +509,49 @@ export default function BidDetailPage() {
                 <CardTitle className="text-lg font-black uppercase tracking-widest flex items-center gap-2">
                   <Zap className="h-5 w-5 text-accent" /> Motor IA
                 </CardTitle>
-                <Badge variant="outline" className="border-accent text-accent animate-pulse font-black text-[8px]">EMPRESA</Badge>
+                <Badge variant="outline" className={cn(
+                  "font-black text-[8px]",
+                  isDemo ? "border-orange-400 text-orange-400" : "border-accent text-accent animate-pulse"
+                )}>
+                  {isDemo ? `DEMO: ${DEMO_AI_LIMIT - demoUsage} CRÉDITOS` : 'CORPORATIVO'}
+                </Badge>
               </div>
             </CardHeader>
             <CardContent className="p-6 space-y-6">
               {!analysis ? (
                 <div className="space-y-6">
-                  <div className="text-center py-4">
-                    <div className="h-16 w-16 bg-primary/5 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <BrainCircuit className="h-8 w-8 text-primary" />
+                  {isLimitReached ? (
+                    <div className="text-center py-6 bg-red-50 rounded-2xl border border-red-100 px-4 space-y-4">
+                      <LockKeyhole className="h-10 w-10 text-red-600 mx-auto" />
+                      <div className="space-y-1">
+                        <h4 className="font-black text-red-900 uppercase italic text-xs">Créditos de Prueba Agotados</h4>
+                        <p className="text-[10px] text-red-700 font-bold leading-tight">
+                          Has alcanzado el límite de {DEMO_AI_LIMIT} análisis para el modo Demo. Contacta soporte para activar tu plan corporativo ilimitado.
+                        </p>
+                      </div>
+                      <Button asChild className="w-full bg-[#25D366] hover:bg-[#20ba5a] text-white font-black uppercase italic h-12 text-xs">
+                        <a href="https://wa.me/56941245316?text=Hola,%20he%20agotado%20mis%20creditos%20demo%20y%20quiero%20contratar%20el%20plan%20corporativo." target="_blank">
+                          Activar Plan Empresas
+                        </a>
+                      </Button>
                     </div>
-                    <h4 className="font-black text-primary mb-2 uppercase italic text-xs">Análisis no ejecutado</h4>
-                    <p className="text-[10px] text-muted-foreground leading-relaxed font-bold">
-                      Activa la IA para detectar requisitos ocultos y riesgos de inadmisibilidad.
-                    </p>
-                  </div>
+                  ) : (
+                    <div className="text-center py-4">
+                      <div className="h-16 w-16 bg-primary/5 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <BrainCircuit className="h-8 w-8 text-primary" />
+                      </div>
+                      <h4 className="font-black text-primary mb-2 uppercase italic text-xs">Análisis no ejecutado</h4>
+                      <p className="text-[10px] text-muted-foreground leading-relaxed font-bold">
+                        Activa la IA para detectar requisitos ocultos y riesgos de inadmisibilidad.
+                      </p>
+                    </div>
+                  )}
                   
                   <div className="grid gap-3">
                     <Button 
                       className="w-full bg-accent hover:bg-accent/90 font-black h-14 text-lg gap-3 shadow-lg uppercase italic" 
                       onClick={() => handleAnalyze('fast')} 
-                      disabled={loadingAI}
+                      disabled={loadingAI || isLimitReached}
                     >
                       {loadingAI ? <Loader2 className="animate-spin h-5 w-5" /> : <Zap className="h-5 w-5" />}
                       Escanear Portal
@@ -513,7 +559,11 @@ export default function BidDetailPage() {
                     
                     <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                       <DialogTrigger asChild>
-                        <Button variant="outline" className="w-full border-accent text-accent font-black h-12 gap-2 uppercase italic">
+                        <Button 
+                          variant="outline" 
+                          className="w-full border-accent text-accent font-black h-12 gap-2 uppercase italic"
+                          disabled={isLimitReached}
+                        >
                           <FileText className="h-4 w-4" /> Entrenar con PDF
                         </Button>
                       </DialogTrigger>
@@ -536,7 +586,7 @@ export default function BidDetailPage() {
                           <Button 
                             className="bg-accent hover:bg-accent/90 font-black w-full h-14 text-lg uppercase italic shadow-xl" 
                             onClick={() => handleAnalyze('deep')} 
-                            disabled={!manualText || loadingAI}
+                            disabled={!manualText || loadingAI || isLimitReached}
                           >
                             {loadingAI ? <Loader2 className="animate-spin" /> : <Sparkles />}
                             Generar Inteligencia

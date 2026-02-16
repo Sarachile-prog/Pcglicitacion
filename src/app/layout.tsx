@@ -95,14 +95,24 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
               </h1>
             </div>
             <div className="flex items-center gap-4">
+              {user && (
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="text-muted-foreground hover:text-destructive gap-2 font-black uppercase text-[10px] italic hidden sm:flex"
+                  onClick={() => signOut(auth)}
+                >
+                  <LogOut className="h-3.5 w-3.5" /> Cerrar Sesión
+                </Button>
+              )}
               {!user && !isUserLoading && (
                 <Link href="/login">
                   <Button variant="outline" size="sm" className="hidden sm:flex border-accent text-accent hover:bg-accent/10 font-bold">
-                    Acceso Admin
+                    Acceso Clientes
                   </Button>
                 </Link>
               )}
-              <Button size="sm" className="bg-primary hover:bg-primary/90">
+              <Button size="sm" className="bg-primary hover:bg-primary/90 font-bold text-[10px] uppercase italic">
                 Nueva Alerta
               </Button>
             </div>

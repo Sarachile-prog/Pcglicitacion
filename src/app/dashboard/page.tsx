@@ -1,7 +1,7 @@
 
 "use client"
 
-import { useCollection, useMemoFirebase, useFirestore, useUser, useDoc } from "@/firebase"
+import { useCollection, useMemoFirebase, useFirestore, useUser, useDoc, useAuth } from "@/firebase"
 import { collection, query, orderBy, limit, doc } from "firebase/firestore"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -24,14 +24,17 @@ import {
   Database,
   ShieldCheck,
   Users,
-  Lock
+  Lock,
+  LogOut
 } from "lucide-react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
+import { signOut } from "firebase/auth"
 
 export default function DashboardPage() {
   const db = useFirestore()
+  const auth = useAuth()
   const { user, isUserLoading } = useUser()
 
   // Obtenemos el perfil para saber el companyId y el rol en tiempo real
@@ -129,9 +132,19 @@ export default function DashboardPage() {
                   Contactar a Soporte Técnico
                 </a>
               </Button>
-              <Link href="/" className="block">
-                <Button variant="ghost" className="text-muted-foreground font-bold uppercase italic text-xs underline underline-offset-4">Volver a la página principal</Button>
-              </Link>
+              
+              <div className="flex flex-col gap-2 pt-4">
+                <Button 
+                  variant="outline" 
+                  onClick={() => signOut(auth)} 
+                  className="w-full font-black uppercase italic text-xs border-primary/20 gap-2"
+                >
+                  <LogOut className="h-3 w-3" /> Cerrar Sesión / Cambiar Cuenta
+                </Button>
+                <Link href="/" className="block">
+                  <Button variant="ghost" className="w-full text-muted-foreground font-bold uppercase italic text-[10px] underline underline-offset-4">Volver a la página principal</Button>
+                </Link>
+              </div>
             </div>
           </CardContent>
         </Card>

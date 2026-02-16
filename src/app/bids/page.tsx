@@ -52,7 +52,7 @@ export default function BidsListPage() {
     return query(
       collection(db, "bids"),
       orderBy("scrapedAt", "desc"),
-      limit(50)
+      limit(100)
     )
   }, [db])
 
@@ -76,7 +76,6 @@ export default function BidsListPage() {
         description: `${result.count} licitaciones procesadas correctamente.`,
       })
     } catch (error: any) {
-      // Detectar error de ticket (401 o mensaje específico)
       if (error.message?.toLowerCase().includes('ticket') || error.message?.toLowerCase().includes('inválido')) {
         setTicketError(true)
       }
@@ -175,7 +174,7 @@ export default function BidsListPage() {
       <div className="flex items-center gap-4 bg-primary/5 p-4 rounded-xl border border-primary/10">
         <Zap className="h-5 w-5 text-primary" />
         <p className="text-sm text-primary font-medium">
-          <span className="font-bold">Tip:</span> Las licitaciones se publican de Lunes a Viernes. Prueba con fechas pasadas para ver resultados.
+          <span className="font-bold">Tip:</span> Pulsa en cualquier licitación para obtener su detalle completo, montos reales y análisis IA.
         </p>
       </div>
 
@@ -212,7 +211,7 @@ export default function BidsListPage() {
                       bid.status === 'Adjudicada' ? 'bg-blue-600' :
                       bid.status === 'Cerrada' ? 'bg-gray-500' : 'bg-orange-500'
                     )}>
-                      {bid.status}
+                      {bid.status || 'No definido'}
                     </Badge>
                   </div>
                   <h3 className="font-bold text-lg mb-4 line-clamp-2 group-hover:text-accent transition-colors min-h-[3.5rem]">{bid.title}</h3>
@@ -226,7 +225,7 @@ export default function BidsListPage() {
                     <div className="flex flex-col">
                       <span className="text-[10px] uppercase font-bold text-muted-foreground/60">Estimado</span>
                       <span className="text-lg font-black text-primary">
-                        {bid.amount > 0 ? new Intl.NumberFormat('es-CL', { style: 'currency', currency: bid.currency }).format(bid.amount) : 'Por Definir'}
+                        {bid.amount > 0 ? new Intl.NumberFormat('es-CL', { style: 'currency', currency: bid.currency || 'CLP', maximumFractionDigits: 0 }).format(bid.amount) : 'Por Definir'}
                       </span>
                     </div>
                     <ChevronRight className="h-5 w-5 text-accent group-hover:translate-x-1 transition-transform" />

@@ -39,7 +39,7 @@ export const getBidsByDate = onRequest({
 
   try {
     const db = admin.firestore();
-    const { ticket: TICKET, source } = await getActiveTicket();
+    const { ticket: TICKET } = await getActiveTicket();
     
     // Check Cache
     const cacheRef = db.collection("mp_cache").doc(`sync_${date}`);
@@ -94,14 +94,21 @@ export const getBidsByDate = onRequest({
     bidsList.forEach((bid: any) => {
       if (!bid.CodigoExterno) return;
       
+      // MAPEO ROBUSTO: La API a veces cambia los nombres de las propiedades
+      const title = bid.Nombre || bid.NombreLicitacion || "Sin título";
+      const status = bid.Estado || bid.EstadoLicitacion || "No definido";
+      // Algunos endpoints devuelven Organismo como objeto, otros como string directamente
+      const entity = bid.Organismo?.NombreOrganismo || bid.Organismo || bid.Institucion || "Institución no especificada";
+      const amount = bid.MontoEstimado || bid.Monto || 0;
+      
       const bidRef = db.collection("bids").doc(bid.CodigoExterno);
       batch.set(bidRef, {
         id: bid.CodigoExterno,
-        title: bid.Nombre || "Sin título",
-        entity: bid.Organismo?.NombreOrganismo || "Institución no especificada",
-        status: bid.Estado || "No definido",
-        deadlineDate: bid.FechaCierre || null,
-        amount: bid.MontoEstimado || 0,
+        title,
+        entity,
+        status,
+        deadlineDate: bid.FechaCierre || bid.FechaCierreLicitacion || null,
+        amount,
         currency: bid.Moneda || 'CLP',
         scrapedAt: nowServer,
         sourceUrl: `https://www.mercadopublico.cl/Procurement/Modules/RFB/DetailsAcquisition.aspx?idLicitacion=${bid.CodigoExterno}`
@@ -142,7 +149,7 @@ export const getBidDetail = onRequest({
         items: detail.Items?.Listado || [],
         amount: detail.MontoEstimado || 0,
         currency: detail.Moneda || 'CLP',
-        entity: detail.Organismo?.NombreOrganismo || "Institución no especificada",
+        entity: detail.Organismo?.NombreOrganismo || detail.Organismo || "Institución no especificada",
         fullDetailAt: admin.firestore.FieldValue.serverTimestamp()
       });
       

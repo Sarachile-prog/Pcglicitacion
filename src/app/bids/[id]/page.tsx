@@ -578,9 +578,9 @@ export default function BidDetailPage() {
                         <Button 
                           variant="outline" 
                           className="w-full border-accent text-accent font-black h-12 gap-2 uppercase italic"
-                          disabled={isLimitReached}
+                          disabled={isLimitReached || loadingAI}
                         >
-                          <FileText className="h-4 w-4" /> Entrenar con PDF
+                          <FileText className="h-4 w-4" /> Entrenar con PDF (Opcional)
                         </Button>
                       </DialogTrigger>
                       <DialogContent className="max-w-2xl">

@@ -25,7 +25,7 @@ import {
   LayoutGrid,
   List,
   Filter,
-  Tooltip as TooltipIcon
+  CircleHelp as TooltipIcon
 } from "lucide-react"
 import Link from "next/link"
 import { getBidsByDate } from "@/services/mercado-publico"

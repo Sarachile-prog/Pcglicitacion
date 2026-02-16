@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useParams, useRouter } from "next/navigation"
@@ -19,16 +20,12 @@ import {
 import { 
   Loader2, 
   ChevronLeft, 
-  Sparkles, 
   ShieldCheck, 
   AlertCircle, 
   CheckCircle2, 
-  FileText,
   BrainCircuit,
   Zap,
-  ArrowRight,
   AlertTriangle,
-  Clock,
   Upload,
   Download,
   FileSearch,
@@ -46,9 +43,9 @@ interface AnnexDocument {
   name: string;
   purpose: string;
   status: 'pending' | 'uploaded' | 'error';
-  fileDataUri?: string; // Almacenamos el PDF en base64 para que el usuario "no maneje archivos sueltos"
-  fileName?: string;
-  auditResult?: AuditOutput;
+  fileDataUri?: string | null;
+  fileName?: string | null;
+  auditResult?: AuditOutput | null;
 }
 
 export default function BidApplyPage() {
@@ -80,10 +77,13 @@ export default function BidApplyPage() {
     } else {
       const analysis = (bookmark as any)?.aiAnalysis || bid?.aiAnalysis || null
       if (analysis?.formChecklist) {
-        const initialAnnexes = analysis.formChecklist.map((f: any) => ({
+        const initialAnnexes: AnnexDocument[] = analysis.formChecklist.map((f: any) => ({
           name: f.formName,
           purpose: f.purpose,
-          status: 'pending'
+          status: 'pending',
+          fileDataUri: null,
+          fileName: null,
+          auditResult: null
         }))
         setAnnexes(initialAnnexes)
         if (bookmarkRef && bookmark && !bookmark.annexes) {
@@ -91,7 +91,7 @@ export default function BidApplyPage() {
         }
       }
     }
-  }, [bookmark, bid])
+  }, [bookmark, bid, bookmarkRef])
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -109,9 +109,9 @@ export default function BidApplyPage() {
       reader.onload = async (event) => {
         const base64String = event.target?.result as string
         
-        const updatedAnnexes = annexes.map(a => 
+        const updatedAnnexes: AnnexDocument[] = annexes.map(a => 
           a.name === selectedAnnex.name 
-            ? { ...a, fileDataUri: base64String, fileName: file.name, status: 'uploaded' as const, auditResult: undefined } 
+            ? { ...a, fileDataUri: base64String, fileName: file.name, status: 'uploaded' as const, auditResult: null } 
             : a
         )
         
@@ -146,7 +146,7 @@ export default function BidApplyPage() {
         strategicContext
       })
 
-      const updatedAnnexes = annexes.map(a => 
+      const updatedAnnexes: AnnexDocument[] = annexes.map(a => 
         a.name === annex.name 
           ? { ...a, auditResult: result, status: result.isReady ? 'uploaded' : 'error' as const } 
           : a
@@ -169,8 +169,8 @@ export default function BidApplyPage() {
 
   const handleDeleteAnnex = async (annexName: string) => {
     if (!bookmarkRef) return
-    const updatedAnnexes = annexes.map(a => 
-      a.name === annexName ? { ...a, fileDataUri: undefined, fileName: undefined, status: 'pending' as const, auditResult: undefined } : a
+    const updatedAnnexes: AnnexDocument[] = annexes.map(a => 
+      a.name === annexName ? { ...a, fileDataUri: null, fileName: null, status: 'pending' as const, auditResult: null } : a
     )
     await updateDoc(bookmarkRef, { annexes: updatedAnnexes })
     setAnnexes(updatedAnnexes)
@@ -206,12 +206,11 @@ export default function BidApplyPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-        {/* PANEL LATERAL: ALERTAS */}
         <div className="lg:col-span-3 space-y-6">
           <Card className="border-red-600 shadow-xl overflow-hidden">
             <CardHeader className="bg-red-600 text-white py-4">
               <CardTitle className="text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
-                <AlertTriangle className="h-3 w-3" /> Hitoss de Supervivencia
+                <AlertTriangle className="h-3 w-3" /> Hitos de Supervivencia
               </CardTitle>
             </CardHeader>
             <CardContent className="p-4 space-y-3">
@@ -251,7 +250,6 @@ export default function BidApplyPage() {
           </Card>
         </div>
 
-        {/* GESTIÓN DE ANEXOS */}
         <div className="lg:col-span-9 space-y-6">
           <div className="flex items-center justify-between">
             <h2 className="text-2xl font-black text-primary uppercase italic tracking-tighter">Documentación Oficial</h2>
@@ -364,7 +362,7 @@ export default function BidApplyPage() {
                         variant="ghost" 
                         size="sm" 
                         className="text-[9px] font-bold text-muted-foreground gap-1.5"
-                        disabled={annex.status === 'pending'}
+                        disabled={annex.status === 'pending' || !annex.fileDataUri}
                         onClick={() => {
                           if (annex.fileDataUri) {
                             const link = document.createElement('a');

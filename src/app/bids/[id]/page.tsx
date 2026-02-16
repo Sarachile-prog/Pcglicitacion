@@ -6,6 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Textarea } from "@/components/ui/textarea"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog"
 import { extractAndSummarizeBidDetails, PostulationAdvisorOutput } from "@/ai/flows/extract-and-summarize-bid-details"
 import { useState, useEffect } from "react"
 import { 
@@ -24,7 +26,9 @@ import {
   Bookmark,
   BookmarkCheck,
   FileText,
-  CheckSquare
+  CheckSquare,
+  FilePlus2,
+  BrainCircuit
 } from "lucide-react"
 import Link from "next/link"
 import { useToast } from "@/hooks/use-toast"
@@ -43,6 +47,8 @@ export default function BidDetailPage() {
   const [loadingAI, setLoadingAI] = useState(false)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [analysis, setAnalysis] = useState<PostulationAdvisorOutput | null>(null)
+  const [manualText, setManualText] = useState("")
+  const [isDialogOpen, setIsDialogOpen] = useState(false)
 
   const bidRef = useMemoFirebase(() => {
     if (!db || !bidId) return null
@@ -116,11 +122,15 @@ export default function BidDetailPage() {
     }
   }
 
-  const handleAnalyze = async () => {
+  const handleAnalyze = async (useManual = false) => {
     if (!bid) return
     setLoadingAI(true)
+    if (useManual) setIsDialogOpen(false)
+
     try {
-      const fullText = `Título: ${bid.title}. Descripción: ${bid.description || bid.title}. Estado: ${bid.status}. Entidad: ${bid.entity}. Monto: ${bid.amount}.`
+      const contextText = useManual ? manualText : (bid.description || bid.title)
+      const fullText = `Título: ${bid.title}. Entidad: ${bid.entity}. Estado: ${bid.status}. CONTENIDO DE BASES: ${contextText}`
+      
       const result = await extractAndSummarizeBidDetails({ 
         bidDocumentText: fullText,
         bidId: bid.id 
@@ -128,7 +138,7 @@ export default function BidDetailPage() {
       setAnalysis(result)
       toast({
         title: "Asesoría Generada",
-        description: "Análisis estratégico completado con éxito.",
+        description: useManual ? "Análisis profundo completado con texto de bases." : "Análisis rápido completado con datos de API.",
       })
     } catch (error) {
       toast({
@@ -238,14 +248,55 @@ export default function BidDetailPage() {
           <CardContent className="p-6">
             {!analysis ? (
               <div className="space-y-4">
-                <p className="text-sm text-muted-foreground">Analizaremos los detalles oficiales para detectar riesgos, plazos y una guía de postulación.</p>
-                <Button 
-                  className="w-full bg-accent hover:bg-accent/90 text-white font-bold h-12" 
-                  onClick={handleAnalyze}
-                  disabled={loadingAI || isRefreshing}
-                >
-                  {loadingAI ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Analizando...</> : 'Activar Asesor IA'}
-                </Button>
+                <p className="text-sm text-muted-foreground">Analizaremos los detalles para detectar riesgos y preparar tu postulación.</p>
+                
+                <div className="grid gap-2">
+                  <Button 
+                    className="w-full bg-accent hover:bg-accent/90 text-white font-bold h-12" 
+                    onClick={() => handleAnalyze(false)}
+                    disabled={loadingAI || isRefreshing}
+                  >
+                    {loadingAI ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Analizando...</> : 'Análisis Rápido (API)'}
+                  </Button>
+
+                  <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                    <DialogTrigger asChild>
+                      <Button 
+                        variant="outline"
+                        className="w-full border-accent text-accent font-bold h-12 gap-2"
+                        disabled={loadingAI || isRefreshing}
+                      >
+                        <BrainCircuit className="h-4 w-4" /> Análisis Profundo (Bases)
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="max-w-2xl">
+                      <DialogHeader>
+                        <DialogTitle>Análisis Experto de Bases</DialogTitle>
+                        <DialogDescription>
+                          Para detectar multas, boletas de garantía y requisitos técnicos específicos, pega el texto de las bases administrativas aquí.
+                        </DialogDescription>
+                      </DialogHeader>
+                      <div className="space-y-4 py-4">
+                        <Textarea 
+                          placeholder="Pega el contenido del PDF de bases aquí..." 
+                          className="min-h-[300px] font-mono text-xs"
+                          value={manualText}
+                          onChange={(e) => setManualText(e.target.value)}
+                        />
+                      </div>
+                      <DialogFooter>
+                        <Button 
+                          className="bg-accent hover:bg-accent/90 font-bold w-full" 
+                          onClick={() => handleAnalyze(true)}
+                          disabled={!manualText || loadingAI}
+                        >
+                          {loadingAI ? <Loader2 className="animate-spin mr-2" /> : <Sparkles className="mr-2" />}
+                          Iniciar Análisis Senior
+                        </Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
+                </div>
               </div>
             ) : (
               <div className="space-y-4">

@@ -5,6 +5,7 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
+import { gemini15Flash } from '@genkit-ai/google-genai';
 
 // Esquemas de datos
 const TimelineEventSchema = z.object({
@@ -52,7 +53,7 @@ export async function testAiConnection() {
   console.log('>>> [AI_DIAGNOSTIC] Probando conexión con Gemini...');
   try {
     const { text } = await ai.generate({
-      model: 'gemini-1.5-flash',
+      model: gemini15Flash,
       prompt: 'Hola, responde brevemente: ¿Estás activo?',
     });
     return { success: true, response: text };
@@ -72,7 +73,7 @@ export async function extractAndSummarizeBidDetails(
   
   try {
     const { output } = await ai.generate({
-      model: 'gemini-1.5-flash',
+      model: gemini15Flash,
       system: `Eres un Asesor Senior Experto en Licitaciones de Mercado Público Chile (Ley 19.886).
       Tu objetivo es analizar bases administrativas y técnicas para detectar riesgos, facilitar la postulación (checklist) e identificar leads.`,
       prompt: `Analiza detalladamente esta licitación y genera el informe estratégico:

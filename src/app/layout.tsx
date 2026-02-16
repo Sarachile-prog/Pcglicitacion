@@ -1,3 +1,4 @@
+
 "use client"
 
 import type { Metadata } from 'next';
@@ -13,6 +14,7 @@ import { signOut } from 'firebase/auth';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { WhatsAppButton } from '@/components/whatsapp-button';
+import { TermsAcceptanceModal } from '@/components/terms-acceptance-modal';
 
 function LayoutContent({ children }: { children: React.ReactNode }) {
   const { user, isUserLoading } = useUser();
@@ -28,6 +30,7 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
         <main className="flex-1">
           {children}
           <WhatsAppButton />
+          <TermsAcceptanceModal />
         </main>
       </div>
     );
@@ -107,6 +110,7 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
           <main className="flex-1 p-6 lg:p-10 space-y-10 max-w-7xl mx-auto w-full">
             {children}
             <WhatsAppButton />
+            <TermsAcceptanceModal />
           </main>
         </SidebarInset>
       </div>

@@ -37,7 +37,8 @@ import {
   Lock,
   CheckCircle2,
   LockKeyhole,
-  MessageCircle
+  MessageCircle,
+  Scale
 } from "lucide-react"
 import Link from "next/link"
 import { useToast } from "@/hooks/use-toast"
@@ -503,6 +504,13 @@ export default function BidDetailPage() {
                         ))}
                       </CardContent>
                     </Card>
+                  </div>
+
+                  <div className="flex items-center justify-center gap-2 p-4 bg-muted/10 rounded-2xl border border-dashed border-primary/20">
+                    <Scale className="h-4 w-4 text-muted-foreground" />
+                    <p className="text-[10px] font-black text-muted-foreground uppercase italic tracking-widest text-center">
+                      Documento generado por IA para fines de apoyo. Requiere validación humana. PCGLICITACIÓN no garantiza la exactitud absoluta.
+                    </p>
                   </div>
                 </div>
               </TabsContent>

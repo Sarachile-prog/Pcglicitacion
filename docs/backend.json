@@ -61,9 +61,11 @@
         "email": { "type": "string" },
         "companyId": { "type": "string" },
         "role": { "type": "string", "enum": ["Admin", "User", "SuperAdmin"] },
-        "aiUsageCount": { "type": "number", "default": 0, "description": "Cantidad de análisis IA realizados por un usuario Demo." }
+        "aiUsageCount": { "type": "number", "default": 0, "description": "Cantidad de análisis IA realizados por un usuario Demo." },
+        "termsAccepted": { "type": "boolean", "default": false },
+        "termsAcceptedAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["uid", "companyId", "role"]
+      "required": ["uid", "role"]
     }
   },
   "auth": {

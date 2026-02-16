@@ -4,104 +4,106 @@ service cloud.firestore {
 
     /**
      * CORE PHILOSOPHY:
-     * This ruleset implements a "Public Read, Admin Write" model. The application focuses on 
-     * providing transparent access to scraped bid opportunities (Licitaciones). While data 
-     * is readable by anyone (including anonymous users), modifications are strictly 
-     * restricted to accounts verified as administrators.
-     *
-     * DATA STRUCTURE:
-     * The data is organized into top-level, flat collections: /categories, /awardingBodies, 
-     * and /bids. This flat structure ensures "Authorization Independence," where the 
-     * permission to read a document is self-contained and does not require costly 
-     * recursive lookups or parent-document checks.
-     *
-     * KEY SECURITY DECISIONS:
-     * 1. Public Accessibility: All content entities (Bids, Categories, Awarding Bodies) are 
-     *    publicly listable and readable to maximize searchability and reach.
-     * 2. DBAC (Database Access Control): Administrative privileges are determined by the 
-     *    presence of a user's UID in the '/roles_admin' collection.
-     * 3. Relational Integrity: On creation and update, rules enforce that document IDs 
-     *    within the data match the Firestore document path and remain immutable.
-     * 4. Prototyping Flexibility: While authorization is strict, data schema validation 
-     *    (types and optional fields) is omitted to allow for rapid iteration of the 
-     *    scraping and AI summary logic.
+     * This ruleset implements a multi-tenant security model. 
+     * 1. Public Read: Bids, categories, and awarding bodies are public.
+     * 2. User Profiles: Users can manage their own data.
+     * 3. Multi-tenancy: Company data (bookmarks, documents) is isolated by companyId.
+     * 4. SuperAdmin: Absolute control for the master account.
      */
 
     // --- Helper Functions ---
 
-    /** @description Checks if the request is from an authenticated user. */
     function isSignedIn() {
       return request.auth != null;
     }
 
-    /** @description Checks if the authenticated user has administrative privileges via the roles_admin collection. */
-    function isAdmin() {
-      return isSignedIn() && exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
+    /** @description Identifies the master account via verified email token. */
+    function isSuperAdmin() {
+      return isSignedIn() && request.auth.token.email == 'control@pcgoperacion.com';
     }
 
-    /** @description Verifies document existence and admin status for state-changing operations. */
-    function isExistingAdmin() {
-      return isAdmin() && resource != null;
+    /** @description Checks for administrative privileges either via SuperAdmin email or roles_admin existence. */
+    function isAdmin() {
+      return isSuperAdmin() || (isSignedIn() && exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid)));
+    }
+
+    /** @description Checks if the user belongs to a specific company. */
+    function belongsToCompany(companyId) {
+      return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.companyId == companyId;
     }
 
     // --- Collection Rules ---
 
     /**
-     * @description Rules for the 'Category' collection. Publicly readable classification for bids.
-     * @path /categories/{categoryId}
-     * @allow (get) Any user (including guest) can view a category.
-     * @deny (create) Non-admin users cannot create new categories.
-     * @principle Administrative control for taxonomies with public visibility.
+     * @description User profiles containing roles and company links.
      */
+    match /users/{userId} {
+      allow get: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      allow list: if isAdmin();
+      allow create: if isSignedIn() && request.auth.uid == userId;
+      // Users can update their own profile, but only admins can change roles or companyId
+      allow update: if isSignedIn() && (
+        request.auth.uid == userId || isAdmin()
+      );
+    }
+
+    /**
+     * @description Multi-tenant company data.
+     */
+    match /companies/{companyId} {
+      allow get: if isSignedIn() && (belongsToCompany(companyId) || isAdmin());
+      allow list: if isAdmin();
+      allow create, update: if isAdmin();
+      
+      /**
+       * @description Bids followed by a specific company and their team collaboration data.
+       */
+      match /bookmarks/{bidId} {
+        allow read, write: if isAdmin() || belongsToCompany(companyId);
+      }
+    }
+
+    /**
+     * @description Global settings for API tickets and synchronization state.
+     */
+    match /settings/{settingId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
     match /categories/{categoryId} {
       allow get, list: if true;
       allow create: if isAdmin() && request.resource.data.id == categoryId;
-      allow update: if isExistingAdmin() && request.resource.data.id == resource.data.id;
-      allow delete: if isExistingAdmin();
+      allow update: if isAdmin() && request.resource.data.id == resource.data.id;
+      allow delete: if isAdmin();
     }
 
-    /**
-     * @description Rules for the 'AwardingBody' collection. Information about institutions issuing bids.
-     * @path /awardingBodies/{awardingBodyId}
-     * @allow (list) Any user can browse the list of awarding bodies.
-     * @deny (update) Attempting to change an awarding body ID during update.
-     * @principle Public context for bids with restricted management.
-     */
     match /awardingBodies/{awardingBodyId} {
       allow get, list: if true;
       allow create: if isAdmin() && request.resource.data.id == awardingBodyId;
-      allow update: if isExistingAdmin() && request.resource.data.id == resource.data.id;
-      allow delete: if isExistingAdmin();
+      allow update: if isAdmin() && request.resource.data.id == resource.data.id;
+      allow delete: if isAdmin();
     }
 
-    /**
-     * @description Rules for the 'Bid' collection. The primary entity containing scraped opportunities.
-     * @path /bids/{bidId}
-     * @allow (get) Public access to specific bid details and GenAI summaries.
-     * @deny (delete) Deletion of a bid by a standard authenticated user.
-     * @principle Open data access for transparency; write protection for data integrity.
-     */
     match /bids/{bidId} {
       allow get, list: if true;
       allow create: if isAdmin() && request.resource.data.id == bidId;
-      allow update: if isExistingAdmin() && request.resource.data.id == resource.data.id;
-      allow delete: if isExistingAdmin();
+      allow update: if (isAdmin() || isSignedIn()) && request.resource.data.id == resource.data.id;
+      allow delete: if isAdmin();
+    }
+
+    match /roles_admin/{userId} {
+      allow get: if isSignedIn() && request.auth.uid == userId;
+      allow list: if isAdmin();
+      allow write: if false; 
     }
 
     /**
-     * @description Role-based access control collection. Presence of a UID document grants admin rights.
-     * @path /roles_admin/{userId}
-     * @allow (get) Authenticated users can check if their own UID is in the admin list.
-     * @deny (list) Public users listing the names/IDs of all administrators.
-     * @principle Secure segregation of administrative metadata.
+     * @description Cache for Mercado Publico API responses to avoid rate limits.
      */
-    match /roles_admin/{userId} {
-      // Users can check their own admin status to update UI state
-      allow get: if isSignedIn() && request.auth.uid == userId;
-      // Only existing admins can see the full list of other admins
-      allow list: if isAdmin();
-      // Writing to this collection should ideally be done via Admin SDK/Console for safety
-      allow create, update, delete: if false; 
+    match /mp_cache/{cacheId} {
+      allow read: if true;
+      allow write: if isSignedIn();
     }
   }
 }

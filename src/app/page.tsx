@@ -1,7 +1,8 @@
+
 'use client';
 
-import {useCollection, useMemoFirebase, useFirestore, useUser} from '@/firebase';
-import {collection, query, orderBy, limit} from 'firebase/firestore';
+import {useCollection, useMemoFirebase, useFirestore, useUser, useDoc} from '@/firebase';
+import {collection, query, orderBy, limit, doc} from 'firebase/firestore';
 import {Card, CardContent, CardHeader, CardTitle} from '@/components/ui/card';
 import {Badge} from '@/components/ui/badge';
 import {
@@ -25,15 +26,26 @@ import {
   BrainCircuit,
   FileCheck,
   RefreshCw,
+  MessageCircle,
 } from 'lucide-react';
 import Link from 'next/link';
 import {Button} from '@/components/ui/button';
 import Image from 'next/image';
 import {PlaceHolderImages} from '@/lib/placeholder-images';
 
+const WHATSAPP_URL = "https://wa.me/56941245316?text=Hola,%20vi%20la%20landing%20page%20de%20PCG%20Licitación%20y%20quiero%20más%20información%20sobre%20el%20plan%20empresas.";
+
 export default function HomePage() {
   const db = useFirestore();
   const {user} = useUser();
+
+  const profileRef = useMemoFirebase(() => {
+    if (!db || !user) return null;
+    return doc(db, 'users', user.uid);
+  }, [db, user]);
+
+  const {data: profile} = useDoc(profileRef);
+  const isDemo = user && (!profile || !profile.companyId);
 
   const bidsQuery = useMemoFirebase(() => {
     if (!db) return null;
@@ -84,7 +96,7 @@ export default function HomePage() {
                 Explorar Mercado <ArrowRight className="group-hover:translate-x-2 transition-transform" />
               </Button>
             </Link>
-            {!user && (
+            {!user ? (
               <Link href="/login">
                 <Button
                   size="lg"
@@ -92,6 +104,27 @@ export default function HomePage() {
                   className="border-white/40 text-white hover:bg-white/10 px-10 h-16 text-xl font-black uppercase italic rounded-2xl"
                 >
                   Acceso Corporativo
+                </Button>
+              </Link>
+            ) : isDemo ? (
+              <Button
+                asChild
+                size="lg"
+                variant="outline"
+                className="border-white/40 text-white hover:bg-white/10 px-10 h-16 text-xl font-black uppercase italic rounded-2xl gap-2"
+              >
+                <a href={WHATSAPP_URL} target="_blank">
+                  <MessageCircle className="h-5 w-5" /> Activar Empresa
+                </a>
+              </Button>
+            ) : (
+              <Link href="/dashboard">
+                <Button
+                  size="lg"
+                  variant="outline"
+                  className="border-white/40 text-white hover:bg-white/10 px-10 h-16 text-xl font-black uppercase italic rounded-2xl"
+                >
+                  Ir al Dashboard
                 </Button>
               </Link>
             )}
@@ -345,14 +378,26 @@ export default function HomePage() {
             Desde 1,5 UF al mes. Colaboración total, auditorías IA ilimitadas y soporte estratégico senior.
           </p>
           <div className="pt-10 flex flex-wrap justify-center gap-6">
-            <Link href="/login">
+            {!user ? (
+              <Link href="/login">
+                <Button
+                  size="lg"
+                  className="bg-white text-accent hover:bg-gray-100 font-black h-20 px-16 text-2xl shadow-2xl uppercase italic rounded-3xl transform hover:scale-105 transition-all"
+                >
+                  Activar Cuenta Empresa
+                </Button>
+              </Link>
+            ) : (
               <Button
+                asChild
                 size="lg"
-                className="bg-white text-accent hover:bg-gray-100 font-black h-20 px-16 text-2xl shadow-2xl uppercase italic rounded-3xl transform hover:scale-105 transition-all"
+                className="bg-white text-accent hover:bg-gray-100 font-black h-20 px-16 text-2xl shadow-2xl uppercase italic rounded-3xl transform hover:scale-105 transition-all gap-3"
               >
-                Activar Cuenta Empresa
+                <a href={WHATSAPP_URL} target="_blank">
+                  <MessageCircle className="h-8 w-8" /> Activar Plan Empresas
+                </a>
               </Button>
-            </Link>
+            )}
           </div>
           <p className="text-[10px] uppercase font-black tracking-[0.3em] opacity-50 pt-8">
             Sin contratos a largo plazo • Cancela cuando quieras

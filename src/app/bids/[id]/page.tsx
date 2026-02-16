@@ -36,7 +36,8 @@ import {
   ArrowUpRight,
   Lock,
   CheckCircle2,
-  LockKeyhole
+  LockKeyhole,
+  MessageCircle
 } from "lucide-react"
 import Link from "next/link"
 import { useToast } from "@/hooks/use-toast"
@@ -46,6 +47,7 @@ import { useDoc, useFirestore, useMemoFirebase, useUser } from "@/firebase"
 import { doc, setDoc, deleteDoc, updateDoc, increment } from "firebase/firestore"
 
 const DEMO_AI_LIMIT = 3;
+const WHATSAPP_URL = "https://wa.me/56941245316?text=Hola,%20quiero%20activar%20el%20plan%20corporativo%20para%20mi%20empresa.";
 
 export default function BidDetailPage() {
   const params = useParams()
@@ -434,9 +436,15 @@ export default function BidDetailPage() {
                           </div>
                         ))}
                       </div>
-                      <div className="pt-4 flex items-center gap-4">
-                        <ArrowUpRight className="h-6 w-6 text-white animate-pulse" />
-                        <p className="text-xs font-black uppercase tracking-widest opacity-80 italic">Contáctanos vía WhatsApp para activar tu cuenta empresa.</p>
+                      <div className="pt-6 flex flex-col sm:flex-row items-center gap-4">
+                        <Button asChild size="lg" className="w-full sm:w-auto bg-white text-accent hover:bg-gray-100 font-black uppercase italic h-14 px-10 gap-2 shadow-2xl">
+                          <a href={WHATSAPP_URL} target="_blank">
+                            <MessageCircle className="h-5 w-5" /> Activar Plan Empresas
+                          </a>
+                        </Button>
+                        <p className="text-xs font-black uppercase tracking-widest opacity-80 italic flex items-center gap-2">
+                          <ArrowUpRight className="h-4 w-4 animate-pulse" /> Soporte vía WhatsApp 24/7
+                        </p>
                       </div>
                     </CardContent>
                   </Card>
@@ -457,7 +465,7 @@ export default function BidDetailPage() {
                         <p className="text-sm font-medium opacity-80 leading-relaxed italic">{analysis.reasoning}</p>
                       </div>
                     </CardContent>
-                  </Card>
+                  </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                     <Card className="border-none shadow-lg bg-red-50/50">
@@ -530,7 +538,7 @@ export default function BidDetailPage() {
                         </p>
                       </div>
                       <Button asChild className="w-full bg-[#25D366] hover:bg-[#20ba5a] text-white font-black uppercase italic h-12 text-xs">
-                        <a href="https://wa.me/56941245316?text=Hola,%20he%20agotado%20mis%20creditos%20demo%20y%20quiero%20contratar%20el%20plan%20corporativo." target="_blank">
+                        <a href={WHATSAPP_URL} target="_blank">
                           Activar Plan Empresas
                         </a>
                       </Button>

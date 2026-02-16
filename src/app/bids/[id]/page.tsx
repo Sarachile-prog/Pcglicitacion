@@ -22,7 +22,9 @@ import {
   RefreshCw,
   Info,
   Bookmark,
-  BookmarkCheck
+  BookmarkCheck,
+  FileText,
+  CheckSquare
 } from "lucide-react"
 import Link from "next/link"
 import { useToast } from "@/hooks/use-toast"
@@ -42,7 +44,6 @@ export default function BidDetailPage() {
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [analysis, setAnalysis] = useState<PostulationAdvisorOutput | null>(null)
 
-  // CARGA LOCAL FIRST: Obtenemos los datos desde nuestra base de datos Firestore
   const bidRef = useMemoFirebase(() => {
     if (!db || !bidId) return null
     return doc(db, "bids", bidId)
@@ -50,7 +51,6 @@ export default function BidDetailPage() {
 
   const { data: bid, isLoading: isDocLoading } = useDoc(bidRef)
 
-  // BOOKMARK LOGIC
   const bookmarkRef = useMemoFirebase(() => {
     if (!db || !user || !bidId) return null
     return doc(db, "users", user.uid, "bookmarks", bidId)
@@ -58,7 +58,6 @@ export default function BidDetailPage() {
 
   const { data: bookmark, isLoading: isBookmarkLoading } = useDoc(bookmarkRef)
 
-  // Intentar refrescar datos detallados (ítems, descripción larga, monto real) en segundo plano
   useEffect(() => {
     if (bidId && !isDocLoading && bid && !bid.fullDetailAt) {
       handleRefreshData(false)
@@ -135,7 +134,7 @@ export default function BidDetailPage() {
       toast({
         variant: "destructive",
         title: "Error de Análisis",
-        description: "La IA no pudo procesar los datos en este momento.",
+        description: "La IA no pudo procesar los datos. Verifica tu conexión.",
       })
     } finally {
       setLoadingAI(false)
@@ -351,6 +350,7 @@ export default function BidDetailPage() {
           <TabsContent value="ai-advisor" className="animate-in slide-in-from-bottom-4 duration-500">
              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="lg:col-span-2 space-y-6">
+                  {/* ALERTAS */}
                   <Card className="border-red-100 bg-red-50/30">
                     <CardHeader>
                       <CardTitle className="text-red-700 flex items-center gap-2">
@@ -366,6 +366,34 @@ export default function BidDetailPage() {
                     </CardContent>
                   </Card>
 
+                  {/* CHECKLIST DE FORMULARIOS */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-primary flex items-center gap-2">
+                        <CheckSquare className="h-6 w-6 text-accent" /> Documentación Requerida
+                      </CardTitle>
+                      <CardDescription>Formularios y anexos identificados por la IA en las bases.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="grid gap-4">
+                      {analysis.formChecklist.map((form, i) => (
+                        <div key={i} className="p-4 bg-muted/20 rounded-xl border space-y-3">
+                          <div className="flex justify-between items-start">
+                            <h4 className="font-bold text-primary flex items-center gap-2">
+                              <FileText className="h-4 w-4 text-muted-foreground" /> {form.formName}
+                            </h4>
+                          </div>
+                          <p className="text-xs text-muted-foreground leading-relaxed">{form.purpose}</p>
+                          <div className="flex flex-wrap gap-2">
+                            {form.dataRequired.map((data, j) => (
+                              <Badge key={j} variant="outline" className="bg-white text-[10px]">{data}</Badge>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </CardContent>
+                  </Card>
+
+                  {/* HITOS */}
                   <Card>
                     <CardHeader>
                       <CardTitle className="text-primary flex items-center gap-2">
@@ -380,14 +408,19 @@ export default function BidDetailPage() {
                               <p className="font-bold text-sm text-primary">{item.event}</p>
                               <p className="text-xs text-muted-foreground">{item.date}</p>
                             </div>
-                            <Badge variant="outline" className="uppercase text-[10px]">{item.criticality}</Badge>
+                            <Badge variant="outline" className={cn(
+                              "uppercase text-[10px]",
+                              item.criticality === 'alta' ? 'border-red-200 text-red-700 bg-red-50' : ''
+                            )}>{item.criticality}</Badge>
                           </div>
                         ))}
                       </div>
                     </CardContent>
                   </Card>
                 </div>
+
                 <div className="space-y-6">
+                  {/* VERDICTO FINAL */}
                   <Card className="bg-primary text-white border-none shadow-xl h-fit">
                     <CardHeader>
                       <CardTitle className="flex items-center gap-2 text-xl">
@@ -398,8 +431,34 @@ export default function BidDetailPage() {
                       <p className="text-primary-foreground/90 leading-relaxed font-medium">
                         {analysis.strategicAdvice}
                       </p>
+                      <div className="p-4 bg-white/10 rounded-xl border border-white/20">
+                        <p className="text-[10px] uppercase font-bold text-accent mb-2">Razonamiento del Asesor</p>
+                        <p className="text-xs italic opacity-80 leading-relaxed">
+                          {analysis.reasoning}
+                        </p>
+                      </div>
                     </CardContent>
                   </Card>
+
+                  {/* LEADS POTENCIALES */}
+                  {analysis.identifiedLeads.length > 0 && (
+                    <Card className="border-accent/20 bg-accent/5">
+                      <CardHeader>
+                        <CardTitle className="text-sm font-bold flex items-center gap-2">
+                          <Building2 className="h-4 w-4 text-accent" /> Inteligencia de Leads
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-3">
+                        {analysis.identifiedLeads.map((lead, i) => (
+                          <div key={i} className="p-3 bg-white rounded-lg border border-accent/10 shadow-sm">
+                            <p className="font-bold text-sm text-primary">{lead.name}</p>
+                            <p className="text-[10px] text-accent font-bold uppercase mb-1">{lead.role}</p>
+                            <p className="text-[10px] text-muted-foreground italic">{lead.reason}</p>
+                          </div>
+                        ))}
+                      </CardContent>
+                    </Card>
+                  )}
                 </div>
               </div>
           </TabsContent>

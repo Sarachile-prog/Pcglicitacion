@@ -51,7 +51,10 @@ export type ExtractAndSummarizeBidDetailsInput = z.infer<typeof ExtractAndSummar
 export async function testAiConnection() {
   console.log('>>> [AI_DIAGNOSTIC] Probando conexión con Gemini...');
   try {
-    const { text } = await ai.generate('Hola, responde brevemente: ¿Estás activo?');
+    const { text } = await ai.generate({
+      model: 'googleai/gemini-1.5-flash',
+      prompt: 'Hola, responde brevemente: ¿Estás activo?',
+    });
     return { success: true, response: text };
   } catch (error: any) {
     console.error('>>> [AI_DIAGNOSTIC_ERROR]:', error.message);
@@ -71,12 +74,7 @@ export async function extractAndSummarizeBidDetails(
     const { output } = await ai.generate({
       model: 'googleai/gemini-1.5-flash',
       system: `Eres un Asesor Senior Experto en Licitaciones de Mercado Público Chile (Ley 19.886).
-      Tu objetivo es analizar bases administrativas y técnicas para:
-      1. Detectar riesgos (Garantías altas, plazos cortos, multas).
-      2. Facilitar la postulación (Checklist de formularios y anexos).
-      3. Identificar leads para prospección comercial.
-      
-      Responde siempre de forma profesional, clara y estratégica.`,
+      Tu objetivo es analizar bases administrativas y técnicas para detectar riesgos, facilitar la postulación (checklist) e identificar leads.`,
       prompt: `Analiza detalladamente esta licitación y genera el informe estratégico:
       
       ID: ${input.bidId || 'N/A'}
@@ -85,13 +83,12 @@ export async function extractAndSummarizeBidDetails(
       
       Instrucciones específicas:
       - Si no encuentras montos explícitos, indica "A definir en bases".
-      - En el checklist de formularios, busca nombres como "Anexo N°1", "Formulario de Experiencia", etc.
-      - En leads, busca nombres de jefes de proyecto o contactos técnicos.`,
+      - En el checklist de formularios, busca nombres como "Anexo N°1", "Formulario de Experiencia", etc.`,
       output: {
         schema: PostulationAdvisorOutputSchema,
       },
       config: {
-        temperature: 0.1, // Respuesta más precisa y menos creativa
+        temperature: 0.1,
       }
     });
 

@@ -146,7 +146,9 @@ export default function BidsListPage() {
   const formatDate = (dateString?: string) => {
     if (!dateString) return '---';
     try {
-      return new Date(dateString).toLocaleDateString('es-CL', {
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) return '---';
+      return date.toLocaleDateString('es-CL', {
         day: '2-digit',
         month: '2-digit',
         year: 'numeric'
@@ -217,7 +219,7 @@ export default function BidsListPage() {
         <AlertTitle className="text-blue-800 font-bold">Nota sobre la Cobertura de Datos</AlertTitle>
         <AlertDescription className="text-blue-700 text-xs">
           La búsqueda y filtros se aplican sobre las licitaciones <strong>ya sincronizadas</strong> en tu base de datos local. 
-          El sistema auto-sincroniza nuevos datos cada mañana a las 08:00 AM. Si necesitas buscar en fechas pasadas, utiliza el importador superior.
+          Si una fecha no tiene datos, utiliza el importador superior. Las fechas de publicación se completan automáticamente al abrir cada licitación.
         </AlertDescription>
       </Alert>
 
@@ -362,7 +364,7 @@ export default function BidsListPage() {
                 </TooltipTrigger>
                 <TooltipContent className="max-w-xs p-4">
                   <p className="text-xs leading-relaxed font-medium">
-                    Mostramos hasta las últimas 1,000 licitaciones sincronizadas. Si buscas algo y no aparece, sincroniza el día de publicación usando el importador.
+                    Mostramos hasta las últimas 1,000 licitaciones sincronizadas. Para obtener fechas de publicación de registros antiguos, abre el detalle de la licitación.
                   </p>
                 </TooltipContent>
               </Tooltip>
@@ -400,7 +402,7 @@ export default function BidsListPage() {
                     <div className="space-y-3 text-sm text-muted-foreground">
                       <div className="flex items-start gap-2">
                         <Building2 className="h-4 w-4 shrink-0 text-accent mt-0.5" />
-                        <span className="line-clamp-2 font-medium leading-tight uppercase text-xs">{bid.entity}</span>
+                        <span className="line-clamp-2 font-medium leading-tight uppercase text-xs">{bid.entity || "Cargando Institución..."}</span>
                       </div>
                       <div className="grid grid-cols-2 gap-2 pt-2">
                         <div className="flex items-center gap-1.5">
@@ -443,8 +445,8 @@ export default function BidsListPage() {
                   <TableRow>
                     <TableHead className="w-[120px] font-bold">ID</TableHead>
                     <TableHead className="min-w-[250px] font-bold">Título / Institución</TableHead>
-                    <TableHead className="font-bold">Publicación</TableHead>
-                    <TableHead className="font-bold text-red-600">Cierre</TableHead>
+                    <TableHead className="font-bold text-center">Publicación</TableHead>
+                    <TableHead className="font-bold text-red-600 text-center">Cierre</TableHead>
                     <TableHead className="font-bold">Estado</TableHead>
                     <TableHead className="text-right font-bold">Monto Estimado</TableHead>
                     <TableHead className="w-[50px]"></TableHead>
@@ -460,14 +462,14 @@ export default function BidsListPage() {
                         <Link href={`/bids/${bid.id}`} className="space-y-1 block">
                           <p className="font-bold text-sm line-clamp-1 group-hover:text-accent transition-colors uppercase italic">{bid.title}</p>
                           <p className="text-[10px] text-muted-foreground flex items-center gap-1 uppercase font-medium">
-                            <Building2 className="h-3 w-3" /> {bid.entity}
+                            <Building2 className="h-3 w-3" /> {bid.entity || "Cargando..."}
                           </p>
                         </Link>
                       </TableCell>
-                      <TableCell className="text-xs font-medium text-muted-foreground">
+                      <TableCell className="text-xs font-medium text-muted-foreground text-center">
                         {formatDate(bid.publishedDate)}
                       </TableCell>
-                      <TableCell className="text-xs font-bold text-primary">
+                      <TableCell className="text-xs font-bold text-primary text-center">
                         {formatDate(bid.deadlineDate)}
                       </TableCell>
                       <TableCell>

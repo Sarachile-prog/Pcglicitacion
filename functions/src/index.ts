@@ -76,8 +76,20 @@ async function performSync(date: string) {
     
     const title = bid.Nombre || bid.NombreLicitacion || "Sin título";
     const status = bid.Estado || bid.EstadoLicitacion || "No definido";
-    const entity = bid.Organismo?.NombreOrganismo || bid.Organismo || bid.Institucion || "Institución no especificada";
+    
+    // Mapeo robusto de Organismo
+    let entity = "Institución no especificada";
+    if (bid.Organismo) {
+      entity = bid.Organismo.NombreOrganismo || bid.Organismo.Nombre || (typeof bid.Organismo === 'string' ? bid.Organismo : entity);
+    } else if (bid.Institucion) {
+      entity = bid.Institucion;
+    }
+    
     const amount = bid.MontoEstimado || bid.Monto || 0;
+    
+    // Fechas con fallback
+    const publishedDate = bid.FechaPublicacion || null;
+    const deadlineDate = bid.FechaCierre || bid.FechaCierreLicitacion || null;
     
     const bidRef = db.collection("bids").doc(bid.CodigoExterno);
     batch.set(bidRef, {
@@ -85,8 +97,8 @@ async function performSync(date: string) {
       title,
       entity,
       status,
-      publishedDate: bid.FechaPublicacion || null,
-      deadlineDate: bid.FechaCierre || bid.FechaCierreLicitacion || null,
+      publishedDate,
+      deadlineDate,
       amount,
       currency: bid.Moneda || 'CLP',
       scrapedAt: nowServer,
@@ -161,12 +173,20 @@ export const getBidDetail = onRequest({
 
     if (apiData.Listado && apiData.Listado.length > 0) {
       const detail = apiData.Listado[0];
+      
+      let entity = "Institución no especificada";
+      if (detail.Organismo) {
+        entity = detail.Organismo.NombreOrganismo || detail.Organismo.Nombre || (typeof detail.Organismo === 'string' ? detail.Organismo : entity);
+      }
+
       await admin.firestore().collection("bids").doc(code).update({
         description: detail.Descripcion || "Sin descripción adicional.",
         items: detail.Items?.Listado || [],
         amount: detail.MontoEstimado || 0,
         currency: detail.Moneda || 'CLP',
-        entity: detail.Organismo?.NombreOrganismo || detail.Organismo || "Institución no especificada",
+        entity: entity,
+        publishedDate: detail.FechaPublicacion || null,
+        deadlineDate: detail.FechaCierre || null,
         fullDetailAt: admin.firestore.FieldValue.serverTimestamp()
       });
       response.json({ success: true, data: detail });

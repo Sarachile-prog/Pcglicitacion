@@ -64,29 +64,43 @@ export default function BidApplyPage() {
   const [isUploading, setIsUploading] = useState(false)
   const [isAuditing, setIsAuditing] = useState(false)
 
+  // Referencia al seguimiento del usuario (bookmark)
   const bookmarkRef = useMemoFirebase(() => {
     if (!db || !user || !bidId) return null
     return doc(db, "users", user.uid, "bookmarks", bidId)
   }, [db, user, bidId])
 
-  const { data: bookmark, isLoading } = useDoc(bookmarkRef)
+  const { data: bookmark, isLoading: isBookmarkLoading } = useDoc(bookmarkRef)
+
+  // Referencia a la licitación global (para fallback de análisis si el bookmark está vacío)
+  const bidRef = useMemoFirebase(() => {
+    if (!db || !bidId) return null
+    return doc(db, "bids", bidId)
+  }, [db, bidId])
+
+  const { data: bid, isLoading: isBidLoading } = useDoc(bidRef)
 
   useEffect(() => {
-    if (bookmark?.annexes) {
+    if (bookmark?.annexes && bookmark.annexes.length > 0) {
       setAnnexes(bookmark.annexes)
-    } else if (bookmark?.timeline) {
-      // Si no hay anexos pero hay análisis previo, intentamos poblar desde el checklist de la IA
-      const analysis = (bookmark as any).aiAnalysis || {}
-      if (analysis.formChecklist) {
+    } else {
+      // Fallback: Si no hay anexos en el bookmark, intentamos sacar del análisis (ya sea del bookmark o de la bid global)
+      const analysis = (bookmark as any)?.aiAnalysis || bid?.aiAnalysis || null
+      if (analysis?.formChecklist) {
         const initialAnnexes = analysis.formChecklist.map((f: any) => ({
           name: f.formName,
           purpose: f.purpose,
           status: 'pending'
         }))
         setAnnexes(initialAnnexes)
+        
+        // Opcional: Persistir estos anexos iniciales en el bookmark si ya existe el doc
+        if (bookmarkRef && bookmark && !bookmark.annexes) {
+          updateDoc(bookmarkRef, { annexes: initialAnnexes })
+        }
       }
     }
-  }, [bookmark])
+  }, [bookmark, bid])
 
   const handleUploadAnnex = async () => {
     if (!selectedAnnex || !bookmarkRef) return
@@ -123,10 +137,12 @@ export default function BidApplyPage() {
     setIsAuditing(true)
     try {
       toast({ title: "Auditoría en Curso", description: `Revisando rigor técnico de ${annex.name}...` })
+      const strategicContext = (bookmark as any)?.aiAnalysis || bid?.aiAnalysis || {}
+      
       const result = await auditBidProposal({
         bidId,
         proposalText: annex.content,
-        strategicContext: (bookmark as any).aiAnalysis || {}
+        strategicContext
       })
 
       const updatedAnnexes = annexes.map(a => 
@@ -163,7 +179,10 @@ export default function BidApplyPage() {
     toast({ title: "Documento Eliminado", description: "Se ha liberado el espacio del anexo." })
   }
 
+  const isLoading = isBookmarkLoading || isBidLoading
+
   if (isLoading) return <div className="flex justify-center py-24"><Loader2 className="animate-spin h-12 w-12 text-primary" /></div>
+  
   if (!bookmark) return (
     <div className="text-center py-24 space-y-4">
       <AlertTriangle className="h-12 w-12 text-orange-500 mx-auto" />
@@ -173,7 +192,8 @@ export default function BidApplyPage() {
     </div>
   )
 
-  const criticalEvents = (bookmark as any).timeline?.filter((e: any) => e.criticality === 'alta') || []
+  const criticalEvents = (bookmark as any).timeline?.filter((e: any) => e.criticality === 'alta') || 
+                         (bid as any)?.aiAnalysis?.timeline?.filter((e: any) => e.criticality === 'alta') || []
 
   return (
     <div className="max-w-7xl mx-auto space-y-8 animate-in fade-in duration-500">
@@ -328,7 +348,7 @@ export default function BidApplyPage() {
                       <Button 
                         variant="outline" 
                         className="h-10 text-xs font-bold gap-2 border-accent text-accent"
-                        disabled={annex.status === 'pending' || isAuditing}
+                        disabled={annexes.length === 0 || annex.status === 'pending' || isAuditing}
                         onClick={() => handleAuditAnnex(annex)}
                       >
                         {isAuditing ? <Loader2 className="animate-spin h-3 w-3" /> : <BrainCircuit className="h-3 w-3" />}

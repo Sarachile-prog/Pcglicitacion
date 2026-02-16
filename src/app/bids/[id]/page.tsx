@@ -114,8 +114,8 @@ export default function BidDetailPage() {
         await deleteDoc(bookmarkRef)
         toast({ title: "Licitación eliminada", description: "Ya no sigues este proceso." })
       } else {
-        // Capturamos el cronograma actual si existe para que el dashboard tenga alertas inmediatas
-        const timelineSnapshot = analysis?.timeline || (bid.aiAnalysis as any)?.timeline || []
+        const currentAnalysis = analysis || (bid.aiAnalysis as any) || null
+        const timelineSnapshot = currentAnalysis?.timeline || []
         
         await setDoc(bookmarkRef, {
           bidId: bid.id,
@@ -123,9 +123,10 @@ export default function BidDetailPage() {
           entity: bid.entity || "No especificada",
           status: bid.status,
           savedAt: new Date().toISOString(),
-          timeline: timelineSnapshot
+          timeline: timelineSnapshot,
+          aiAnalysis: currentAnalysis // Sincronizamos el análisis al bookmark para que la página /apply lo vea
         })
-        toast({ title: "Licitación seguida", description: "Se ha guardado en tu cartera." })
+        toast({ title: "Licitación seguida", description: "Se ha guardado en tu cartera con toda la inteligencia detectada." })
       }
     } catch (e) {
       toast({ variant: "destructive", title: "Error", description: "No se pudo actualizar." })
@@ -152,20 +153,22 @@ export default function BidDetailPage() {
         useLivePortal: true
       })
       
+      // Actualizamos bid global
       await updateDoc(bidRef, {
         aiAnalysis: result,
         lastAnalyzedAt: new Date().toISOString()
       })
 
-      // Si ya está seguida, actualizamos el bookmark también para que el dashboard se refresque
+      // Actualizamos bookmark si existe
       if (bookmarkRef && bookmark) {
         await updateDoc(bookmarkRef, {
-          timeline: result.timeline
+          timeline: result.timeline,
+          aiAnalysis: result
         })
       }
 
       setAnalysis(result)
-      toast({ title: "Análisis Finalizado", description: "La inteligencia ha sido guardada." })
+      toast({ title: "Análisis Finalizado", description: "La inteligencia ha sido guardada y sincronizada." })
     } catch (error: any) {
       toast({ variant: "destructive", title: "Error de Análisis", description: error.message })
     } finally {

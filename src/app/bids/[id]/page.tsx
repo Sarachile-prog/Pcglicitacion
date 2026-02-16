@@ -32,7 +32,10 @@ import {
   Database,
   Users,
   SendHorizontal,
-  ShieldCheck
+  ShieldCheck,
+  ArrowUpRight,
+  Lock,
+  CheckCircle2
 } from "lucide-react"
 import Link from "next/link"
 import { useToast } from "@/hooks/use-toast"
@@ -76,6 +79,8 @@ export default function BidDetailPage() {
   }, [db, profile, bidId])
 
   const { data: bookmark, isLoading: isBookmarkLoading } = useDoc(bookmarkRef)
+
+  const isDemo = user && (!profile || !profile.companyId);
 
   useEffect(() => {
     if (bid?.aiAnalysis) {
@@ -217,7 +222,11 @@ export default function BidDetailPage() {
             variant={bookmark ? "default" : "outline"} 
             size="sm" 
             onClick={handleToggleFollow}
-            className={cn("gap-2 uppercase font-black italic", bookmark ? "bg-accent hover:bg-accent/90" : "border-accent text-accent")}
+            className={cn(
+              "gap-2 uppercase font-black italic transition-all", 
+              bookmark ? "bg-accent hover:bg-accent/90" : "border-accent text-accent hover:bg-accent hover:text-white shadow-[0_0_15px_rgba(38,166,154,0.3)]",
+              isDemo && !bookmark && "animate-pulse"
+            )}
           >
             {bookmark ? <BookmarkCheck className="h-4 w-4" /> : <Bookmark className="h-4 w-4" />}
             {bookmark ? "En Cartera" : "Seguir"}
@@ -356,7 +365,49 @@ export default function BidDetailPage() {
             </TabsContent>
 
             {analysis && (
-              <TabsContent value="ai-advisor" className="animate-in slide-in-from-bottom-4 duration-500">
+              <TabsContent value="ai-advisor" className="animate-in slide-in-from-bottom-4 duration-500 space-y-8">
+                {/* PROMO PARA USUARIOS DEMO */}
+                {isDemo && (
+                  <Card className="bg-accent text-white border-none shadow-[0_20px_50px_rgba(38,166,154,0.4)] overflow-hidden relative group">
+                    <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:rotate-12 transition-transform duration-700">
+                      <Sparkles className="h-32 w-32" />
+                    </div>
+                    <CardHeader className="relative z-10">
+                      <div className="flex items-center gap-3 mb-2">
+                        <Badge className="bg-white text-accent font-black animate-bounce">PLAN CORPORATIVO</Badge>
+                        <CardTitle className="text-2xl font-black italic uppercase tracking-tighter">¡Potencia tu Equipo con PCG!</CardTitle>
+                      </div>
+                      <p className="text-lg font-medium leading-tight italic">
+                        Has activado la IA, pero este es solo el 10% del poder de la plataforma.
+                      </p>
+                    </CardHeader>
+                    <CardContent className="relative z-10 space-y-6">
+                      <p className="text-sm font-bold bg-black/10 p-4 rounded-xl border border-white/20">
+                        Presiona el botón <span className="text-primary-foreground underline decoration-white font-black px-1">SEGUIR</span> arriba ↗️ para desbloquear estas herramientas exclusivas:
+                      </p>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {[
+                          { icon: Users, text: "Dashboard de Equipo Compartido" },
+                          { icon: SendHorizontal, text: "Carpeta Digital Colaborativa" },
+                          { icon: BrainCircuit, text: "Auditoría IA de Anexos PDF" },
+                          { icon: ShieldCheck, text: "Soporte Estratégico 24/7" },
+                        ].map((item, idx) => (
+                          <div key={idx} className="flex items-center gap-3 text-xs font-black uppercase">
+                            <div className="h-8 w-8 rounded-full bg-white/20 flex items-center justify-center shrink-0">
+                              <item.icon className="h-4 w-4" />
+                            </div>
+                            <span>{item.text}</span>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="pt-4 flex items-center gap-4">
+                        <ArrowUpRight className="h-6 w-6 text-white animate-pulse" />
+                        <p className="text-xs font-black uppercase tracking-widest opacity-80 italic">Contáctanos vía WhatsApp para activar tu cuenta empresa.</p>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
                 <div className="space-y-8">
                   <Card className="bg-primary text-white border-none shadow-2xl overflow-hidden">
                     <CardHeader className="bg-white/10 p-8">

@@ -21,19 +21,17 @@ import {
   Mail,
   AlertTriangle,
   Calendar,
-  ArrowUpRight
+  ArrowUpRight,
+  SendHorizontal
 } from "lucide-react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
-import { formatDistanceToNow } from 'date-fns'
-import { es } from 'date-fns/locale'
 
 export default function DashboardPage() {
   const db = useFirestore()
   const { user, isUserLoading } = useUser()
 
-  // Bids Recientes
   const bidsQuery = useMemoFirebase(() => {
     if (!db) return null
     return query(
@@ -45,7 +43,6 @@ export default function DashboardPage() {
 
   const { data: bids, isLoading: isBidsLoading } = useCollection(bidsQuery)
 
-  // Bids Seguidas (Bookmarks)
   const bookmarksQuery = useMemoFirebase(() => {
     if (!db || !user) return null
     return query(
@@ -58,7 +55,6 @@ export default function DashboardPage() {
 
   const totalAmount = bids?.reduce((acc, bid) => acc + (Number(bid.amount) || 0), 0) || 0
 
-  // Extraer alertas críticas de los bookmarks
   const criticalAlerts = bookmarks?.flatMap(bookmark => {
     const timeline = (bookmark as any).timeline || []
     return timeline
@@ -93,7 +89,6 @@ export default function DashboardPage() {
         </Link>
       </div>
 
-      {/* ALERTAS CRÍTICAS (SURVIVAL STRIP) */}
       {criticalAlerts.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {criticalAlerts.map((alert, i) => (
@@ -122,7 +117,6 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* STATS STRIP */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <Card className="bg-white border-none shadow-sm">
           <CardContent className="p-6 flex items-center gap-4">
@@ -192,21 +186,37 @@ export default function DashboardPage() {
                 <div className="p-10 text-center"><Loader2 className="h-8 w-8 animate-spin mx-auto text-primary/20" /></div>
               ) : bookmarks && bookmarks.length > 0 ? (
                 <div className="divide-y">
-                  {bookmarks.map((item) => (
-                    <Link key={item.id} href={`/bids/${item.bidId}`} className="flex items-center justify-between p-6 hover:bg-muted/30 transition-colors group">
-                      <div className="space-y-1 min-w-0 flex-1 mr-4">
-                        <div className="flex items-center gap-2">
-                           <Badge variant="outline" className="text-[10px] font-mono border-primary/20">{item.bidId}</Badge>
-                           <Badge className="text-[10px] bg-emerald-500 text-white uppercase">{item.status}</Badge>
+                  {bookmarks.map((item) => {
+                    const prepStatus = (item as any).preparationStatus || "En Estudio";
+                    return (
+                      <Link key={item.id} href={`/bids/${item.bidId}`} className="flex items-center justify-between p-6 hover:bg-muted/30 transition-colors group">
+                        <div className="space-y-1 min-w-0 flex-1 mr-4">
+                          <div className="flex items-center gap-2">
+                             <Badge variant="outline" className="text-[10px] font-mono border-primary/20">{item.bidId}</Badge>
+                             <Badge className={cn(
+                               "text-[10px] uppercase font-bold",
+                               prepStatus === 'Presentada' ? "bg-emerald-500 text-white" :
+                               prepStatus === 'Lista para Envío' ? "bg-teal-600 text-white" : "bg-accent text-white"
+                             )}>
+                               {prepStatus}
+                             </Badge>
+                          </div>
+                          <h4 className="font-bold text-primary group-hover:text-accent transition-colors truncate">{item.title}</h4>
+                          <p className="text-xs text-muted-foreground flex items-center gap-1">
+                            <Building2 className="h-3 w-3" /> {item.entity}
+                          </p>
                         </div>
-                        <h4 className="font-bold text-primary group-hover:text-accent transition-colors truncate">{item.title}</h4>
-                        <p className="text-xs text-muted-foreground flex items-center gap-1">
-                          <Building2 className="h-3 w-3" /> {item.entity}
-                        </p>
-                      </div>
-                      <ChevronRight className="h-5 w-5 text-muted-foreground group-hover:text-accent group-hover:translate-x-1 transition-all" />
-                    </Link>
-                  ))}
+                        <div className="flex items-center gap-4">
+                          <Link href={`/bids/${item.bidId}/apply`} className="hidden md:block">
+                            <Button variant="ghost" size="sm" className="h-8 text-[10px] font-bold gap-2 text-accent border border-accent/20">
+                              <SendHorizontal className="h-3 w-3" /> Carpetas
+                            </Button>
+                          </Link>
+                          <ChevronRight className="h-5 w-5 text-muted-foreground group-hover:text-accent group-hover:translate-x-1 transition-all" />
+                        </div>
+                      </Link>
+                    );
+                  })}
                 </div>
               ) : (
                 <div className="p-20 text-center space-y-4">

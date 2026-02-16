@@ -122,9 +122,10 @@ export default function BidDetailPage() {
           title: bid.title,
           entity: bid.entity || "No especificada",
           status: bid.status,
+          preparationStatus: "En Estudio",
           savedAt: new Date().toISOString(),
           timeline: timelineSnapshot,
-          aiAnalysis: currentAnalysis // Sincronizamos el análisis al bookmark para que la página /apply lo vea
+          aiAnalysis: currentAnalysis
         })
         toast({ title: "Licitación seguida", description: "Se ha guardado en tu cartera con toda la inteligencia detectada." })
       }
@@ -153,13 +154,11 @@ export default function BidDetailPage() {
         useLivePortal: true
       })
       
-      // Actualizamos bid global
       await updateDoc(bidRef, {
         aiAnalysis: result,
         lastAnalyzedAt: new Date().toISOString()
       })
 
-      // Actualizamos bookmark si existe
       if (bookmarkRef && bookmark) {
         await updateDoc(bookmarkRef, {
           timeline: result.timeline,

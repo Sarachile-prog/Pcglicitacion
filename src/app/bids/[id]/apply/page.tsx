@@ -18,6 +18,13 @@ import {
   DialogFooter
 } from "@/components/ui/dialog"
 import { 
+  Select, 
+  SelectContent, 
+  SelectItem, 
+  SelectTrigger, 
+  SelectValue 
+} from "@/components/ui/select"
+import { 
   Loader2, 
   ChevronLeft, 
   ShieldCheck, 
@@ -34,7 +41,8 @@ import {
   Trash2,
   FileUp,
   FileCheck,
-  Cloud
+  Cloud,
+  CheckCircle2 as CheckCircleIcon
 } from "lucide-react"
 import { auditBidProposal, AuditOutput } from "@/ai/flows/audit-bid-proposal"
 import { useToast } from "@/hooks/use-toast"
@@ -48,6 +56,8 @@ interface AnnexDocument {
   fileName?: string | null;
   auditResult?: AuditOutput | null;
 }
+
+const PREPARATION_STATUSES = ["En Estudio", "En Preparación", "Lista para Envío", "Presentada", "Finalizada"];
 
 export default function BidApplyPage() {
   const params = useParams()
@@ -73,7 +83,6 @@ export default function BidApplyPage() {
   const { data: bookmark, isLoading: isBookmarkLoading } = useDoc(bookmarkRef)
   const { data: bid, isLoading: isBidLoading } = useDoc(useMemoFirebase(() => db && bidId ? doc(db, "bids", bidId) : null, [db, bidId]))
 
-  // Sincronizar estado local con Firestore
   useEffect(() => {
     if (bookmark?.annexes && bookmark.annexes.length > 0) {
       setAnnexes(bookmark.annexes)
@@ -89,7 +98,6 @@ export default function BidApplyPage() {
           auditResult: null
         }))
         setAnnexes(initialAnnexes)
-        // Solo inicializamos si no existe el campo en el bookmark
         if (bookmarkRef && bookmark && !bookmark.annexes) {
           updateDoc(bookmarkRef, { annexes: initialAnnexes })
         }
@@ -97,7 +105,6 @@ export default function BidApplyPage() {
     }
   }, [bookmark, bid, bookmarkRef])
 
-  // Cálculos derivados para la cabecera
   const stats = useMemo(() => {
     const total = annexes.length;
     const uploaded = annexes.filter(a => a.status !== 'pending').length;
@@ -105,6 +112,19 @@ export default function BidApplyPage() {
     const toCorrect = annexes.filter(a => a.status === 'error').length;
     return { total, uploaded, ready, toCorrect };
   }, [annexes]);
+
+  const handleStatusChange = async (newStatus: string) => {
+    if (!bookmarkRef) return
+    setIsSyncing(true)
+    try {
+      await updateDoc(bookmarkRef, { preparationStatus: newStatus })
+      toast({ title: "Estado Actualizado", description: `La licitación ahora está ${newStatus}.` })
+    } catch (error: any) {
+      toast({ variant: "destructive", title: "Error", description: error.message })
+    } finally {
+      setIsSyncing(false)
+    }
+  }
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -122,14 +142,16 @@ export default function BidApplyPage() {
       const reader = new FileReader()
       reader.onload = async (event) => {
         const base64String = event.target?.result as string
-        
         const updatedAnnexes: AnnexDocument[] = annexes.map(a => 
           a.name === selectedAnnex.name 
             ? { ...a, fileDataUri: base64String, fileName: file.name, status: 'uploaded' as const, auditResult: null } 
             : a
         )
         
-        await updateDoc(bookmarkRef, { annexes: updatedAnnexes })
+        await updateDoc(bookmarkRef, { 
+          annexes: updatedAnnexes,
+          preparationStatus: (bookmark as any)?.preparationStatus === "En Estudio" ? "En Preparación" : (bookmark as any)?.preparationStatus
+        })
         setAnnexes(updatedAnnexes)
         toast({ title: "Documento Guardado", description: `${file.name} ahora está en tu carpeta segura.` })
         setIsDialogOpen(false)
@@ -163,7 +185,6 @@ export default function BidApplyPage() {
         strategicContext
       })
 
-      // Limpiar undefined para Firestore
       const cleanResult = JSON.parse(JSON.stringify(result));
 
       const updatedAnnexes: AnnexDocument[] = annexes.map(a => 
@@ -217,18 +238,19 @@ export default function BidApplyPage() {
                          (bid as any)?.aiAnalysis?.timeline?.filter((e: any) => e.criticality === 'alta') || []
 
   const displayTitle = bid?.title || bookmark?.title || "Cargando licitación..."
+  const currentPrepStatus = (bookmark as any)?.preparationStatus || "En Estudio";
 
   return (
     <div className="max-w-7xl mx-auto space-y-8 animate-in fade-in duration-500">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b pb-6">
         <div className="space-y-2 flex-1 min-w-0">
           <Button variant="ghost" onClick={() => router.back()} className="text-muted-foreground group -ml-4">
-            <ChevronLeft className="h-4 w-4 mr-1 group-hover:-translate-x-1 transition-transform" /> Regresar al Detalle
+            <ChevronLeft className="h-4 w-4 mr-1" /> Regresar al Detalle
           </Button>
           <h1 className="text-2xl font-black text-primary leading-tight line-clamp-2 italic uppercase">
             {displayTitle}
           </h1>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Badge variant="outline" className="text-primary border-primary/20 uppercase font-black text-[10px]">Carpeta Digital de Licitación</Badge>
             <Badge className="bg-primary text-white font-mono text-[10px]">{bidId}</Badge>
             {isSyncing ? (
@@ -241,6 +263,23 @@ export default function BidApplyPage() {
               </Badge>
             )}
           </div>
+        </div>
+        
+        <div className="flex flex-col items-end gap-2">
+           <p className="text-[10px] font-black uppercase text-muted-foreground">Estado de Gestión</p>
+           <Select value={currentPrepStatus} onValueChange={handleStatusChange}>
+             <SelectTrigger className={cn(
+               "w-[200px] h-10 font-bold",
+               currentPrepStatus === 'Presentada' ? "bg-emerald-600 text-white" : "bg-accent text-white"
+             )}>
+               <SelectValue />
+             </SelectTrigger>
+             <SelectContent>
+               {PREPARATION_STATUSES.map(s => (
+                 <SelectItem key={s} value={s}>{s}</SelectItem>
+               ))}
+             </SelectContent>
+           </Select>
         </div>
       </div>
 

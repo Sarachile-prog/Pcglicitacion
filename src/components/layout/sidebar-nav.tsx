@@ -3,7 +3,21 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { LayoutDashboard, Search, PieChart, Info, Settings, Users, Mail, Sparkles, Calculator, ShieldCheck, Building2, Zap, CreditCard } from "lucide-react"
+import { 
+  LayoutDashboard, 
+  Search, 
+  PieChart, 
+  Info, 
+  Settings, 
+  Building2, 
+  Mail, 
+  Sparkles, 
+  Calculator, 
+  ShieldCheck, 
+  CreditCard,
+  Headset,
+  MessageSquareText
+} from "lucide-react"
 import { 
   SidebarMenu, 
   SidebarMenuItem, 
@@ -19,11 +33,10 @@ import { Badge } from "@/components/ui/badge"
 
 export function SidebarNav() {
   const pathname = usePathname()
-  const { setOpen, setOpenMobile, isMobile } = useSidebar()
+  const { isMobile, setOpenMobile } = useSidebar()
   const { user } = useUser()
   const db = useFirestore()
 
-  // Obtenemos el perfil para verificar roles
   const profileRef = useMemoFirebase(() => {
     if (!db || !user) return null
     return doc(db, "users", user.uid)
@@ -54,12 +67,13 @@ export function SidebarNav() {
 
   const adminItems = [
     { name: "Empresas y Usuarios", href: "/admin/leads", icon: Building2, show: isSuperAdmin },
-    { name: "Campañas de Outreach", href: "/admin/outreach", icon: Mail, show: isSuperAdmin },
+    { name: "Gestión de Tickets", href: "/admin/support", icon: Headset, show: isSuperAdmin },
     { name: "Test de IA", href: "/admin/ai-test", icon: Sparkles, show: isSuperAdmin },
     { name: "Costos de Operación", href: "/admin/costs", icon: Calculator, show: isSuperAdmin },
   ]
 
   const supportItems = [
+    { name: "Soporte Técnico", href: "/support", icon: MessageSquareText, show: true },
     { name: "Información Estado", href: "/state-info", icon: Info, show: true },
     { name: "Configuración", href: "/settings", icon: Settings, show: isAdmin },
   ]
@@ -96,7 +110,7 @@ export function SidebarNav() {
         </SidebarGroupContent>
       </SidebarGroup>
 
-      {isLinked && (
+      {(isLinked || isSuperAdmin) && (
         <SidebarGroup>
           <SidebarGroupLabel className="text-sidebar-foreground/50 uppercase text-[10px] font-black tracking-widest">Corporativo</SidebarGroupLabel>
           <SidebarGroupContent>
@@ -144,7 +158,7 @@ export function SidebarNav() {
       )}
 
       <SidebarGroup>
-        <SidebarGroupLabel className="text-sidebar-foreground/50 uppercase text-[10px] font-black tracking-widest">Soporte</SidebarGroupLabel>
+        <SidebarGroupLabel className="text-sidebar-foreground/50 uppercase text-[10px] font-black tracking-widest">Soporte y Ajustes</SidebarGroupLabel>
         <SidebarGroupContent>
           <SidebarMenu>
             {supportItems.filter(i => i.show).map((item) => (

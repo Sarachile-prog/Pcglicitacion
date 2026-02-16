@@ -7,7 +7,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { 
   Briefcase, 
-  Clock, 
   DollarSign, 
   ChevronRight, 
   Building2,
@@ -17,8 +16,6 @@ import {
   Bookmark,
   Loader2,
   TrendingUp,
-  AlertTriangle,
-  ArrowUpRight,
   SendHorizontal,
   RefreshCw,
   Database,
@@ -27,10 +24,10 @@ import {
   Lock,
   LogOut,
   Search,
-  ArrowRight,
   BrainCircuit,
   MessageCircle,
-  CheckCircle2
+  CheckCircle2,
+  Headset
 } from "lucide-react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
@@ -38,8 +35,6 @@ import { cn } from "@/lib/utils"
 import { signOut } from "firebase/auth"
 import { useToast } from "@/hooks/use-toast"
 import { useState } from "react"
-
-const WHATSAPP_URL = "https://wa.me/56941245316?text=Hola,%20ya%20me%20registré%20en%20la%20plataforma%20y%20quiero%20activar%20mi%20Plan%20Empresas.";
 
 export default function DashboardPage() {
   const db = useFirestore()
@@ -76,7 +71,6 @@ export default function DashboardPage() {
     }
   }
 
-  // Licitaciones globales recientes
   const bidsQuery = useMemoFirebase(() => {
     if (!db) return null
     return query(
@@ -88,7 +82,6 @@ export default function DashboardPage() {
 
   const { data: bids, isLoading: isBidsLoading } = useCollection(bidsQuery)
 
-  // Bookmarks corporativos
   const bookmarksQuery = useMemoFirebase(() => {
     if (!db || !profile?.companyId) return null
     return query(
@@ -110,7 +103,6 @@ export default function DashboardPage() {
     )
   }
 
-  // ESTADO 1: USUARIO REGISTRADO PERO NO VINCULADO (ACCESO EN PROCESO)
   if (user && !isSuperAdmin && !isLinkedToCompany) {
     return (
       <div className="max-w-4xl mx-auto py-10 animate-in zoom-in-95 duration-500 space-y-8">
@@ -161,11 +153,11 @@ export default function DashboardPage() {
               </div>
               
               <div className="pt-6 border-t flex flex-col sm:flex-row gap-4">
-                <Button asChild variant="outline" className="flex-1 h-12 border-[#25D366] text-[#25D366] hover:bg-[#25D366]/5 font-black uppercase italic gap-2">
-                  <a href={WHATSAPP_URL} target="_blank">
-                    <MessageCircle className="h-4 w-4" /> Hablar con Soporte
-                  </a>
-                </Button>
+                <Link href="/support" className="flex-1">
+                  <Button variant="outline" className="w-full h-12 border-primary text-primary hover:bg-primary/5 font-black uppercase italic gap-2">
+                    <Headset className="h-4 w-4" /> Centro de Soporte
+                  </Button>
+                </Link>
                 <Button 
                   variant="ghost" 
                   onClick={() => signOut(auth)} 
@@ -219,7 +211,6 @@ export default function DashboardPage() {
     )
   }
 
-  // ESTADO 2: SUPERADMIN O USUARIO VINCULADO (DASHBOARD COMPLETO)
   return (
     <div className="space-y-8 animate-in fade-in duration-700">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">

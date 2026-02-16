@@ -239,6 +239,16 @@ export default function BidApplyPage() {
 
   const displayTitle = bid?.title || bookmark?.title || "Cargando licitación..."
   const currentPrepStatus = (bookmark as any)?.preparationStatus || "En Estudio";
+  const bidStatus = bid?.status || bookmark?.status || "NO DEFINIDO";
+
+  const getStatusColor = (status: string) => {
+    const s = status?.toLowerCase();
+    if (s?.includes('publicada') || s?.includes('abierta')) return 'bg-emerald-600';
+    if (s?.includes('adjudicada')) return 'bg-blue-600';
+    if (s?.includes('desierta') || s?.includes('cancelada')) return 'bg-red-600';
+    if (s?.includes('cerrada')) return 'bg-gray-600';
+    return 'bg-orange-500';
+  };
 
   return (
     <div className="max-w-7xl mx-auto space-y-8 animate-in fade-in duration-500">
@@ -247,11 +257,16 @@ export default function BidApplyPage() {
           <Button variant="ghost" onClick={() => router.back()} className="text-muted-foreground group -ml-4">
             <ChevronLeft className="h-4 w-4 mr-1" /> Regresar al Detalle
           </Button>
+          <div className="flex flex-wrap items-center gap-2 mb-2">
+            <Badge className={cn("text-[10px] font-black uppercase tracking-widest px-3 py-1 shadow-sm", getStatusColor(bidStatus))}>
+              LICITACIÓN {bidStatus}
+            </Badge>
+            <Badge variant="outline" className="text-primary border-primary/20 uppercase font-black text-[10px]">Carpeta Digital</Badge>
+          </div>
           <h1 className="text-2xl font-black text-primary leading-tight line-clamp-2 italic uppercase">
             {displayTitle}
           </h1>
           <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="outline" className="text-primary border-primary/20 uppercase font-black text-[10px]">Carpeta Digital de Licitación</Badge>
             <Badge className="bg-primary text-white font-mono text-[10px]">{bidId}</Badge>
             {isSyncing ? (
               <Badge variant="ghost" className="text-muted-foreground text-[10px] animate-pulse flex items-center gap-1">

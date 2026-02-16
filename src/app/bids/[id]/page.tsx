@@ -5,7 +5,7 @@ import { useParams } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog"
 import { extractAndSummarizeBidDetails, PostulationAdvisorOutput } from "@/ai/flows/extract-and-summarize-bid-details"
@@ -34,14 +34,14 @@ import {
   LockKeyhole,
   MessageCircle,
   Scale,
-  BrainCircuit
+  BrainCircuit,
+  AlertCircle
 } from "lucide-react"
 import Link from "next/link"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
-import { getBidDetail } from "@/services/mercado-publico"
 import { useDoc, useFirestore, useMemoFirebase, useUser } from "@/firebase"
-import { doc, setDoc, deleteDoc, updateDoc } from "firebase/firestore"
+import { doc, setDoc, deleteDoc, updateDoc, increment } from "firebase/firestore"
 
 const WHATSAPP_URL = "https://wa.me/56941245316?text=Hola,%20necesito%20activar%20mi%20plan%20empresas%20para%20acceder%20a%20los%20análisis%20IA.";
 
@@ -53,7 +53,6 @@ export default function BidDetailPage() {
   const { toast } = useToast()
   
   const [loadingAI, setLoadingAI] = useState(false)
-  const [isRefreshing, setIsRefreshing] = useState(false)
   const [analysis, setAnalysis] = useState<PostulationAdvisorOutput | null>(null)
   const [manualText, setManualText] = useState("")
   const [isDialogOpen, setIsDialogOpen] = useState(false)
@@ -89,6 +88,8 @@ export default function BidDetailPage() {
 
   const isSubscriptionActive = company?.subscriptionStatus === 'Active' || profile?.role === 'SuperAdmin'
   const isDemo = !profile?.companyId
+  const demoUsage = profile?.demoUsageCount || 0
+  const isLimitReached = isDemo && demoUsage >= 3
 
   useEffect(() => {
     if (bid?.aiAnalysis) {
@@ -128,13 +129,22 @@ export default function BidDetailPage() {
   }
 
   const handleAnalyze = async (mode: 'fast' | 'deep') => {
-    if (!bid || !bidRef) return
+    if (!bid || !bidRef || !profileRef) return
 
     if (!isSubscriptionActive && !isDemo) {
       toast({ 
         variant: "destructive", 
         title: "Suscripción Inactiva", 
         description: "Tu empresa tiene pagos pendientes. Regulariza para usar la IA." 
+      })
+      return
+    }
+
+    if (isLimitReached) {
+      toast({
+        variant: "destructive",
+        title: "Límite Demo Alcanzado",
+        description: "Has consumido tus 3 análisis de prueba. Activa tu plan para continuar."
       })
       return
     }
@@ -155,6 +165,11 @@ export default function BidDetailPage() {
 
       if (bookmarkRef && bookmark) {
         await updateDoc(bookmarkRef, { aiAnalysis: result })
+      }
+
+      // Incrementar contador si es demo
+      if (isDemo) {
+        await updateDoc(profileRef, { demoUsageCount: increment(1) })
       }
 
       setAnalysis(result)
@@ -407,44 +422,67 @@ export default function BidDetailPage() {
                   <div className="h-16 w-16 bg-primary/5 rounded-full flex items-center justify-center mx-auto mb-4">
                     <BrainCircuit className="h-8 w-8 text-primary" />
                   </div>
-                  <div className="grid gap-3">
-                    <Button 
-                      className="w-full bg-accent hover:bg-accent/90 font-black h-14 text-lg gap-3 shadow-lg uppercase italic" 
-                      onClick={() => handleAnalyze('fast')} 
-                      disabled={loadingAI}
-                    >
-                      {loadingAI ? <Loader2 className="animate-spin h-5 w-5" /> : <Zap className="h-5 w-5" />}
-                      Ejecutar Análisis
-                    </Button>
-                    
-                    <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-                      <DialogTrigger asChild>
-                        <Button variant="outline" className="w-full border-accent text-accent font-black h-12 uppercase italic" disabled={loadingAI}>
-                          Entrenar con PDF (Opcional)
-                        </Button>
-                      </DialogTrigger>
-                      <DialogContent className="max-w-2xl">
-                        <DialogHeader>
-                          <DialogTitle className="text-2xl font-black text-primary uppercase italic">Análisis Profundo</DialogTitle>
-                          <DialogDescription>Pega el texto de las bases para identificar multas y garantías.</DialogDescription>
-                        </DialogHeader>
-                        <Textarea 
-                          placeholder="Pega el texto aquí..." 
-                          className="min-h-[300px] font-mono text-xs p-4 bg-muted/30 border-2"
-                          value={manualText}
-                          onChange={(e) => setManualText(e.target.value)}
-                        />
-                        <DialogFooter>
-                          <Button className="bg-accent hover:bg-accent/90 font-black w-full h-14 uppercase italic shadow-xl" onClick={() => handleAnalyze('deep')} disabled={!manualText || loadingAI}>
-                            {loadingAI ? <Loader2 className="animate-spin" /> : <Sparkles className="mr-2" />} Consumir y Analizar
+                  
+                  {isLimitReached ? (
+                    <div className="p-4 bg-red-50 border border-red-100 rounded-2xl space-y-4">
+                      <div className="flex items-center gap-2 text-red-700 font-black uppercase text-[10px] justify-center">
+                        <AlertCircle className="h-4 w-4" /> Límite Demo Agotado
+                      </div>
+                      <p className="text-[10px] text-red-900/70 font-bold italic">
+                        Has utilizado tus 3 análisis de prueba. Contacta a soporte para activar tu plan ilimitado.
+                      </p>
+                      <Button asChild className="w-full bg-accent hover:bg-accent/90 font-black uppercase italic shadow-lg gap-2">
+                        <a href={WHATSAPP_URL} target="_blank"><MessageCircle className="h-4 w-4" /> Activar Plan</a>
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="grid gap-3">
+                      <Button 
+                        className="w-full bg-accent hover:bg-accent/90 font-black h-14 text-lg gap-3 shadow-lg uppercase italic" 
+                        onClick={() => handleAnalyze('fast')} 
+                        disabled={loadingAI}
+                      >
+                        {loadingAI ? <Loader2 className="animate-spin h-5 w-5" /> : <Zap className="h-5 w-5" />}
+                        Ejecutar Análisis
+                      </Button>
+                      
+                      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                        <DialogTrigger asChild>
+                          <Button variant="outline" className="w-full border-accent text-accent font-black h-12 uppercase italic" disabled={loadingAI}>
+                            Entrenar con PDF (Opcional)
                           </Button>
-                        </DialogFooter>
-                      </DialogContent>
-                    </Dialog>
+                        </DialogTrigger>
+                        <DialogContent className="max-w-2xl">
+                          <DialogHeader>
+                            <DialogTitle className="text-2xl font-black text-primary uppercase italic">Análisis Profundo</DialogTitle>
+                            <DialogDescription>Pega el texto de las bases para identificar multas y garantías.</DialogDescription>
+                          </DialogHeader>
+                          <Textarea 
+                            placeholder="Pega el texto aquí..." 
+                            className="min-h-[300px] font-mono text-xs p-4 bg-muted/30 border-2"
+                            value={manualText}
+                            onChange={(e) => setManualText(e.target.value)}
+                          />
+                          <DialogFooter>
+                            <Button className="bg-accent hover:bg-accent/90 font-black w-full h-14 uppercase italic shadow-xl" onClick={() => handleAnalyze('deep')} disabled={!manualText || loadingAI}>
+                              {loadingAI ? <Loader2 className="animate-spin" /> : <Sparkles className="mr-2" />} Consumir y Analizar
+                            </Button>
+                          </DialogFooter>
+                        </DialogContent>
+                      </Dialog>
+                    </div>
+                  )}
+
+                  <div className="flex flex-col gap-1">
+                    <p className="text-[10px] text-muted-foreground font-black uppercase italic tracking-widest">
+                      {isDemo ? "Acceso Demo Habilitado" : "Acceso Corporativo Ilimitado"}
+                    </p>
+                    {isDemo && !isLimitReached && (
+                      <Badge variant="outline" className="w-fit mx-auto border-accent text-accent text-[9px] font-black uppercase">
+                        Créditos: {demoUsage}/3 utilizados
+                      </Badge>
+                    )}
                   </div>
-                  <p className="text-[10px] text-muted-foreground font-black uppercase italic tracking-widest">
-                    {isDemo ? "Acceso Demo habilitado" : "Acceso Corporativo Ilimitado"}
-                  </p>
                 </div>
               )}
             </CardContent>

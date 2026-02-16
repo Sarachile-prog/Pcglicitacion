@@ -41,7 +41,8 @@
         "role": { "type": "string", "enum": ["User", "Admin", "SuperAdmin"] },
         "companyId": { "type": "string" },
         "status": { "type": "string", "enum": ["Active", "Suspended"] },
-        "termsAccepted": { "type": "boolean" }
+        "termsAccepted": { "type": "boolean" },
+        "demoUsageCount": { "type": "number", "description": "Number of AI analyses performed in demo mode." }
       },
       "required": ["uid", "role"]
     },

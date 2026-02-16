@@ -47,14 +47,13 @@ export type ExtractAndSummarizeBidDetailsInput = z.infer<typeof ExtractAndSummar
 
 /**
  * Función de diagnóstico para probar la conexión con el modelo.
- * Intenta usar el nombre corto del modelo.
  */
 export async function testAiConnection() {
-  console.log('>>> [AI_DIAGNOSTIC] Probando conexión con Gemini...');
+  console.log('>>> [AI_DIAGNOSTIC] Probando conexión con Gemini 2.5 Flash...');
   try {
     const { text } = await ai.generate({
-      model: 'googleai/gemini-1.5-flash',
-      prompt: 'Hola, responde brevemente: ¿Estás activo?',
+      model: 'googleai/gemini-2.5-flash',
+      prompt: 'Hola, responde brevemente: ¿Estás activo en el modelo 2.5?',
     });
     return { success: true, response: text };
   } catch (error: any) {
@@ -82,11 +81,11 @@ export async function listModels() {
 export async function extractAndSummarizeBidDetails(
   input: ExtractAndSummarizeBidDetailsInput
 ): Promise<PostulationAdvisorOutput> {
-  console.log(`>>> [AI_FLOW] Analizando licitación: ${input.bidId || 'Sin ID'}`);
+  console.log(`>>> [AI_FLOW] Analizando licitación con Gemini 2.5: ${input.bidId || 'Sin ID'}`);
   
   try {
     const { output } = await ai.generate({
-      model: 'googleai/gemini-1.5-flash',
+      model: 'googleai/gemini-2.5-flash',
       system: `Eres un Asesor Senior Experto en Licitaciones de Mercado Público Chile (Ley 19.886).
       Tu objetivo es analizar bases administrativas y técnicas para detectar riesgos, facilitar la postulación (checklist) e identificar leads.`,
       prompt: `Analiza detalladamente esta licitación y genera el informe estratégico:

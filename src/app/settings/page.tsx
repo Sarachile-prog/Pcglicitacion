@@ -19,7 +19,9 @@ import {
   AlertCircle,
   Loader2,
   Lock,
-  Unlock
+  Unlock,
+  CalendarClock,
+  CheckCircle2
 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { useFirestore, useDoc, useMemoFirebase, useUser } from "@/firebase"
@@ -153,20 +155,26 @@ export default function SettingsPage() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="border-emerald-200 bg-emerald-50/50">
             <CardHeader>
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Database className="h-5 w-5 text-accent" /> Base de Datos
+              <CardTitle className="text-lg flex items-center gap-2 text-emerald-800">
+                <CalendarClock className="h-5 w-5 text-emerald-600" /> Tareas Programadas
               </CardTitle>
+              <CardDescription className="text-emerald-700/70">Automatización del flujo de datos.</CardDescription>
             </CardHeader>
-            <CardContent>
-              <div className="flex items-center justify-between py-2">
-                <div className="flex items-center gap-3">
-                  <ShieldCheck className="h-4 w-4 text-green-600" />
-                  <span className="text-sm font-medium">Firestore Cloud Storage</span>
+            <CardContent className="space-y-4">
+              <div className="flex items-center justify-between p-4 bg-white rounded-xl border border-emerald-100 shadow-sm">
+                <div className="space-y-1">
+                  <p className="text-sm font-bold text-emerald-900">Sincronización Automática Diaria</p>
+                  <p className="text-xs text-emerald-700">Lunes a Viernes, 08:00 AM (Chile)</p>
                 </div>
-                <Badge variant="outline" className="text-green-600 border-green-200">Activo</Badge>
+                <Badge className="bg-emerald-600 text-white gap-1">
+                  <CheckCircle2 className="h-3 w-3" /> Activo
+                </Badge>
               </div>
+              <p className="text-xs text-emerald-600 italic px-2">
+                * Esta tarea sincroniza automáticamente todas las nuevas licitaciones publicadas en el portal de Mercado Público.
+              </p>
             </CardContent>
           </Card>
         </div>
@@ -191,7 +199,7 @@ export default function SettingsPage() {
               <CardTitle className="text-sm uppercase tracking-widest text-accent">Soporte</CardTitle>
             </CardHeader>
             <CardContent className="text-sm text-primary-foreground/80 leading-relaxed">
-              El ticket de API es vital para la sincronización. Si lo cambias, todas las búsquedas futuras usarán el nuevo ticket inmediatamente.
+              El sistema realiza una limpieza automática de caché cada 24 horas para asegurar que las licitaciones siempre reflejen el estado más reciente del portal oficial.
             </CardContent>
           </Card>
         </div>

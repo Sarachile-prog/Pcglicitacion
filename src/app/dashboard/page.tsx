@@ -22,7 +22,8 @@ import {
   AlertTriangle,
   Calendar,
   ArrowUpRight,
-  SendHorizontal
+  SendHorizontal,
+  RefreshCw
 } from "lucide-react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
@@ -78,13 +79,18 @@ export default function DashboardPage() {
   return (
     <div className="space-y-8 animate-in fade-in duration-700">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
-          <h2 className="text-3xl font-black tracking-tight text-primary italic uppercase">Panel de Control</h2>
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <h2 className="text-3xl font-black tracking-tight text-primary italic uppercase">Panel de Control</h2>
+            <Badge className="bg-emerald-500 text-white gap-1 animate-pulse border-none">
+              <RefreshCw className="h-3 w-3" /> Auto-Sync Activo
+            </Badge>
+          </div>
           <p className="text-muted-foreground">Bienvenido a tu centro de inteligencia estratégica.</p>
         </div>
         <Link href="/bids">
           <Button className="bg-accent hover:bg-accent/90 gap-2 font-bold shadow-lg">
-            <Zap className="h-4 w-4" /> Nueva Sincronización
+            <Zap className="h-4 w-4" /> Nueva Sincronización Manual
           </Button>
         </Link>
       </div>
@@ -92,8 +98,8 @@ export default function DashboardPage() {
       {criticalAlerts.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {criticalAlerts.map((alert, i) => (
-            <Link key={i} href={`/bids/${alert.bidId}/apply`}>
-              <Card className="bg-red-50 border-red-200 border-l-8 border-l-red-600 hover:shadow-md transition-all group">
+            <Link key={i} href={`/bids/${alert.bidId}/apply`} className="block">
+              <Card className="bg-red-50 border-red-200 border-l-8 border-l-red-600 hover:shadow-md transition-all group h-full">
                 <CardContent className="p-4 flex items-start gap-4">
                   <div className="h-10 w-10 rounded-full bg-red-100 flex items-center justify-center shrink-0">
                     <AlertTriangle className="h-5 w-5 text-red-600 animate-pulse" />
@@ -249,11 +255,11 @@ export default function DashboardPage() {
              </CardHeader>
              <CardContent className="space-y-4">
                <p className="text-sm text-primary-foreground/90 leading-relaxed font-medium">
-                 Hemos detectado un incremento del <span className="text-accent font-black">24%</span> en licitaciones de mantenimiento de infraestructura en la Región del Maule. 
+                 La base de datos se actualizó hoy a las 08:00 AM. Se detectaron <span className="text-accent font-black">nuevas oportunidades</span> en el sector de servicios profesionales.
                </p>
                <div className="p-4 bg-white/10 rounded-xl border border-white/20">
                  <p className="text-[10px] uppercase font-bold text-accent mb-1 tracking-widest">Recomendación IA</p>
-                 <p className="text-xs font-semibold">Considera ajustar tus filtros para el rubro "Obras Civiles".</p>
+                 <p className="text-xs font-semibold">El mercado de Obras Civiles está altamente competitivo hoy. Asegúrate de revisar tus costos.</p>
                </div>
              </CardContent>
           </Card>

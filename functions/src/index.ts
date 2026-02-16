@@ -1,12 +1,13 @@
 
 import { onRequest } from "firebase-functions/v2/https";
+import { onSchedule } from "firebase-functions/v2/scheduler";
 import * as admin from "firebase-admin";
 
 if (admin.apps.length === 0) {
   admin.initializeApp();
 }
 
-// Este ticket es de ejemplo y suele estar saturado o bloqueado.
+// Este ticket es de ejemplo y suele estar saturado o bloqueado en producción real.
 const DEFAULT_TICKET = 'F80640D6-AB32-4757-827D-02589D211564';
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
@@ -15,16 +16,92 @@ async function getActiveTicket(): Promise<{ ticket: string, source: string }> {
   try {
     const configDoc = await admin.firestore().collection("settings").doc("mercado_publico").get();
     if (configDoc.exists && configDoc.data()?.ticket) {
-      console.log(">>> [SERVER] Usando ticket personalizado desde Firestore.");
       return { ticket: configDoc.data()?.ticket, source: 'custom' };
     }
   } catch (e) {
-    console.error(">>> [SERVER] Error leyendo ticket de Firestore.");
+    console.error(">>> [SERVER] Error leyendo ticket personalizado.");
   }
-  console.log(">>> [SERVER] Usando ticket predeterminado (posiblemente inválido).");
   return { ticket: DEFAULT_TICKET, source: 'default' };
 }
 
+/**
+ * Lógica central de sincronización reutilizable para triggers manuales (HTTP) y automáticos (CRON).
+ */
+async function performSync(date: string) {
+  const db = admin.firestore();
+  const { ticket: TICKET } = await getActiveTicket();
+  
+  // Verificación de Caché para evitar llamadas innecesarias a la API
+  const cacheRef = db.collection("mp_cache").doc(`sync_${date}`);
+  const cacheSnap = await cacheRef.get();
+  
+  if (cacheSnap.exists && cacheSnap.data()?.status === 'success') {
+    const lastSync = cacheSnap.data()?.lastSync?.toDate();
+    const now = new Date();
+    // Cache de 1 hora
+    if (lastSync && (now.getTime() - lastSync.getTime() < 3600000)) {
+      return { success: true, count: cacheSnap.data()?.count, message: "Datos obtenidos desde caché reciente." };
+    }
+  }
+
+  const apiUrl = `https://api.mercadopublico.cl/servicios/v1/publico/licitaciones.json?fecha=${date}&ticket=${TICKET}`;
+  
+  let apiResponse = await fetch(apiUrl);
+  if (!apiResponse.ok) {
+    throw new Error(`La API respondió con error: ${apiResponse.status}`);
+  }
+
+  let apiData = (await apiResponse.json()) as any;
+
+  // Manejo de saturación de la API (Error 10500)
+  let attempts = 0;
+  while (apiData.Codigo === 10500 && attempts < 5) {
+    attempts++;
+    const waitTime = 2000 * attempts;
+    await sleep(waitTime);
+    apiResponse = await fetch(apiUrl);
+    apiData = (await apiResponse.json()) as any;
+  }
+
+  if (apiData.Codigo) {
+    throw new Error(apiData.Mensaje || "Error desconocido en la API de Mercado Público");
+  }
+
+  const bidsList = apiData.Listado || [];
+  const batch = db.batch();
+  const nowServer = admin.firestore.FieldValue.serverTimestamp();
+
+  bidsList.forEach((bid: any) => {
+    if (!bid.CodigoExterno) return;
+    
+    const title = bid.Nombre || bid.NombreLicitacion || "Sin título";
+    const status = bid.Estado || bid.EstadoLicitacion || "No definido";
+    const entity = bid.Organismo?.NombreOrganismo || bid.Organismo || bid.Institucion || "Institución no especificada";
+    const amount = bid.MontoEstimado || bid.Monto || 0;
+    
+    const bidRef = db.collection("bids").doc(bid.CodigoExterno);
+    batch.set(bidRef, {
+      id: bid.CodigoExterno,
+      title,
+      entity,
+      status,
+      deadlineDate: bid.FechaCierre || bid.FechaCierreLicitacion || null,
+      amount,
+      currency: bid.Moneda || 'CLP',
+      scrapedAt: nowServer,
+      sourceUrl: `https://www.mercadopublico.cl/Procurement/Modules/RFB/DetailsAcquisition.aspx?idLicitacion=${bid.CodigoExterno}`
+    }, { merge: true });
+  });
+
+  batch.set(cacheRef, { lastSync: nowServer, count: bidsList.length, status: 'success' });
+  await batch.commit();
+
+  return { success: true, count: bidsList.length, message: "Sincronización exitosa." };
+}
+
+/**
+ * Trigger Manual: Permite al usuario sincronizar una fecha específica desde el UI.
+ */
 export const getBidsByDate = onRequest({
   cors: true,
   region: "us-central1",
@@ -33,96 +110,37 @@ export const getBidsByDate = onRequest({
   timeoutSeconds: 120
 }, async (request: any, response: any) => {
   const date = request.query.date;
-  if (!date) return response.status(400).json({ error: "Missing date" });
-
-  console.log(`>>> [SERVER] Solicitud recibida para fecha: ${date}`);
+  if (!date) return response.status(400).json({ error: "Falta el parámetro 'date' (formato ddMMyyyy)" });
 
   try {
-    const db = admin.firestore();
-    const { ticket: TICKET } = await getActiveTicket();
-    
-    // Check Cache
-    const cacheRef = db.collection("mp_cache").doc(`sync_${date}`);
-    const cacheSnap = await cacheRef.get();
-    
-    if (cacheSnap.exists && cacheSnap.data()?.status === 'success') {
-      const lastSync = cacheSnap.data()?.lastSync?.toDate();
-      const now = new Date();
-      if (lastSync && (now.getTime() - lastSync.getTime() < 3600000)) {
-        console.log(`>>> [SERVER] Cache HIT para ${date}. Retornando datos guardados.`);
-        return response.json({ success: true, count: cacheSnap.data()?.count, message: "Datos desde cache." });
-      }
-      console.log(`>>> [SERVER] Cache EXPIRED para ${date}. Refrescando...`);
-    }
-
-    const apiUrl = `https://api.mercadopublico.cl/servicios/v1/publico/licitaciones.json?fecha=${date}&ticket=${TICKET}`;
-    console.log(`>>> [SERVER] Llamando a API Oficial: ${apiUrl.replace(TICKET, '***')}`);
-    
-    let apiResponse = await fetch(apiUrl);
-    
-    if (!apiResponse.ok) {
-        throw new Error(`API responded with status: ${apiResponse.status}`);
-    }
-
-    let apiData = (await apiResponse.json()) as any;
-
-    let attempts = 0;
-    while (apiData.Codigo === 10500 && attempts < 5) {
-      attempts++;
-      const waitTime = 3000 * attempts;
-      console.warn(`>>> [SERVER] API Saturada (10500). Reintento ${attempts} en ${waitTime}ms...`);
-      await sleep(waitTime);
-      apiResponse = await fetch(apiUrl);
-      apiData = (await apiResponse.json()) as any;
-    }
-
-    if (apiData.Codigo) {
-      console.error(`>>> [SERVER] Error API Mercado Público. Status: ${apiResponse.status}. Body: ${JSON.stringify(apiData)}`);
-      return response.status(200).json({ 
-        success: false, 
-        message: apiData.Mensaje || "Error en la API oficial",
-        code: apiData.Codigo
-      });
-    }
-
-    const bidsList = apiData.Listado || [];
-    console.log(`>>> [SERVER] API respondió exitosamente con ${bidsList.length} licitaciones.`);
-
-    const batch = db.batch();
-    const nowServer = admin.firestore.FieldValue.serverTimestamp();
-
-    bidsList.forEach((bid: any) => {
-      if (!bid.CodigoExterno) return;
-      
-      // MAPEO ROBUSTO: La API a veces cambia los nombres de las propiedades
-      const title = bid.Nombre || bid.NombreLicitacion || "Sin título";
-      const status = bid.Estado || bid.EstadoLicitacion || "No definido";
-      // Algunos endpoints devuelven Organismo como objeto, otros como string directamente
-      const entity = bid.Organismo?.NombreOrganismo || bid.Organismo || bid.Institucion || "Institución no especificada";
-      const amount = bid.MontoEstimado || bid.Monto || 0;
-      
-      const bidRef = db.collection("bids").doc(bid.CodigoExterno);
-      batch.set(bidRef, {
-        id: bid.CodigoExterno,
-        title,
-        entity,
-        status,
-        deadlineDate: bid.FechaCierre || bid.FechaCierreLicitacion || null,
-        amount,
-        currency: bid.Moneda || 'CLP',
-        scrapedAt: nowServer,
-        sourceUrl: `https://www.mercadopublico.cl/Procurement/Modules/RFB/DetailsAcquisition.aspx?idLicitacion=${bid.CodigoExterno}`
-      }, { merge: true });
-    });
-
-    batch.set(cacheRef, { lastSync: nowServer, count: bidsList.length, status: 'success' });
-    await batch.commit();
-
-    console.log(`>>> [SERVER] Firestore actualizado para ${date}.`);
-    response.json({ success: true, count: bidsList.length, message: "Sincronización exitosa." });
+    const result = await performSync(date);
+    response.json(result);
   } catch (error: any) {
-    console.error(`>>> [SERVER] ERROR FATAL: ${error.stack || error.message}`);
+    console.error(`>>> [SERVER] Error en sincronización manual: ${error.message}`);
     response.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * Trigger Automático: Sincroniza las licitaciones del día todos los días hábiles a las 8 AM.
+ */
+export const dailyBidSync = onSchedule({
+  schedule: "0 8 * * 1-5", // Lunes a Viernes a las 08:00 AM
+  timeZone: "America/Santiago",
+  region: "us-central1"
+}, async (event) => {
+  const now = new Date();
+  const day = now.getDate().toString().padStart(2, '0');
+  const month = (now.getMonth() + 1).toString().padStart(2, '0');
+  const year = now.getFullYear();
+  const formattedDate = `${day}${month}${year}`;
+  
+  console.log(`>>> [CRON] Iniciando sincronización diaria automática para ${formattedDate}`);
+  try {
+    const result = await performSync(formattedDate);
+    console.log(`>>> [CRON] Sincronización exitosa: ${result.count} licitaciones procesadas.`);
+  } catch (error: any) {
+    console.error(`>>> [CRON] Error crítico en sincronización diaria: ${error.message}`);
   }
 });
 
@@ -132,7 +150,7 @@ export const getBidDetail = onRequest({
   invoker: "public"
 }, async (request: any, response: any) => {
   const code = request.query.code;
-  if (!code) return response.status(400).json({ error: "Missing code" });
+  if (!code) return response.status(400).json({ error: "Falta el código de licitación" });
 
   try {
     const { ticket: TICKET } = await getActiveTicket();
@@ -142,8 +160,6 @@ export const getBidDetail = onRequest({
 
     if (apiData.Listado && apiData.Listado.length > 0) {
       const detail = apiData.Listado[0];
-      
-      // ACTUALIZACIÓN CRÍTICA: Capturamos el monto y la entidad real que usualmente vienen en el detalle pero no en el listado
       await admin.firestore().collection("bids").doc(code).update({
         description: detail.Descripcion || "Sin descripción adicional.",
         items: detail.Items?.Listado || [],
@@ -152,10 +168,9 @@ export const getBidDetail = onRequest({
         entity: detail.Organismo?.NombreOrganismo || detail.Organismo || "Institución no especificada",
         fullDetailAt: admin.firestore.FieldValue.serverTimestamp()
       });
-      
       response.json({ success: true, data: detail });
     } else {
-      response.status(404).json({ error: "Not found" });
+      response.status(404).json({ error: "Licitación no encontrada" });
     }
   } catch (error: any) {
     response.status(500).json({ error: error.message });
@@ -163,5 +178,5 @@ export const getBidDetail = onRequest({
 });
 
 export const healthCheck = onRequest({ cors: true }, (req, res) => {
-  res.json({ status: "ok", timestamp: new Date().toISOString() });
+  res.json({ status: "ok", timestamp: new Date().toISOString(), service: "Mercado Público Sync" });
 });

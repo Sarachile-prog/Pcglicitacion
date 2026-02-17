@@ -1,7 +1,7 @@
 
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect } from "react"
 import { useCollection, useMemoFirebase, useUser, useFirestore, useDoc } from "@/firebase"
 import { collection, doc, setDoc, updateDoc, deleteDoc } from "firebase/firestore"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -68,14 +68,18 @@ export default function CompaniesManagementPage() {
   const [selectedProspect, setSelectedProspect] = useState<any>(null)
   const [isSyncing, setIsSyncing] = useState(false)
 
-  // FAILSAFE DE INTERACTIVIDAD (CRÍTICO)
-  // Este efecto detecta cuando no hay diálogos abiertos y fuerza al navegador a recuperar el mouse.
+  // FAILSAFE DEFINITIVO (CRÍTICO)
+  // Este efecto es una "fuerza bruta" para asegurar que si no hay diálogos abiertos,
+  // el cuerpo de la página SIEMPRE recupere la interactividad del mouse.
   useEffect(() => {
     const hasOpenDialog = !!editingCompany || isAddingCompany || !!companyToDelete || !!selectedProspect;
+    
     if (!hasOpenDialog) {
+      // Pequeño delay para permitir que las animaciones de Radix terminen
       const timer = setTimeout(() => {
         document.body.style.pointerEvents = 'auto';
-      }, 100);
+        document.body.style.overflow = 'auto';
+      }, 300);
       return () => clearTimeout(timer);
     }
   }, [editingCompany, isAddingCompany, companyToDelete, selectedProspect]);
@@ -106,9 +110,7 @@ export default function CompaniesManagementPage() {
     if (!db || !name || !rut) return
     
     setIsSyncing(true)
-    setIsAddingCompany(false)
-    setSelectedProspect(null)
-
+    
     const companyId = name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
     
     try {
@@ -134,6 +136,8 @@ export default function CompaniesManagementPage() {
       toast({ title: "Empresa Creada", description: "Tenant activado correctamente." })
       setNewCompanyName("")
       setNewCompanyRut("")
+      setIsAddingCompany(false)
+      setSelectedProspect(null)
     } catch (error: any) {
       toast({ variant: "destructive", title: "Error", description: error.message })
     } finally {
@@ -146,11 +150,11 @@ export default function CompaniesManagementPage() {
     const company = { ...editingCompany }
     
     setIsSyncing(true)
-    setEditingCompany(null) // Cerramos antes de la operación asíncrona
     
     try {
       await updateDoc(doc(db, "companies", company.id), company)
       toast({ title: "Cambios Guardados" })
+      setEditingCompany(null)
     } catch (error: any) {
       toast({ variant: "destructive", title: "Error", description: error.message })
     } finally {
@@ -174,11 +178,11 @@ export default function CompaniesManagementPage() {
     const id = companyToDelete.id
     
     setIsSyncing(true)
-    setCompanyToDelete(null) // Cerramos antes
     
     try {
       await deleteDoc(doc(db, "companies", id))
       toast({ title: "Tenant Eliminado" })
+      setCompanyToDelete(null)
     } catch (e: any) {
       toast({ variant: "destructive", title: "Error al eliminar", description: e.message })
     } finally {
@@ -282,7 +286,7 @@ export default function CompaniesManagementPage() {
                         <DropdownMenuContent align="end" className="w-56">
                           <DropdownMenuLabel className="text-[10px] font-black uppercase opacity-50">Seleccionar Destino</DropdownMenuLabel>
                           {companies?.map(c => (
-                            <DropdownMenuItem key={c.id} onClick={() => handleAssignUser(u.id, c.id)} className="text-xs font-bold">{c.name}</DropdownMenuItem>
+                            <DropdownMenuItem key={c.id} onSelect={() => handleAssignUser(u.id, c.id)} className="text-xs font-bold">{c.name}</DropdownMenuItem>
                           ))}
                         </DropdownMenuContent>
                       </DropdownMenu>
@@ -351,12 +355,12 @@ export default function CompaniesManagementPage() {
                         <DropdownMenuTrigger asChild><Button variant="outline" size="icon"><MoreVertical className="h-4 w-4" /></Button></DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="w-56">
                           <DropdownMenuLabel className="text-[10px] font-black uppercase opacity-50">Operaciones</DropdownMenuLabel>
-                          <DropdownMenuItem className="font-bold text-xs gap-2" onClick={() => setEditingCompany(company)}><Edit3 className="h-3.5 w-3.5" /> Editar Plan</DropdownMenuItem>
-                          <DropdownMenuItem className="font-bold text-xs gap-2" onClick={() => handleToggleCompanyStatus(company.id, company.subscriptionStatus)}>
+                          <DropdownMenuItem className="font-bold text-xs gap-2" onSelect={() => setEditingCompany(company)}><Edit3 className="h-3.5 w-3.5" /> Editar Plan</DropdownMenuItem>
+                          <DropdownMenuItem className="font-bold text-xs gap-2" onSelect={() => handleToggleCompanyStatus(company.id, company.subscriptionStatus)}>
                             {company.subscriptionStatus === 'Active' ? <><Ban className="h-3.5 w-3.5 text-red-500" /> Suspender</> : <><CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" /> Activar</>}
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
-                          <DropdownMenuItem className="text-red-600 font-bold text-xs gap-2" onClick={() => setCompanyToDelete(company)}><Trash2 className="h-3.5 w-3.5" /> Eliminar Tenant</DropdownMenuItem>
+                          <DropdownMenuItem className="text-red-600 font-bold text-xs gap-2" onSelect={() => setCompanyToDelete(company)}><Trash2 className="h-3.5 w-3.5" /> Eliminar Tenant</DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>
@@ -373,8 +377,8 @@ export default function CompaniesManagementPage() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle className="text-xl font-black uppercase italic">¿Eliminar permanentemente?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Estás a punto de borrar a <b>{companyToDelete?.name}</b>. Esta acción removerá el acceso a todos los usuarios vinculados y borrará sus datos.
+            <AlertDialogDescription className="text-xs font-bold text-muted-foreground uppercase italic">
+              Estás a punto de borrar a <b>{companyToDelete?.name}</b>. Esta acción removerá el acceso a todos los usuarios vinculados.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -391,7 +395,7 @@ export default function CompaniesManagementPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle className="text-xl font-black uppercase italic">Registrar Empresa</DialogTitle>
-            <DialogDescription className="text-xs font-bold text-muted-foreground uppercase italic">Crea un nuevo tenant manualmente en el sistema.</DialogDescription>
+            <DialogDescription className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Crea un nuevo tenant manualmente en el sistema.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2"><Label className="text-[10px] font-black uppercase">Nombre</Label><Input value={newCompanyName} onChange={(e) => setNewCompanyName(e.target.value)} /></div>
@@ -406,7 +410,7 @@ export default function CompaniesManagementPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle className="text-xl font-black uppercase italic">Activar Plan Empresa</DialogTitle>
-            <DialogDescription className="text-xs font-bold text-muted-foreground uppercase italic">Vincula a un usuario con una nueva empresa activa.</DialogDescription>
+            <DialogDescription className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Vincula a un usuario con una nueva empresa activa.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="p-3 bg-muted/20 rounded-xl"><p className="text-[9px] font-black uppercase opacity-50">Usuario</p><p className="font-bold text-xs">{selectedProspect?.email}</p></div>
@@ -424,7 +428,7 @@ export default function CompaniesManagementPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle className="text-xl font-black uppercase italic">Editar Empresa</DialogTitle>
-            <DialogDescription className="text-xs font-bold text-muted-foreground uppercase italic">Modifica los parámetros de suscripción del cliente.</DialogDescription>
+            <DialogDescription className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Modifica los parámetros de suscripción del cliente.</DialogDescription>
           </DialogHeader>
           {editingCompany && (
             <div className="space-y-4 py-4">

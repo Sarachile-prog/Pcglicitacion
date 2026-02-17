@@ -6,21 +6,55 @@ import './globals.css';
 import { SidebarProvider, Sidebar, SidebarContent, SidebarHeader, SidebarFooter, SidebarInset, SidebarTrigger } from '@/components/ui/sidebar';
 import { SidebarNav } from '@/components/layout/sidebar-nav';
 import { Toaster } from '@/components/ui/toaster';
-import { Globe, User, LogOut, LogIn } from 'lucide-react';
+import { Globe, User, LogOut, LogIn, Sparkles, CheckCircle2, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { FirebaseClientProvider } from '@/firebase/client-provider';
-import { useUser, useAuth } from '@/firebase';
+import { useUser, useAuth, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { signOut } from 'firebase/auth';
+import { doc, updateDoc } from 'firebase/firestore';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { WhatsAppButton } from '@/components/whatsapp-button';
 import { TermsAcceptanceModal } from '@/components/terms-acceptance-modal';
+import { useState } from 'react';
+import { useToast } from '@/hooks/use-toast';
+import { Badge } from '@/components/ui/badge';
 
 function LayoutContent({ children }: { children: React.ReactNode }) {
   const { user, isUserLoading } = useUser();
+  const db = useFirestore();
   const auth = useAuth();
   const pathname = usePathname();
+  const { toast } = useToast();
+  const [isRequesting, setIsRequesting] = useState(false);
   
+  const profileRef = useMemoFirebase(() => {
+    if (!db || !user) return null
+    return doc(db, "users", user.uid)
+  }, [db, user])
+
+  const { data: profile } = useDoc(profileRef)
+
+  const isSuperAdmin = user?.email === 'control@pcgoperacion.com' || profile?.role === 'SuperAdmin'
+  const isDemo = user && !profile?.companyId && !isSuperAdmin;
+  const hasRequested = profile?.planRequested === true;
+
+  const handleRequestPlan = async () => {
+    if (!profileRef) return
+    setIsRequesting(true)
+    try {
+      await updateDoc(profileRef, { planRequested: true })
+      toast({ 
+        title: "Solicitud Enviada", 
+        description: "Un ejecutivo revisará tu perfil para la activación del plan corporativo." 
+      })
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Error", description: e.message })
+    } finally {
+      setIsRequesting(false)
+    }
+  }
+
   // Determinamos si es la página de inicio o login para aplicar un layout sin sidebar
   const isPublicPage = pathname === '/' || pathname === '/login';
 
@@ -95,6 +129,23 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
               </h1>
             </div>
             <div className="flex items-center gap-4">
+              {isDemo && (
+                hasRequested ? (
+                  <Badge variant="secondary" className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 gap-1.5 font-black uppercase text-[10px] italic py-1.5 px-3 hidden md:flex">
+                    <CheckCircle2 className="h-3 w-3" /> Solicitud en Proceso
+                  </Badge>
+                ) : (
+                  <Button 
+                    size="sm" 
+                    onClick={handleRequestPlan}
+                    disabled={isRequesting}
+                    className="bg-accent hover:bg-accent/90 text-white font-black uppercase text-[10px] italic gap-2 h-9 px-4 shadow-lg animate-pulse"
+                  >
+                    {isRequesting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
+                    Activar Plan
+                  </Button>
+                )
+              )}
               {user && (
                 <Button 
                   variant="ghost" 

@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog"
 import { extractAndSummarizeBidDetails, PostulationAdvisorOutput } from "@/ai/flows/extract-and-summarize-bid-details"
 import { getBidDetail } from "@/services/mercado-publico"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { 
   Building2, 
   Clock, 
@@ -60,6 +60,7 @@ export default function BidDetailPage() {
   const [manualText, setManualText] = useState("")
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [activeTab, setActiveTab] = useState<string>("description")
+  const hasAttemptedFetch = useRef(false)
 
   const profileRef = useMemoFirebase(() => {
     if (!db || !user) return null
@@ -94,15 +95,16 @@ export default function BidDetailPage() {
   const demoUsage = profile?.demoUsageCount || 0
   const isLimitReached = isDemo && demoUsage >= 3
 
-  // Efecto para cargar detalles profundos si faltan
+  // Efecto controlado para cargar detalles profundos una sola vez si faltan
   useEffect(() => {
     const fetchFullDetail = async () => {
-      if (bid && !bid.description && !isRefreshingDetail) {
+      if (bid && !bid.description && !isRefreshingDetail && !hasAttemptedFetch.current) {
+        hasAttemptedFetch.current = true
         setIsRefreshingDetail(true)
         try {
           await getBidDetail(bid.id)
         } catch (e) {
-          console.error("Error al actualizar detalle profundo", e)
+          console.error(">>> [ERROR_DETAIL_FETCH]:", e)
         } finally {
           setIsRefreshingDetail(false)
         }
@@ -114,11 +116,11 @@ export default function BidDetailPage() {
   useEffect(() => {
     if (bid?.aiAnalysis) {
       setAnalysis(bid.aiAnalysis as PostulationAdvisorOutput)
-      if (activeTab !== "ai-advisor") {
+      if (activeTab === "description") {
         setActiveTab("ai-advisor")
       }
     }
-  }, [bid, activeTab])
+  }, [bid?.aiAnalysis, activeTab])
 
   const handleToggleFollow = async () => {
     if (!user || !profile?.companyId) {
@@ -144,7 +146,7 @@ export default function BidDetailPage() {
         toast({ title: "Guardado en Equipo", description: "Colaboración habilitada." })
       }
     } catch (e) {
-      toast({ variant: "destructive", title: "Error", description: "No se pudo actualizar." })
+      toast({ variant: "destructive", title: "Error", description: "No se pudo actualizar la cartera." })
     }
   }
 
@@ -195,7 +197,7 @@ export default function BidDetailPage() {
       setActiveTab("ai-advisor")
       toast({ title: "Análisis Completado", description: "Inteligencia generada con éxito." })
     } catch (error: any) {
-      toast({ variant: "destructive", title: "Error", description: error.message })
+      toast({ variant: "destructive", title: "Error de IA", description: error.message || "Error desconocido." })
     } finally {
       setLoadingAI(false)
     }
@@ -203,7 +205,7 @@ export default function BidDetailPage() {
 
   if (isDocLoading) return <div className="flex justify-center py-20"><Loader2 className="animate-spin h-10 w-10 text-primary" /></div>
 
-  if (!bid) return <div className="text-center py-20"><AlertTriangle className="mx-auto mb-4" /><h2 className="text-2xl font-bold">No encontrado</h2></div>
+  if (!bid) return <div className="text-center py-20"><AlertTriangle className="mx-auto mb-4" /><h2 className="text-2xl font-bold">Licitación no encontrada</h2></div>
 
   const getStatusColor = (status: string) => {
     const s = status?.toLowerCase();
@@ -212,6 +214,19 @@ export default function BidDetailPage() {
     if (s?.includes('desierta') || s?.includes('cancelada')) return 'bg-red-600';
     return 'bg-orange-500';
   };
+
+  const formatDate = (dateStr?: string) => {
+    if (!dateStr) return 'No definido';
+    try {
+      return new Date(dateStr).toLocaleDateString('es-CL', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric'
+      });
+    } catch (e) {
+      return 'Fecha inválida';
+    }
+  }
 
   return (
     <div className="space-y-8 max-w-7xl mx-auto animate-in fade-in duration-500 pb-20">
@@ -255,7 +270,7 @@ export default function BidDetailPage() {
               </Badge>
               {isRefreshingDetail && (
                 <Badge variant="ghost" className="animate-pulse text-accent font-black uppercase text-[10px] gap-2">
-                  <RefreshCw className="h-3 w-3 animate-spin" /> Sincronizando Detalle...
+                  <RefreshCw className="h-3 w-3 animate-spin" /> Sincronizando...
                 </Badge>
               )}
             </div>
@@ -268,7 +283,7 @@ export default function BidDetailPage() {
             <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Plan Suscripción</p>
             <div className="flex items-center gap-2">
               <ShieldCheck className="h-5 w-5 text-accent" />
-              <p className="text-2xl font-black text-primary leading-none uppercase italic">{company?.plan || (isDemo ? 'Demo' : 'Procesando')}</p>
+              <p className="text-2xl font-black text-primary leading-none uppercase italic">{company?.plan || (isDemo ? 'Demo' : 'Cargando')}</p>
             </div>
             <Badge variant="ghost" className={cn("text-[9px] font-black uppercase tracking-widest px-0", isSubscriptionActive ? "text-emerald-600" : "text-orange-600")}>
               {isSubscriptionActive ? "Servicio Activo" : "Acceso Limitado"}
@@ -293,7 +308,7 @@ export default function BidDetailPage() {
             <div>
               <p className="text-[10px] uppercase font-black text-muted-foreground/60 tracking-widest">Cierre de Ofertas</p>
               <p className="text-sm font-bold text-primary">
-                {bid.deadlineDate ? new Date(bid.deadlineDate).toLocaleDateString() : 'No definido'}
+                {formatDate(bid.deadlineDate)}
               </p>
             </div>
           </div>
@@ -319,15 +334,15 @@ export default function BidDetailPage() {
                   {isRefreshingDetail && !bid.description ? (
                     <div className="py-20 text-center space-y-4">
                       <Loader2 className="h-10 w-10 animate-spin mx-auto text-accent" />
-                      <p className="text-muted-foreground font-medium italic">Obteniendo ficha técnica desde Mercado Público...</p>
+                      <p className="text-muted-foreground font-medium italic">Obteniendo ficha técnica oficial...</p>
                     </div>
                   ) : (
                     <>
                       <div className="text-lg leading-relaxed whitespace-pre-wrap text-muted-foreground font-medium">
-                        {bid.description || "Sin descripción detallada disponible en el resumen."}
+                        {bid.description || "Descripción detallada no disponible en este momento."}
                       </div>
                       <Button asChild variant="outline" className="gap-2 border-primary text-primary font-black uppercase italic">
-                        <a href={bid.sourceUrl} target="_blank">Ver en Portal Oficial <ExternalLink className="h-4 w-4" /></a>
+                        <a href={bid.sourceUrl} target="_blank" rel="noopener noreferrer">Ver en Portal Oficial <ExternalLink className="h-4 w-4" /></a>
                       </Button>
                     </>
                   )}
@@ -387,7 +402,7 @@ export default function BidDetailPage() {
                       <div className="h-16 w-16 bg-muted rounded-full flex items-center justify-center mx-auto opacity-20">
                         <Database className="h-8 w-8" />
                       </div>
-                      <p className="text-muted-foreground italic font-medium">Esta licitación no declara ítems específicos en su ficha técnica.</p>
+                      <p className="text-muted-foreground italic font-medium">Esta licitación no declara ítems específicos.</p>
                     </div>
                   )}
                 </CardContent>
@@ -407,38 +422,16 @@ export default function BidDetailPage() {
                           <div className="space-y-3 flex-1 text-center md:text-left">
                             <Badge className="bg-white text-accent font-black uppercase text-[10px]">Potencia tu Equipo</Badge>
                             <h3 className="text-2xl font-black italic uppercase tracking-tighter leading-tight">
-                              Has desbloqueado el 10% del poder de PCG Licitación.
+                              Has desbloqueado el poder de PCG Licitación.
                             </h3>
                             <p className="text-sm font-medium opacity-90 leading-relaxed italic">
-                              Este análisis es solo el comienzo. Activa el **Plan Empresas** para colaborar con tus colegas, subir anexos y recibir auditorías técnicas ilimitadas.
+                              Este análisis es solo el comienzo. Activa el **Plan Empresas** para colaborar, subir anexos y recibir auditorías técnicas ilimitadas.
                             </p>
                           </div>
                           <div className="flex flex-col gap-3 min-w-[200px] w-full md:w-auto">
-                            <div className="bg-white/10 rounded-xl p-4 border border-white/20 text-center animate-bounce duration-[3000ms]">
-                              <p className="text-[10px] font-black uppercase tracking-widest text-white mb-2">Paso 1: Presiona Aquí</p>
-                              <ArrowUpRight className="h-6 w-6 mx-auto" />
-                            </div>
                             <Button asChild className="bg-white text-accent hover:bg-gray-100 font-black uppercase italic h-12 shadow-xl gap-2">
-                              <a href={WHATSAPP_URL} target="_blank"><MessageCircle className="h-4 w-4" /> Activar Plan Empresas</a>
+                              <a href={WHATSAPP_URL} target="_blank" rel="noopener noreferrer"><MessageCircle className="h-4 w-4" /> Activar Plan Empresas</a>
                             </Button>
-                          </div>
-                        </div>
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-4 border-t border-white/10">
-                          <div className="text-center space-y-1">
-                            <Users className="h-4 w-4 mx-auto opacity-60" />
-                            <p className="text-[8px] font-black uppercase">Multiusuario</p>
-                          </div>
-                          <div className="text-center space-y-1">
-                            <FileText className="h-4 w-4 mx-auto opacity-60" />
-                            <p className="text-[8px] font-black uppercase">Carpeta Digital</p>
-                          </div>
-                          <div className="text-center space-y-1">
-                            <ShieldCheck className="h-4 w-4 mx-auto opacity-60" />
-                            <p className="text-[8px] font-black uppercase">Auditoría PDF</p>
-                          </div>
-                          <div className="text-center space-y-1">
-                            <Scale className="h-4 w-4 mx-auto opacity-60" />
-                            <p className="text-[8px] font-black uppercase">Soporte Legal</p>
                           </div>
                         </div>
                       </CardContent>
@@ -460,7 +453,7 @@ export default function BidDetailPage() {
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                     <Card className="border-none shadow-lg bg-red-50/50">
-                      <CardHeader><CardTitle className="text-red-700 text-lg uppercase font-black italic">Riesgos de Descalificación</CardTitle></CardHeader>
+                      <CardHeader><CardTitle className="text-red-700 text-lg uppercase font-black italic">Riesgos Detectados</CardTitle></CardHeader>
                       <CardContent className="space-y-4">
                         {analysis.strategicAlerts.map((alert, i) => (
                           <div key={i} className="p-4 bg-white rounded-xl border-l-4 border-l-red-600 shadow-sm text-xs font-bold text-red-900 uppercase">{alert}</div>
@@ -500,7 +493,7 @@ export default function BidDetailPage() {
                   <div className="space-y-2">
                     <h4 className="font-black text-primary uppercase italic text-sm">Suscripción Requerida</h4>
                     <p className="text-xs text-muted-foreground font-bold leading-relaxed">
-                      El acceso corporativo a la Inteligencia Artificial está pausado por falta de suscripción activa.
+                      El acceso corporativo a la Inteligencia Artificial está pausado.
                     </p>
                   </div>
                   <Link href="/settings/billing">
@@ -521,7 +514,7 @@ export default function BidDetailPage() {
                         <AlertCircle className="h-4 w-4" /> Límite Demo Agotado
                       </div>
                       <p className="text-[10px] text-red-900/70 font-bold italic">
-                        Has utilizado tus 3 análisis de prueba. Contacta a soporte para activar tu plan ilimitado.
+                        Has utilizado tus 3 análisis de prueba. Contacta a soporte.
                       </p>
                       <Link href="/support">
                         <Button className="w-full bg-accent hover:bg-accent/90 font-black uppercase italic shadow-lg gap-2">
@@ -537,19 +530,19 @@ export default function BidDetailPage() {
                         disabled={loadingAI || isRefreshingDetail}
                       >
                         {loadingAI ? <Loader2 className="animate-spin h-5 w-5" /> : <Zap className="h-5 w-5" />}
-                        {isRefreshingDetail ? "Esperando ficha..." : "Ejecutar Análisis"}
+                        {isRefreshingDetail ? "Esperando..." : "Ejecutar Análisis"}
                       </Button>
                       
                       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                         <DialogTrigger asChild>
                           <Button variant="outline" className="w-full border-accent text-accent font-black h-12 uppercase italic" disabled={loadingAI || isRefreshingDetail}>
-                            Entrenar con PDF (Opcional)
+                            Análisis Profundo (Bases)
                           </Button>
                         </DialogTrigger>
                         <DialogContent className="max-w-2xl">
                           <DialogHeader>
                             <DialogTitle className="text-2xl font-black text-primary uppercase italic">Análisis Profundo</DialogTitle>
-                            <DialogDescription>Pega el texto de las bases para identificar multas y garantías.</DialogDescription>
+                            <DialogDescription>Pega el texto de las bases para detectar multas específicas.</DialogDescription>
                           </DialogHeader>
                           <Textarea 
                             placeholder="Pega el texto aquí..." 
@@ -559,7 +552,7 @@ export default function BidDetailPage() {
                           />
                           <DialogFooter>
                             <Button className="bg-accent hover:bg-accent/90 font-black w-full h-14 uppercase italic shadow-xl" onClick={() => handleAnalyze('deep')} disabled={!manualText || loadingAI}>
-                              {loadingAI ? <Loader2 className="animate-spin" /> : <Sparkles className="mr-2" />} Consumir y Analizar
+                              {loadingAI ? <Loader2 className="animate-spin" /> : <Sparkles className="mr-2" />} Analizar Bases
                             </Button>
                           </DialogFooter>
                         </DialogContent>
@@ -569,11 +562,11 @@ export default function BidDetailPage() {
 
                   <div className="flex flex-col gap-1">
                     <p className="text-[10px] text-muted-foreground font-black uppercase italic tracking-widest">
-                      {isDemo ? "Acceso Demo Habilitado" : "Acceso Corporativo Ilimitado"}
+                      {isDemo ? "Modo Prueba Habilitado" : "Acceso Corporativo"}
                     </p>
                     {isDemo && !isLimitReached && (
                       <Badge variant="outline" className="w-fit mx-auto border-accent text-accent text-[9px] font-black uppercase">
-                        Créditos: {demoUsage}/3 utilizados
+                        {demoUsage}/3 utilizados
                       </Badge>
                     )}
                   </div>

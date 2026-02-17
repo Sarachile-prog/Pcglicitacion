@@ -13,7 +13,7 @@ import {
   Search, 
   Building2, 
   RefreshCw, 
-  ChevronRight,
+  ChevronRight, 
   ChevronLeft,
   Database,
   Sparkles,
@@ -22,7 +22,8 @@ import {
   Zap,
   BarChart3,
   Layers,
-  ShieldCheck
+  ShieldCheck,
+  CheckCircle2
 } from "lucide-react"
 import Link from "next/link"
 import { getBidsByDate, getBidDetail } from "@/services/mercado-publico"

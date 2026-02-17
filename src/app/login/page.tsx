@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Globe, ShieldCheck, Mail, Lock, Loader2, Building2, ArrowRight, AlertTriangle } from "lucide-react"
+import { Globe, ShieldCheck, Mail, Lock, Loader2, Building2, ArrowRight, AlertTriangle, Info } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
@@ -32,6 +32,7 @@ export default function LoginPage() {
   const [isLoginMode, setIsLoginMode] = useState(true)
   const [isLoading, setIsLoading] = useState(false)
   const [blockedDomain, setBlockedDomain] = useState<string | null>(null)
+  const [showCredentialHelp, setShowCredentialHelp] = useState(false)
 
   useEffect(() => {
     if (user && !isUserLoading && !isLoading) {
@@ -75,6 +76,8 @@ export default function LoginPage() {
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault()
     setBlockedDomain(null)
+    setShowCredentialHelp(false)
+    
     if (!email || !password) return
     if (!isLoginMode && !companyName) {
       toast({ variant: "destructive", title: "Datos incompletos", description: "Por favor indica el nombre de tu empresa." })
@@ -98,7 +101,7 @@ export default function LoginPage() {
       console.error(">>> [AUTH_ERROR]:", error);
       let message = "Hubo un problema con la autenticación."
       
-      // Detección de bloqueo de API Key (Referer / Domain Blocked)
+      // 1. Detección de bloqueo de API Key (Referer / Domain Blocked)
       if (
         error.message?.includes('403') || 
         error.message?.includes('referer') || 
@@ -107,16 +110,18 @@ export default function LoginPage() {
       ) {
         const domainMatch = error.message?.match(/https?:\/\/[^\s-]+/)
         setBlockedDomain(domainMatch ? domainMatch[0] : "este dominio")
-        message = "Dominio Bloqueado. Revisa la alerta roja arriba."
+        message = "Dominio Bloqueado. Revisa la alerta de seguridad."
+      }
+      
+      // 2. Credenciales Inválidas (Usuario no existe o clave mal puesta)
+      if (error.code === 'auth/invalid-credential' || error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
+        message = "Credenciales incorrectas o usuario no registrado."
+        setShowCredentialHelp(true)
       }
       
       if (error.code === 'auth/email-already-in-use') {
         message = "Este correo ya está registrado. Intenta iniciar sesión."
         setIsLoginMode(true)
-      }
-      
-      if (error.code === 'auth/invalid-credential') {
-        message = "Credenciales incorrectas. Si intentaste registrarte y falló antes, prueba registrarte de nuevo."
       }
       
       if (error.code === 'auth/weak-password') {
@@ -180,6 +185,18 @@ export default function LoginPage() {
                 <p className="text-[9px] font-bold text-red-700/80 italic leading-tight">
                   Debes editar la <b>Browser key</b> en Google Cloud Console y añadir: <br/>
                   <code className="bg-white px-1 rounded border text-red-600 font-mono">*.cloudworkstations.dev/*</code>
+                </p>
+              </div>
+            </div>
+          )}
+
+          {showCredentialHelp && (
+            <div className="bg-amber-50 border-2 border-amber-100 p-4 rounded-2xl flex items-start gap-3 animate-in fade-in slide-in-from-top-2">
+              <Info className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+              <div className="space-y-1">
+                <p className="text-[10px] font-black text-amber-800 uppercase tracking-widest leading-none">¿No puedes entrar?</p>
+                <p className="text-[9px] font-bold text-amber-700/80 italic leading-tight">
+                  Si intentaste registrarte anteriormente y falló por un error técnico, es probable que tu cuenta <b>nunca se haya creado</b>. Prueba registrarte de nuevo en la pestaña de al lado.
                 </p>
               </div>
             </div>
@@ -279,7 +296,7 @@ export default function LoginPage() {
             <div className="flex items-start gap-3">
               <ShieldCheck className="h-4 w-4 text-primary mt-0.5 shrink-0" />
               <p className="font-bold text-muted-foreground italic leading-tight">
-                PCGLICITACIÓN utiliza seguridad industrial. Si no te has registrado con éxito, cambia a la pestaña "Registrarse".
+                PCGLICITACIÓN utiliza seguridad industrial. Si no puedes acceder, asegúrate de haber creado tu cuenta con éxito en la pestaña "Registrarse".
               </p>
             </div>
           </div>

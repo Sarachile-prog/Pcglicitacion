@@ -32,13 +32,34 @@ service cloud.firestore {
 
     match /support_tickets/{ticketId} {
       allow create: if isSignedIn();
-      allow list: if isSignedIn() && (isSuperAdmin() || resource.data.userId == request.auth.uid);
-      allow get: if isSignedIn() && (isSuperAdmin() || resource.data.userId == request.auth.uid);
-      allow update: if isSignedIn() && (isSuperAdmin() || resource.data.userId == request.auth.uid);
+      // Optimizamos el listado para permitirlo si el filtro coincide con el UID del usuario logueado
+      allow list: if isSignedIn() && (
+        request.auth.token.email == 'control@pcgoperacion.com' || 
+        resource.data.userId == request.auth.uid || 
+        isSuperAdmin()
+      );
+      allow get: if isSignedIn() && (
+        request.auth.token.email == 'control@pcgoperacion.com' || 
+        resource.data.userId == request.auth.uid || 
+        isSuperAdmin()
+      );
+      allow update: if isSignedIn() && (
+        request.auth.token.email == 'control@pcgoperacion.com' || 
+        resource.data.userId == request.auth.uid || 
+        isSuperAdmin()
+      );
 
       match /messages/{messageId} {
-        allow read: if isSignedIn() && (isSuperAdmin() || get(/databases/$(database)/documents/support_tickets/$(ticketId)).data.userId == request.auth.uid);
-        allow create: if isSignedIn() && (isSuperAdmin() || get(/databases/$(database)/documents/support_tickets/$(ticketId)).data.userId == request.auth.uid);
+        allow read: if isSignedIn() && (
+          request.auth.token.email == 'control@pcgoperacion.com' || 
+          get(/databases/$(database)/documents/support_tickets/$(ticketId)).data.userId == request.auth.uid || 
+          isSuperAdmin()
+        );
+        allow create: if isSignedIn() && (
+          request.auth.token.email == 'control@pcgoperacion.com' || 
+          get(/databases/$(database)/documents/support_tickets/$(ticketId)).data.userId == request.auth.uid || 
+          isSuperAdmin()
+        );
       }
     }
 

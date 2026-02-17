@@ -7,74 +7,82 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function isSuperAdmin() {
+    // Verifica si es el correo maestro de la operación (No recursivo)
+    function isMasterAdmin() {
+      return isSignedIn() && request.auth.token.email == 'control@pcgoperacion.com';
+    }
+
+    // Verifica rol de SuperAdmin (Solo usar en colecciones que no sean /users para evitar recursividad)
+    function hasSuperAdminRole() {
       return isSignedIn() && (
-        request.auth.token.email == 'control@pcgoperacion.com' ||
+        isMasterAdmin() ||
         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'SuperAdmin')
       );
     }
 
     match /users/{userId} {
-      allow get: if isSignedIn() && (request.auth.uid == userId || isSuperAdmin());
-      allow list: if isSuperAdmin();
+      allow get: if isSignedIn() && (request.auth.uid == userId || isMasterAdmin());
+      allow list: if isMasterAdmin();
       allow create: if isSignedIn() && request.auth.uid == userId;
-      allow update: if isSignedIn() && (request.auth.uid == userId || isSuperAdmin());
+      allow update: if isSignedIn() && (request.auth.uid == userId || isMasterAdmin());
     }
 
     match /companies/{companyId} {
-      allow read, write: if isSuperAdmin() || (isSignedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.companyId == companyId);
+      allow read, write: if isMasterAdmin() || (isSignedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.companyId == companyId);
       
       match /bookmarks/{bidId} {
-        allow read, write: if isSuperAdmin() || (isSignedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.companyId == companyId);
+        allow read, write: if isMasterAdmin() || (isSignedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.companyId == companyId);
       }
     }
 
     match /support_tickets/{ticketId} {
       allow create: if isSignedIn();
-      // Optimizamos el listado para permitirlo si el filtro coincide con el UID del usuario logueado
+      
+      // Permitimos listar si el usuario es dueño del ticket o es el admin maestro
       allow list: if isSignedIn() && (
-        request.auth.token.email == 'control@pcgoperacion.com' || 
-        resource.data.userId == request.auth.uid || 
-        isSuperAdmin()
+        isMasterAdmin() || 
+        resource.data.userId == request.auth.uid
       );
+      
       allow get: if isSignedIn() && (
-        request.auth.token.email == 'control@pcgoperacion.com' || 
+        isMasterAdmin() || 
         resource.data.userId == request.auth.uid || 
-        isSuperAdmin()
+        hasSuperAdminRole()
       );
+      
       allow update: if isSignedIn() && (
-        request.auth.token.email == 'control@pcgoperacion.com' || 
+        isMasterAdmin() || 
         resource.data.userId == request.auth.uid || 
-        isSuperAdmin()
+        hasSuperAdminRole()
       );
 
       match /messages/{messageId} {
         allow read: if isSignedIn() && (
-          request.auth.token.email == 'control@pcgoperacion.com' || 
+          isMasterAdmin() || 
           get(/databases/$(database)/documents/support_tickets/$(ticketId)).data.userId == request.auth.uid || 
-          isSuperAdmin()
+          hasSuperAdminRole()
         );
         allow create: if isSignedIn() && (
-          request.auth.token.email == 'control@pcgoperacion.com' || 
+          isMasterAdmin() || 
           get(/databases/$(database)/documents/support_tickets/$(ticketId)).data.userId == request.auth.uid || 
-          isSuperAdmin()
+          hasSuperAdminRole()
         );
       }
     }
 
     match /bids/{bidId} {
       allow read: if true;
-      allow write: if isSuperAdmin();
+      allow write: if isMasterAdmin();
     }
 
     match /settings/{settingId} {
       allow read: if true;
-      allow write: if isSuperAdmin();
+      allow write: if isMasterAdmin();
     }
     
     match /mp_cache/{cacheId} {
-      allow read, write: if isSuperAdmin();
+      allow read, write: if isMasterAdmin();
     }
   }
 }

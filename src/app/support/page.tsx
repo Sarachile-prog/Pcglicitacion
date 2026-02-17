@@ -19,7 +19,8 @@ import {
   Loader2, 
   ChevronRight,
   Headset,
-  History
+  History,
+  ShieldAlert
 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
@@ -45,7 +46,7 @@ export default function SupportPage() {
     )
   }, [db, user])
 
-  const { data: tickets, isLoading } = useCollection(ticketsQuery)
+  const { data: tickets, isLoading, error } = useCollection(ticketsQuery)
 
   const messagesQuery = useMemoFirebase(() => {
     if (!db || !selectedTicket) return null
@@ -131,6 +132,16 @@ export default function SupportPage() {
         </Button>
       </div>
 
+      {error && (
+        <Card className="bg-red-50 border-2 border-red-100 p-6 rounded-3xl flex items-center gap-4 text-red-800">
+          <ShieldAlert className="h-10 w-10 shrink-0" />
+          <div>
+            <p className="font-black uppercase italic text-sm">Error de Acceso a Datos</p>
+            <p className="text-xs font-medium italic">No se pudo sincronizar con la base de datos de soporte. Por favor, refresca la página o contacta a administración.</p>
+          </div>
+        </Card>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         <div className="lg:col-span-4 space-y-4">
           <Card className="border-none shadow-xl rounded-3xl overflow-hidden">
@@ -143,7 +154,9 @@ export default function SupportPage() {
               {isLoading ? (
                 <div className="p-10 text-center"><Loader2 className="animate-spin mx-auto opacity-20" /></div>
               ) : !tickets || tickets.length === 0 ? (
-                <div className="p-10 text-center text-xs italic text-muted-foreground">No tienes tickets activos.</div>
+                <div className="p-10 text-center text-xs italic text-muted-foreground">
+                  {error ? "No se pudieron cargar los tickets." : "No tienes tickets activos."}
+                </div>
               ) : (
                 <div className="divide-y divide-primary/5">
                   {tickets.map(t => (
@@ -156,7 +169,7 @@ export default function SupportPage() {
                       )}
                     >
                       <div className="space-y-1 overflow-hidden">
-                        <p className="text-[10px] font-black text-muted-foreground uppercase">{new Date(t.updatedAt?.toDate()).toLocaleDateString()}</p>
+                        <p className="text-[10px] font-black text-muted-foreground uppercase">{t.updatedAt ? new Date(t.updatedAt.toDate()).toLocaleDateString() : '---'}</p>
                         <p className="font-black text-primary uppercase italic truncate group-hover:text-accent transition-colors">{t.subject}</p>
                         <Badge className={cn(
                           "text-[8px] uppercase font-black px-2",
@@ -233,7 +246,7 @@ export default function SupportPage() {
                         {m.text}
                       </div>
                       <p className="text-[8px] font-black text-muted-foreground uppercase mt-1 px-1">
-                        {m.senderRole === 'User' ? 'Tú' : 'PCG Soporte'} • {new Date(m.createdAt?.toDate()).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                        {m.senderRole === 'User' ? 'Tú' : 'PCG Soporte'} • {m.createdAt ? new Date(m.createdAt.toDate()).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '--:--'}
                       </p>
                     </div>
                   ))}
@@ -263,7 +276,7 @@ export default function SupportPage() {
           ) : (
             <div className="h-full flex flex-col items-center justify-center py-20 bg-muted/10 rounded-[3rem] border-4 border-dashed border-primary/10">
               <Headset className="h-20 w-20 text-primary/10 mb-6" />
-              <h3 className="text-xl font-black text-primary/40 uppercase italic">Selecciona un ticket para ver la conversación</h3>
+              <h3 className="text-xl font-black text-primary/40 uppercase italic text-center px-6">Selecciona un ticket para ver la conversación</h3>
             </div>
           )}
         </div>

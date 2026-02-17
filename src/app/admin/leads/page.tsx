@@ -4,7 +4,7 @@
 import { useState } from "react"
 import { useCollection, useMemoFirebase, useUser, useFirestore, useDoc } from "@/firebase"
 import { collection, doc, setDoc, updateDoc, deleteDoc } from "firebase/firestore"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -15,7 +15,6 @@ import {
   DialogContent, 
   DialogHeader, 
   DialogTitle, 
-  DialogTrigger,
   DialogDescription
 } from "@/components/ui/dialog"
 import {
@@ -40,25 +39,27 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { cn } from "@/lib/utils"
 
-// Iconos importados individualmente para evitar errores de referencia
-import { Building2 } from "lucide-react"
-import { ShieldCheck } from "lucide-react"
-import { Plus } from "lucide-react"
-import { Loader2 } from "lucide-react"
-import { AlertCircle } from "lucide-react"
-import { Zap } from "lucide-react"
-import { MoreVertical } from "lucide-react"
-import { Edit3 } from "lucide-react"
-import { Ban } from "lucide-react"
-import { Trash2 } from "lucide-react"
-import { UserMinus } from "lucide-react"
-import { CheckCircle2 } from "lucide-react"
-import { Save } from "lucide-react"
-import { Lock } from "lucide-react"
-import { Unlock } from "lucide-react"
-import { Sparkles } from "lucide-react"
-import { Mail } from "lucide-react"
-import { Users } from "lucide-react"
+// Importación unificada para evitar errores de referencia en desarrollo
+import { 
+  Building2, 
+  ShieldCheck, 
+  Plus, 
+  Loader2, 
+  AlertCircle, 
+  Zap, 
+  MoreVertical, 
+  Edit3, 
+  Ban, 
+  Trash2, 
+  UserMinus, 
+  CheckCircle2, 
+  Save, 
+  Lock, 
+  Unlock, 
+  Sparkles, 
+  Mail, 
+  Users 
+} from "lucide-react"
 
 export default function CompaniesManagementPage() {
   const db = useFirestore()
@@ -97,6 +98,11 @@ export default function CompaniesManagementPage() {
   const handleCreateCompany = async (name: string, rut: string, userId?: string) => {
     if (!db || !name || !rut) return
     setIsSyncing(true)
+    
+    // Cerramos diálogos antes de la operación asíncrona para evitar que la UI se trabe
+    setIsAddingCompany(false)
+    setSelectedProspect(null)
+
     const companyId = name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
     
     try {
@@ -120,8 +126,6 @@ export default function CompaniesManagementPage() {
       }
 
       toast({ title: "Empresa Creada", description: "Tenant activado correctamente." })
-      setIsAddingCompany(false)
-      setSelectedProspect(null)
       setNewCompanyName("")
       setNewCompanyRut("")
     } catch (error: any) {
@@ -133,11 +137,12 @@ export default function CompaniesManagementPage() {
 
   const handleUpdateCompany = async () => {
     if (!db || !editingCompany) return
+    const company = { ...editingCompany }
+    setEditingCompany(null) // Cerrar diálogo
     setIsSyncing(true)
     try {
-      await updateDoc(doc(db, "companies", editingCompany.id), editingCompany)
+      await updateDoc(doc(db, "companies", company.id), company)
       toast({ title: "Cambios Guardados" })
-      setEditingCompany(null)
     } catch (error: any) {
       toast({ variant: "destructive", title: "Error", description: error.message })
     } finally {
@@ -158,11 +163,12 @@ export default function CompaniesManagementPage() {
 
   const handleDeleteCompany = async () => {
     if (!db || !companyToDelete) return
+    const id = companyToDelete.id
+    setCompanyToDelete(null) // Cerrar diálogo inmediatamente
     setIsSyncing(true)
     try {
-      await deleteDoc(doc(db, "companies", companyToDelete.id))
+      await deleteDoc(doc(db, "companies", id))
       toast({ title: "Tenant Eliminado" })
-      setCompanyToDelete(null)
     } catch (e: any) {
       toast({ variant: "destructive", title: "Error al eliminar", description: e.message })
     } finally {
@@ -199,7 +205,6 @@ export default function CompaniesManagementPage() {
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500 max-w-7xl mx-auto pb-20">
-      {/* HEADER */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b pb-6">
         <div>
           <h2 className="text-3xl font-black text-primary uppercase italic tracking-tighter">Control de Tenancy</h2>
@@ -351,7 +356,7 @@ export default function CompaniesManagementPage() {
         </CardContent>
       </Card>
 
-      {/* DIÁLOGOS CONTROLADOS POR ESTADO (EVITAN BLOQUEO) */}
+      {/* DIÁLOGOS CONTROLADOS POR ESTADO (CON CIERRE EXPLÍCITO) */}
       
       {/* 1. Alerta de Eliminación */}
       <AlertDialog open={!!companyToDelete} onOpenChange={(open) => !open && setCompanyToDelete(null)}>
@@ -369,7 +374,7 @@ export default function CompaniesManagementPage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* 2. Diálogo de Registro Manual / Edición */}
+      {/* 2. Diálogo de Registro Manual */}
       <Dialog open={isAddingCompany} onOpenChange={setIsAddingCompany}>
         <DialogContent>
           <DialogHeader><DialogTitle className="text-xl font-black uppercase italic">Registrar Empresa</DialogTitle></DialogHeader>

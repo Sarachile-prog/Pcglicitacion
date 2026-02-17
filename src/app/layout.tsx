@@ -1,4 +1,3 @@
-
 "use client"
 
 import type { Metadata } from 'next';
@@ -13,7 +12,7 @@ import { useUser, useAuth, useFirestore, useDoc, useMemoFirebase } from '@/fireb
 import { signOut } from 'firebase/auth';
 import { doc, updateDoc } from 'firebase/firestore';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { WhatsAppButton } from '@/components/whatsapp-button';
 import { TermsAcceptanceModal } from '@/components/terms-acceptance-modal';
 import { useState } from 'react';
@@ -25,6 +24,7 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
   const db = useFirestore();
   const auth = useAuth();
   const pathname = usePathname();
+  const router = useRouter();
   const { toast } = useToast();
   const [isRequesting, setIsRequesting] = useState(false);
   
@@ -54,6 +54,16 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
       setIsRequesting(false)
     }
   }
+
+  const handleLogout = async () => {
+    if (!auth) return;
+    try {
+      await signOut(auth);
+      router.push('/login');
+    } catch (error: any) {
+      toast({ variant: 'destructive', title: 'Error al salir', description: error.message });
+    }
+  };
 
   // Determinamos si es la página de inicio o login para aplicar un layout sin sidebar
   const isPublicPage = pathname === '/' || pathname === '/login';
@@ -104,7 +114,7 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
                   variant="ghost" 
                   size="sm" 
                   className="w-full justify-start text-sidebar-foreground/70 hover:text-white"
-                  onClick={() => signOut(auth)}
+                  onClick={handleLogout}
                 >
                   <LogOut className="h-4 w-4 mr-2" /> Salir
                 </Button>
@@ -151,7 +161,7 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
                   variant="ghost" 
                   size="sm" 
                   className="text-muted-foreground hover:text-destructive gap-2 font-black uppercase text-[10px] italic hidden sm:flex"
-                  onClick={() => signOut(auth)}
+                  onClick={handleLogout}
                 >
                   <LogOut className="h-3.5 w-3.5" /> Cerrar Sesión
                 </Button>

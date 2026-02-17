@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useCollection, useMemoFirebase, useFirestore, useUser, useDoc, useAuth } from "@/firebase"
@@ -35,12 +34,14 @@ import { cn } from "@/lib/utils"
 import { signOut } from "firebase/auth"
 import { useToast } from "@/hooks/use-toast"
 import { useState } from "react"
+import { useRouter } from "next/navigation"
 
 export default function DashboardPage() {
   const db = useFirestore()
   const auth = useAuth()
   const { user, isUserLoading } = useUser()
   const { toast } = useToast()
+  const router = useRouter()
   const [isRequesting, setIsRequesting] = useState(false)
 
   const profileRef = useMemoFirebase(() => {
@@ -68,6 +69,16 @@ export default function DashboardPage() {
       toast({ variant: "destructive", title: "Error", description: e.message })
     } finally {
       setIsRequesting(false)
+    }
+  }
+
+  const handleLogout = async () => {
+    if (!auth) return
+    try {
+      await signOut(auth)
+      router.push('/login')
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Error al salir", description: e.message })
     }
   }
 
@@ -160,7 +171,7 @@ export default function DashboardPage() {
                 </Link>
                 <Button 
                   variant="ghost" 
-                  onClick={() => signOut(auth)} 
+                  onClick={handleLogout} 
                   className="h-12 font-black uppercase italic text-xs text-red-400 hover:text-red-600 hover:bg-red-50 gap-2"
                 >
                   <LogOut className="h-3 w-3" /> Cerrar Sesión

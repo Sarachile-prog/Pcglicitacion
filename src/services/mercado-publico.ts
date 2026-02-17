@@ -1,10 +1,12 @@
+
 'use server';
 /**
  * @fileOverview Servicio para interactuar con la API de Mercado Público a través de Cloud Run / Gen 2 Functions.
+ * Mapeado según el diccionario de datos oficial de ChileCompra.
  */
 
 export interface MercadoPublicoItem {
-  CodigoProducto: number;
+  CodigoProducto: number; // Código UNSPSC
   CodigoCategoria: number;
   Categoria: string;
   NombreProducto: string;
@@ -14,19 +16,23 @@ export interface MercadoPublicoItem {
 }
 
 export interface MercadoPublicoBid {
-  CodigoExterno: string;
+  CodigoExterno: string; // ID de Licitación
   Nombre: string;
   CodigoEstado: number;
   Estado: string;
-  FechaCierre: string;
-  FechaPublicacion: string;
   Descripcion?: string;
   MontoEstimado?: number;
   Moneda?: string;
-  Organismo?: {
-    CodigoOrganismo?: string;
+  CodigoTipo?: number; // 1=Pública, 2=Privada
+  Comprador?: {
     NombreOrganismo?: string;
     RutUnidad?: string;
+  };
+  Fechas?: {
+    FechaCierre?: string;
+    FechaPublicacion?: string;
+    FechaCreacion?: string;
+    FechaAdjudicacion?: string;
   };
   Items?: {
     Listado: MercadoPublicoItem[];
@@ -36,7 +42,7 @@ export interface MercadoPublicoBid {
 const BASE_URL = 'https://us-central1-studio-4126028826-31b2f.cloudfunctions.net';
 
 /**
- * Llama a la función de ingesta masiva.
+ * Llama a la función de ingesta masiva (Sincronización por Fecha).
  */
 export async function getBidsByDate(date: string): Promise<{ success: boolean; count: number; message: string }> {
   const url = `${BASE_URL}/getBidsByDate?date=${date}`;
@@ -65,7 +71,8 @@ export async function getBidsByDate(date: string): Promise<{ success: boolean; c
 }
 
 /**
- * Obtiene el detalle profundo y actualiza Firestore.
+ * Obtiene el detalle profundo consultando por código externo y actualiza Firestore.
+ * Alineado con el mapeo de Comprador y Fechas.
  */
 export async function getBidDetail(code: string): Promise<MercadoPublicoBid | null> {
   const url = `${BASE_URL}/getBidDetail?code=${code}`;

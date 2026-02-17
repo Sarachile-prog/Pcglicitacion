@@ -19,14 +19,17 @@
       "type": "object",
       "description": "A single tender opportunity scraped from web sources.",
       "properties": {
-        "id": { "type": "string" },
-        "title": { "type": "string" },
+        "id": { "type": "string", "description": "Licitaciones/Listado/Licitacion/CodigoExterno" },
+        "title": { "type": "string", "description": "Licitaciones/Listado/Licitacion/Nombre" },
+        "entity": { "type": "string", "description": "Licitaciones/Listado/Licitacion/Comprador/NombreOrganismo" },
         "description": { "type": "string" },
         "status": { "type": "string" },
         "amount": { "type": "number" },
         "currency": { "type": "string" },
+        "typeCode": { "type": "number" },
         "deadlineDate": { "type": "string", "format": "date-time" },
-        "aiAnalysis": { "type": "object" }
+        "aiAnalysis": { "type": "object" },
+        "scrapedAt": { "type": "string", "format": "date-time" }
       },
       "required": ["id", "title", "status"]
     },

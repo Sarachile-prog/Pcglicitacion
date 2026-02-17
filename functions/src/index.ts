@@ -74,13 +74,12 @@ async function performSync(date: string) {
     
     const bidRef = db.collection("bids").doc(bid.CodigoExterno);
     
-    // IMPORTANTE: Solo actualizamos los campos base para no borrar
-    // la institución o el monto si ya fueron enriquecidos manualmente.
+    // Mapeo inicial ligero
     batch.set(bidRef, {
       id: bid.CodigoExterno,
-      title: bid.Nombre || bid.NombreLicitacion || "Sin título",
-      status: bid.Estado || bid.EstadoLicitacion || "No definido",
-      deadlineDate: bid.FechaCierre || bid.FechaCierreLicitacion || null,
+      title: bid.Nombre || "Sin título",
+      status: bid.Estado || "No definido",
+      deadlineDate: bid.FechaCierre || null,
       scrapedAt: nowServer,
       sourceUrl: `https://www.mercadopublico.cl/Procurement/Modules/RFB/DetailsAcquisition.aspx?idLicitacion=${bid.CodigoExterno}`
     }, { merge: true });
@@ -138,18 +137,29 @@ export const getBidDetail = onRequest({
 
     if (apiData.Listado && apiData.Listado.length > 0) {
       const detail = apiData.Listado[0];
+      
+      // MAPEO SEGÚN DICCIONARIO DE DATOS OFICIAL
+      // Licitaciones/Listado/Licitacion/Comprador/NombreOrganismo
       let entity = "Institución no especificada";
-      if (detail.Organismo) {
-        entity = detail.Organismo.NombreOrganismo || detail.Organismo.Nombre || (typeof detail.Organismo === 'string' ? detail.Organismo : entity);
+      if (detail.Comprador) {
+        entity = detail.Comprador.NombreOrganismo || entity;
+      } else if (detail.Organismo) {
+        entity = detail.Organismo.NombreOrganismo || detail.Organismo.Nombre || entity;
       }
+
+      // Licitaciones/Listado/Licitacion/Fechas/FechaCierre
+      const deadlineDate = detail.Fechas?.FechaCierre || detail.FechaCierre || null;
+      const publishedDate = detail.Fechas?.FechaPublicacion || detail.FechaPublicacion || null;
+
       await admin.firestore().collection("bids").doc(code).update({
         description: detail.Descripcion || "Sin descripción adicional.",
         items: detail.Items?.Listado || [],
-        amount: detail.MontoEstimado || 0,
-        currency: detail.Moneda || 'CLP',
+        amount: detail.MontoEstimado || 0, // Licitaciones/Listado/Licitacion/MontoEstimado
+        currency: detail.Moneda || 'CLP', // Unidades Monetarias
         entity: entity,
-        publishedDate: detail.FechaPublicacion || null,
-        deadlineDate: detail.FechaCierre || null,
+        typeCode: detail.CodigoTipo || null, // L1, LE, LP, etc.
+        publishedDate: publishedDate,
+        deadlineDate: deadlineDate,
         fullDetailAt: admin.firestore.FieldValue.serverTimestamp()
       });
       response.json({ success: true, data: detail });

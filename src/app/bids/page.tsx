@@ -28,14 +28,14 @@ import {
   Database,
   CheckCircle2,
   Clock,
-  ArrowUpRight
+  Filter
 } from "lucide-react"
 import Link from "next/link"
 import { getBidsByDate } from "@/services/mercado-publico"
 import { useToast } from "@/hooks/use-toast"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Calendar } from "@/components/ui/calendar"
-import { format, subDays } from "date-fns"
+import { format, subDays, isAfter, startOfDay } from "date-fns"
 import { cn } from "@/lib/utils"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
@@ -48,6 +48,7 @@ export default function BidsListPage() {
   const db = useFirestore()
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedRubro, setSelectedRubro] = useState("all")
+  const [timeRange, setTimeRange] = useState("all")
   const [isSyncing, setIsSyncing] = useState(false)
   const [ticketError, setTicketError] = useState(false)
   const [isCalendarOpen, setIsCalendarOpen] = useState(false)
@@ -108,13 +109,17 @@ export default function BidsListPage() {
 
   const filteredBids = useMemo(() => {
     const allBids = bids || [];
+    const now = new Date();
+
     return allBids.filter(bid => {
+      // 1. Filtro por texto
       const searchString = searchTerm.toLowerCase()
       const matchesSearch = 
         bid.title?.toLowerCase().includes(searchString) || 
         bid.entity?.toLowerCase().includes(searchString) ||
         bid.id?.toLowerCase().includes(searchString)
       
+      // 2. Filtro por rubro
       let matchesRubro = true
       if (selectedRubro !== "all") {
         const rubroLower = selectedRubro.toLowerCase()
@@ -124,9 +129,23 @@ export default function BidsListPage() {
           (bid.items && bid.items.some((item: any) => item.Categoria?.toLowerCase().includes(rubroLower)))
       }
 
-      return matchesSearch && matchesRubro
+      // 3. Filtro por tiempo (scrapedAt)
+      let matchesTime = true
+      const scrapedAtDate = bid.scrapedAt?.toDate ? bid.scrapedAt.toDate() : new Date(bid.scrapedAt);
+      
+      if (timeRange === "today") {
+        matchesTime = isAfter(scrapedAtDate, startOfDay(now));
+      } else if (timeRange === "7days") {
+        matchesTime = isAfter(scrapedAtDate, subDays(now, 7));
+      } else if (timeRange === "month") {
+        matchesTime = isAfter(scrapedAtDate, subDays(now, 30));
+      } else if (timeRange === "3months") {
+        matchesTime = isAfter(scrapedAtDate, subDays(now, 90));
+      }
+
+      return matchesSearch && matchesRubro && matchesTime
     })
-  }, [bids, searchTerm, selectedRubro])
+  }, [bids, searchTerm, selectedRubro, timeRange])
 
   const totalPages = Math.ceil(filteredBids.length / ITEMS_PER_PAGE);
   const pagedBids = useMemo(() => {
@@ -218,8 +237,7 @@ export default function BidsListPage() {
         <Info className="h-4 w-4 text-blue-600" />
         <AlertTitle className="text-blue-800 font-bold">Nota sobre la Cobertura de Datos</AlertTitle>
         <AlertDescription className="text-blue-700 text-xs">
-          La búsqueda y filtros se aplican sobre las licitaciones <strong>ya sincronizadas</strong> en tu base de datos local. 
-          Si una fecha no tiene datos, utiliza el importador superior. Las fechas de publicación se completan automáticamente al abrir cada licitación.
+          Los filtros se aplican sobre licitaciones sincronizadas en tu base de datos local. La fecha de cierre es la oficial, mientras que los rangos de tiempo se basan en cuándo la licitación fue detectada por PCG.
         </AlertDescription>
       </Alert>
 
@@ -232,7 +250,7 @@ export default function BidsListPage() {
             <div className="flex-1 space-y-2">
               <h4 className="font-bold text-red-800 text-lg">Error de Acceso a API</h4>
               <p className="text-sm text-red-700 leading-relaxed">
-                No pudimos conectar con Mercado Público. Verifica tu ticket de desarrollador.
+                No pudimos conectar con Mercado Público. Verifica tu ticket de desarrollador en configuración.
               </p>
             </div>
             <Link href="/settings">
@@ -246,13 +264,13 @@ export default function BidsListPage() {
 
       {/* FILTROS */}
       <div className="bg-white p-6 rounded-2xl shadow-md border-2 border-primary/5 space-y-6">
-        <div className="flex flex-col lg:flex-row gap-4 items-end">
-          <div className="flex-1 space-y-2 w-full">
-            <label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest ml-1">Buscador Estratégico</label>
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
+          <div className="md:col-span-5 space-y-2 w-full">
+            <label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest ml-1">Buscador</label>
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input 
-                placeholder="Filtrar en toda la base de datos por título, institución o ID..." 
+                placeholder="Título, institución o ID..." 
                 className="pl-10 h-12 bg-muted/20 border-none shadow-inner"
                 value={searchTerm}
                 onChange={(e) => {
@@ -263,14 +281,14 @@ export default function BidsListPage() {
             </div>
           </div>
           
-          <div className="w-full lg:w-64 space-y-2">
-            <label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest ml-1">Rubro / Sector</label>
+          <div className="md:col-span-3 space-y-2">
+            <label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest ml-1">Rubro</label>
             <Select value={selectedRubro} onValueChange={(val) => {
               setSelectedRubro(val);
               setCurrentPage(1);
             }}>
               <SelectTrigger className="h-12 bg-muted/20 border-none shadow-inner font-bold">
-                <SelectValue placeholder="Todos los Rubros" />
+                <SelectValue placeholder="Todos" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todos los Rubros</SelectItem>
@@ -281,19 +299,41 @@ export default function BidsListPage() {
             </Select>
           </div>
 
-          <div className="flex bg-muted rounded-xl p-1.5 h-12 items-center">
+          <div className="md:col-span-3 space-y-2">
+            <label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest ml-1">Antigüedad (Sincro)</label>
+            <Select value={timeRange} onValueChange={(val) => {
+              setTimeRange(val);
+              setCurrentPage(1);
+            }}>
+              <SelectTrigger className="h-12 bg-muted/20 border-none shadow-inner font-bold">
+                <div className="flex items-center gap-2">
+                  <Clock className="h-3.5 w-3.5 text-accent" />
+                  <SelectValue placeholder="Cualquier fecha" />
+                </div>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Cualquier fecha</SelectItem>
+                <SelectItem value="today">Sincronizadas Hoy</SelectItem>
+                <SelectItem value="7days">Últimos 7 días</SelectItem>
+                <SelectItem value="month">Último mes</SelectItem>
+                <SelectItem value="3months">Últimos 3 meses</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="md:col-span-1 flex bg-muted rounded-xl p-1.5 h-12 items-center justify-center">
             <Button 
               variant={viewMode === 'grid' ? "secondary" : "ghost"} 
-              size="sm" 
-              className="h-full px-4 rounded-lg"
+              size="icon" 
+              className="h-full w-full rounded-lg"
               onClick={() => setViewMode('grid')}
             >
               <LayoutGrid className="h-4 w-4" />
             </Button>
             <Button 
               variant={viewMode === 'list' ? "secondary" : "ghost"} 
-              size="sm" 
-              className="h-full px-4 rounded-lg"
+              size="icon" 
+              className="h-full w-full rounded-lg"
               onClick={() => setViewMode('list')}
             >
               <List className="h-4 w-4" />
@@ -304,71 +344,19 @@ export default function BidsListPage() {
         <div className="flex items-center justify-between pt-4 border-t">
           <div className="flex items-center gap-3">
             <Badge variant="secondary" className="bg-primary text-white font-black px-3 py-1">
-              {filteredBids.length} Licitaciones Filtradas
+              {filteredBids.length} Resultados
             </Badge>
-            {bids && (
-              <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest flex items-center gap-1">
-                <Database className="h-3 w-3" /> Registros en Caché: {bids.length}
-              </span>
-            )}
           </div>
           <div className="flex items-center gap-4">
              {totalPages > 1 && (
                <div className="flex items-center gap-1">
-                 <Button 
-                   variant="ghost" 
-                   size="icon" 
-                   className="h-8 w-8" 
-                   onClick={() => setCurrentPage(1)} 
-                   disabled={currentPage === 1}
-                 >
-                   <ChevronFirst className="h-4 w-4" />
-                 </Button>
-                 <Button 
-                   variant="ghost" 
-                   size="icon" 
-                   className="h-8 w-8" 
-                   onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))} 
-                   disabled={currentPage === 1}
-                 >
-                   <ChevronLeft className="h-4 w-4" />
-                 </Button>
-                 <span className="text-xs font-bold px-2">Página {currentPage} de {totalPages}</span>
-                 <Button 
-                   variant="ghost" 
-                   size="icon" 
-                   className="h-8 w-8" 
-                   onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))} 
-                   disabled={currentPage === totalPages}
-                 >
-                   <ChevronRight className="h-4 w-4" />
-                 </Button>
-                 <Button 
-                   variant="ghost" 
-                   size="icon" 
-                   className="h-8 w-8" 
-                   onClick={() => setCurrentPage(totalPages)} 
-                   disabled={currentPage === totalPages}
-                 >
-                   <ChevronLast className="h-4 w-4" />
-                 </Button>
+                 <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setCurrentPage(1)} disabled={currentPage === 1}><ChevronFirst className="h-4 w-4" /></Button>
+                 <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))} disabled={currentPage === 1}><ChevronLeft className="h-4 w-4" /></Button>
+                 <span className="text-xs font-bold px-2">Página {currentPage}</span>
+                 <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))} disabled={currentPage === totalPages}><ChevronRight className="h-4 w-4" /></Button>
+                 <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setCurrentPage(totalPages)} disabled={currentPage === totalPages}><ChevronLast className="h-4 w-4" /></Button>
                </div>
              )}
-             <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <div className="flex items-center gap-2 text-muted-foreground cursor-help">
-                    <TooltipIcon className="h-4 w-4" />
-                    <span className="text-[10px] font-black uppercase">Info de Datos</span>
-                  </div>
-                </TooltipTrigger>
-                <TooltipContent className="max-w-xs p-4">
-                  <p className="text-xs leading-relaxed font-medium">
-                    Mostramos hasta las últimas 1,000 licitaciones sincronizadas. Para obtener fechas de publicación de registros antiguos, abre el detalle de la licitación.
-                  </p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
           </div>
         </div>
       </div>
@@ -396,27 +384,20 @@ export default function BidsListPage() {
                         {bid.status || 'No definido'}
                       </Badge>
                     </div>
-                    <h3 className="font-bold text-lg mb-4 line-clamp-2 group-hover:text-accent transition-colors min-h-[3.5rem] uppercase italic tracking-tighter">
+                    <h3 className="font-bold text-lg mb-4 line-clamp-2 group-hover:text-accent transition-colors min-h-[3.5rem] uppercase italic tracking-tighter text-primary">
                       {bid.title}
                     </h3>
                     <div className="space-y-3 text-sm text-muted-foreground">
                       <div className="flex items-start gap-2">
                         <Building2 className="h-4 w-4 shrink-0 text-accent mt-0.5" />
-                        <span className="line-clamp-2 font-medium leading-tight uppercase text-xs">{bid.entity || "Cargando Institución..."}</span>
+                        <span className="line-clamp-2 font-medium leading-tight uppercase text-xs">{bid.entity || "Institución..."}</span>
                       </div>
-                      <div className="grid grid-cols-2 gap-2 pt-2">
-                        <div className="flex items-center gap-1.5">
-                          <CalendarIcon className="h-3 w-3 text-primary/40" />
+                      <div className="pt-2">
+                        <div className="flex items-center gap-1.5 bg-red-50 p-2 rounded-lg border border-red-100">
+                          <Clock className="h-3.5 w-3.5 text-red-500" />
                           <div className="flex flex-col">
-                            <span className="text-[8px] uppercase font-black opacity-50">Publicación</span>
-                            <span className="text-[10px] font-bold text-primary">{formatDate(bid.publishedDate)}</span>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                          <Clock className="h-3 w-3 text-red-400/60" />
-                          <div className="flex flex-col">
-                            <span className="text-[8px] uppercase font-black opacity-50 text-red-400">Cierre</span>
-                            <span className="text-[10px] font-bold text-primary">{formatDate(bid.deadlineDate)}</span>
+                            <span className="text-[8px] uppercase font-black text-red-400">Cierre Oficial</span>
+                            <span className="text-[10px] font-bold text-red-700">{formatDate(bid.deadlineDate)}</span>
                           </div>
                         </div>
                       </div>
@@ -445,8 +426,7 @@ export default function BidsListPage() {
                   <TableRow>
                     <TableHead className="w-[120px] font-bold">ID</TableHead>
                     <TableHead className="min-w-[250px] font-bold">Título / Institución</TableHead>
-                    <TableHead className="font-bold text-center">Publicación</TableHead>
-                    <TableHead className="font-bold text-red-600 text-center">Cierre</TableHead>
+                    <TableHead className="font-bold text-red-600 text-center">Cierre Oficial</TableHead>
                     <TableHead className="font-bold">Estado</TableHead>
                     <TableHead className="text-right font-bold">Monto Estimado</TableHead>
                     <TableHead className="w-[50px]"></TableHead>
@@ -460,16 +440,13 @@ export default function BidsListPage() {
                       </TableCell>
                       <TableCell>
                         <Link href={`/bids/${bid.id}`} className="space-y-1 block">
-                          <p className="font-bold text-sm line-clamp-1 group-hover:text-accent transition-colors uppercase italic">{bid.title}</p>
+                          <p className="font-bold text-sm line-clamp-1 group-hover:text-accent transition-colors uppercase italic text-primary">{bid.title}</p>
                           <p className="text-[10px] text-muted-foreground flex items-center gap-1 uppercase font-medium">
                             <Building2 className="h-3 w-3" /> {bid.entity || "Cargando..."}
                           </p>
                         </Link>
                       </TableCell>
-                      <TableCell className="text-xs font-medium text-muted-foreground text-center">
-                        {formatDate(bid.publishedDate)}
-                      </TableCell>
-                      <TableCell className="text-xs font-bold text-primary text-center">
+                      <TableCell className="text-xs font-bold text-red-600 text-center">
                         {formatDate(bid.deadlineDate)}
                       </TableCell>
                       <TableCell>
@@ -505,55 +482,10 @@ export default function BidsListPage() {
             </div>
             <h3 className="text-xl font-bold text-primary italic uppercase">No se encontraron resultados</h3>
             <p className="text-muted-foreground max-w-sm">
-              Ajusta tus filtros o importa datos de una fecha específica para expandir tu base de datos.
+              Ajusta tus filtros o importa datos de otra fecha para expandir tu base de datos local.
             </p>
           </CardContent>
         </Card>
-      )}
-
-      {totalPages > 1 && (
-        <div className="flex justify-center items-center gap-2 pt-4">
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))} 
-            disabled={currentPage === 1}
-            className="font-bold uppercase text-[10px]"
-          >
-            <ChevronLeft className="h-4 w-4 mr-1" /> Anterior
-          </Button>
-          <div className="flex gap-1">
-            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-              let pageNum = currentPage;
-              if (currentPage <= 3) pageNum = i + 1;
-              else if (currentPage >= totalPages - 2) pageNum = totalPages - 4 + i;
-              else pageNum = currentPage - 2 + i;
-              
-              if (pageNum <= 0 || pageNum > totalPages) return null;
-
-              return (
-                <Button 
-                  key={pageNum}
-                  variant={currentPage === pageNum ? "default" : "outline"} 
-                  size="sm"
-                  className="w-9 h-9 font-bold text-xs"
-                  onClick={() => setCurrentPage(pageNum)}
-                >
-                  {pageNum}
-                </Button>
-              )
-            })}
-          </div>
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))} 
-            disabled={currentPage === totalPages}
-            className="font-bold uppercase text-[10px]"
-          >
-            Siguiente <ChevronRight className="h-4 w-4 ml-1" />
-          </Button>
-        </div>
       )}
     </div>
   )

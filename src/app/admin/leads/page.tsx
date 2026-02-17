@@ -47,6 +47,16 @@ import {
   DialogFooter,
   DialogDescription
 } from "@/components/ui/dialog"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
@@ -68,6 +78,7 @@ export default function CompaniesManagementPage() {
   const [searchTerm, setSearchTerm] = useState("")
   const [isAddingCompany, setIsAddingCompany] = useState(false)
   const [editingCompany, setEditingCompany] = useState<any>(null)
+  const [companyToDelete, setCompanyToDelete] = useState<any>(null)
   const [isSyncing, setIsSyncing] = useState(false)
 
   // Perfil del usuario actual para validación de SuperAdmin
@@ -164,13 +175,17 @@ export default function CompaniesManagementPage() {
     }
   }
 
-  const handleDeleteCompany = async (companyId: string) => {
-    if (!db || !confirm("¿Estás seguro de eliminar esta empresa? Esta acción es irreversible.")) return
+  const handleDeleteCompany = async () => {
+    if (!db || !companyToDelete) return
+    setIsSyncing(true)
     try {
-      await deleteDoc(doc(db, "companies", companyId))
-      toast({ title: "Empresa Eliminada" })
+      await deleteDoc(doc(db, "companies", companyToDelete.id))
+      toast({ title: "Empresa Eliminada", description: "El tenant ha sido removido del sistema." })
+      setCompanyToDelete(null)
     } catch (e: any) {
-      toast({ variant: "destructive", title: "Error", description: e.message })
+      toast({ variant: "destructive", title: "Error al eliminar", description: e.message })
+    } finally {
+      setIsSyncing(false)
     }
   }
 
@@ -428,7 +443,7 @@ export default function CompaniesManagementPage() {
                             {company.subscriptionStatus === 'Active' ? <><Ban className="h-3.5 w-3.5 text-red-500" /> Suspender Servicio</> : <><CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" /> Activar Servicio</>}
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
-                          <DropdownMenuItem className="text-red-600 font-bold text-xs gap-2" onClick={() => handleDeleteCompany(company.id)}>
+                          <DropdownMenuItem className="text-red-600 font-bold text-xs gap-2" onClick={() => setCompanyToDelete(company)}>
                             <Trash2 className="h-3.5 w-3.5" /> Eliminar Tenant
                           </DropdownMenuItem>
                         </DropdownMenuContent>
@@ -508,6 +523,30 @@ export default function CompaniesManagementPage() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* ALERT DIALOG PARA ELIMINACIÓN SEGURA (SIN BLOQUEO DE NAVEGADOR) */}
+      <AlertDialog open={!!companyToDelete} onOpenChange={(open) => !open && setCompanyToDelete(null)}>
+        <AlertDialogContent className="rounded-3xl border-2 border-primary/10">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-2xl font-black text-primary uppercase italic">¿Confirmar Eliminación?</AlertDialogTitle>
+            <AlertDialogDescription className="font-medium italic">
+              Estás a punto de eliminar permanentemente el tenant <b>{companyToDelete?.name}</b>. 
+              Esta acción no se puede deshacer y todos los datos vinculados se perderán.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="gap-2">
+            <AlertDialogCancel className="rounded-xl font-bold uppercase italic">Cancelar</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleDeleteCompany} 
+              className="bg-red-600 hover:bg-red-700 rounded-xl font-black uppercase italic"
+              disabled={isSyncing}
+            >
+              {isSyncing ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : <Trash2 className="mr-2 h-4 w-4" />}
+              Eliminar Definitivamente
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

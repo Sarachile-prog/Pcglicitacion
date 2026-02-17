@@ -22,17 +22,18 @@ Ejecuta `git status` o mira el log con `git log -1`.
 - **ÉXITO:** Si en el log ves `(HEAD -> main, origin/main)`, tus cambios ya están en la nube.
 - **PENDIENTE:** Si `git status` dice `Your branch is ahead of 'origin/main'`, ejecuta `git push origin main`.
 
-## Arquitectura de Seguridad
+## Arquitectura de Seguridad (IMPORTANTE)
 
-Este proyecto utiliza **Restricciones de API Key** en Google Cloud. 
-**IMPORTANTE:** Si ves errores de "Insufficient Permissions" o "Referer Blocked" en el editor de Firebase Studio, asegúrate de que en la consola de Google Cloud, la clave de API tenga permitidos los siguientes dominios:
+Este proyecto utiliza **Restricciones de API Key** en Google Cloud para evitar el robo de cuota de IA y base de datos.
 
-### Dominios Requeridos:
+### 403 Forbidden / Error de Registro:
+Si ves un error 403 al intentar registrarte o loguearte desde el editor de Firebase Studio, debes ir a [Google Cloud Console > API & Services > Credentials](https://console.cloud.google.com/apis/credentials) y añadir estos dominios a la lista blanca de tu API Key:
+
+- `*.firebaseapp.com/*` (Obligatorio para que el editor funcione)
+- `*.web.app/*` (Alternativo para previsualizaciones)
 - `pcglicitacion.cl/*` (Producción)
 - `www.pcglicitacion.cl/*` (Producción)
 - `localhost:9002/*` (Desarrollo local)
-- `studio-4126028826-31b2f.firebaseapp.com/*` (Dominio de Firebase Studio - ¡Vital para que el editor funcione!)
-- `studio-4126028826-31b2f.web.app/*` (Dominio alternativo de Studio)
 
 ## Soporte
 Cualquier duda técnica debe ser gestionada a través del módulo de **Mesa de Ayuda** interno en la plataforma.

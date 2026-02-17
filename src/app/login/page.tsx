@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Globe, ShieldCheck, Mail, Lock, Loader2, Building2, ArrowRight } from "lucide-react"
+import { Globe, ShieldCheck, Mail, Lock, Loader2, Building2, ArrowRight, AlertTriangle } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
@@ -30,6 +30,7 @@ export default function LoginPage() {
   const [companyName, setCompanyName] = useState("")
   const [isLoginMode, setIsLoginMode] = useState(true)
   const [isLoading, setIsLoading] = useState(false)
+  const [apiKeyBlocked, setApiKeyBlocked] = useState(false)
 
   useEffect(() => {
     if (user && !isUserLoading && !isLoading) {
@@ -72,6 +73,7 @@ export default function LoginPage() {
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault()
+    setApiKeyBlocked(false)
     if (!email || !password) return
     if (!isLoginMode && !companyName) {
       toast({ variant: "destructive", title: "Datos incompletos", description: "Por favor indica el nombre de tu empresa." })
@@ -92,9 +94,18 @@ export default function LoginPage() {
       }
       router.push("/dashboard")
     } catch (error: any) {
+      console.error(">>> [AUTH_ERROR]:", error);
       let message = "Hubo un problema con la autenticación."
+      
+      // Detección de bloqueo de API Key (Error 403)
+      if (error.message?.includes('403') || error.code === 'auth/network-request-failed') {
+        setApiKeyBlocked(true)
+        message = "Acceso Denegado (403): Tu API Key está bloqueando este dominio en Google Cloud."
+      }
+      
       if (error.code === 'auth/email-already-in-use') message = "Este correo ya está registrado."
       if (error.code === 'auth/invalid-credential') message = "Correo o contraseña incorrectos."
+      if (error.code === 'auth/weak-password') message = "La contraseña debe tener al menos 6 caracteres."
       
       toast({
         variant: "destructive",
@@ -145,6 +156,18 @@ export default function LoginPage() {
           </div>
         </CardHeader>
         <CardContent className="space-y-6 pt-8">
+          {apiKeyBlocked && (
+            <div className="bg-red-50 border-2 border-red-100 p-4 rounded-2xl flex items-start gap-3 animate-bounce">
+              <AlertTriangle className="h-5 w-5 text-red-600 shrink-0 mt-0.5" />
+              <div className="space-y-1">
+                <p className="text-[10px] font-black text-red-800 uppercase tracking-widest leading-none">Bloqueo de Seguridad Detectado</p>
+                <p className="text-[9px] font-bold text-red-700/80 italic leading-tight">
+                  Debes autorizar <b>*.firebaseapp.com/*</b> en tu API Key desde la Consola de Google Cloud para poder registrarte desde el editor.
+                </p>
+              </div>
+            </div>
+          )}
+
           <div className="flex bg-muted p-1 rounded-xl mb-4">
             <Button 
               variant={isLoginMode ? "default" : "ghost"} 

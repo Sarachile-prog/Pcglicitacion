@@ -2,7 +2,7 @@
 "use client"
 
 import { useState } from "react"
-import { useCollection, useMemoFirebase, useUser, useFirestore } from "@/firebase"
+import { useCollection, useMemoFirebase, useUser, useFirestore, useDoc } from "@/firebase"
 import { collection, doc, setDoc, updateDoc, deleteDoc } from "firebase/firestore"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -64,10 +64,15 @@ export default function CompaniesManagementPage() {
   const db = useFirestore()
   const { user } = useUser()
   const { toast } = useToast()
+  
   const [searchTerm, setSearchTerm] = useState("")
   const [isAddingCompany, setIsAddingCompany] = useState(false)
   const [editingCompany, setEditingCompany] = useState<any>(null)
   const [isSyncing, setIsSyncing] = useState(false)
+
+  // Perfil del usuario actual para validación de SuperAdmin
+  const myProfileRef = useMemoFirebase(() => user ? doc(db!, "users", user.uid) : null, [db, user])
+  const { data: myProfile } = useDoc(myProfileRef)
 
   // Estados para nueva empresa rápida (desde prospecto)
   const [selectedProspect, setSelectedProspect] = useState<any>(null)
@@ -148,6 +153,27 @@ export default function CompaniesManagementPage() {
     }
   }
 
+  const handleToggleCompanyStatus = async (companyId: string, currentStatus: string) => {
+    if (!db) return
+    const newStatus = currentStatus === 'Active' ? 'Inactive' : 'Active'
+    try {
+      await updateDoc(doc(db, "companies", companyId), { subscriptionStatus: newStatus })
+      toast({ title: `Servicio ${newStatus === 'Active' ? 'Activado' : 'Suspendido'}` })
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Error de permisos", description: e.message })
+    }
+  }
+
+  const handleDeleteCompany = async (companyId: string) => {
+    if (!db || !confirm("¿Estás seguro de eliminar esta empresa? Esta acción es irreversible.")) return
+    try {
+      await deleteDoc(doc(db, "companies", companyId))
+      toast({ title: "Empresa Eliminada" })
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Error", description: e.message })
+    }
+  }
+
   const handleAssignUser = async (userId: string, companyId: string | null, role: string = 'User') => {
     if (!db) return
     try {
@@ -176,7 +202,7 @@ export default function CompaniesManagementPage() {
     c.rut.includes(searchTerm)
   )
 
-  const isSuperAdmin = user?.email === 'control@pcgoperacion.com'
+  const isSuperAdmin = user?.email === 'control@pcgoperacion.com' || myProfile?.role === 'SuperAdmin'
 
   if (!user || !isSuperAdmin) {
     return (
@@ -229,7 +255,6 @@ export default function CompaniesManagementPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* COLUMNA SOLICITUDES */}
         <Card className="border-accent/20 bg-accent/5 rounded-3xl overflow-hidden shadow-xl border-2">
           <CardHeader className="bg-accent/10 border-b p-6">
             <div className="flex justify-between items-center">
@@ -275,7 +300,6 @@ export default function CompaniesManagementPage() {
           </CardContent>
         </Card>
 
-        {/* COLUMNA PROSPECTOS GENERALES */}
         <Card className="border-primary/10 bg-white rounded-3xl overflow-hidden shadow-xl border-2">
           <CardHeader className="bg-muted/30 border-b p-6">
             <div className="flex justify-between items-center">
@@ -400,16 +424,11 @@ export default function CompaniesManagementPage() {
                           <DropdownMenuItem className="font-bold text-xs gap-2" onClick={() => setEditingCompany(company)}>
                             <Edit3 className="h-3.5 w-3.5" /> Editar Datos / Plan
                           </DropdownMenuItem>
-                          <DropdownMenuItem className="font-bold text-xs gap-2" onClick={() => {
-                            const newStatus = company.subscriptionStatus === 'Active' ? 'Inactive' : 'Active'
-                            updateDoc(doc(db!, "companies", company.id), { subscriptionStatus: newStatus })
-                          }}>
+                          <DropdownMenuItem className="font-bold text-xs gap-2" onClick={() => handleToggleCompanyStatus(company.id, company.subscriptionStatus)}>
                             {company.subscriptionStatus === 'Active' ? <><Ban className="h-3.5 w-3.5 text-red-500" /> Suspender Servicio</> : <><CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" /> Activar Servicio</>}
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
-                          <DropdownMenuItem className="text-red-600 font-bold text-xs gap-2" onClick={() => {
-                            if (confirm("¿Estás seguro de eliminar esta empresa?")) deleteDoc(doc(db!, "companies", company.id))
-                          }}>
+                          <DropdownMenuItem className="text-red-600 font-bold text-xs gap-2" onClick={() => handleDeleteCompany(company.id)}>
                             <Trash2 className="h-3.5 w-3.5" /> Eliminar Tenant
                           </DropdownMenuItem>
                         </DropdownMenuContent>

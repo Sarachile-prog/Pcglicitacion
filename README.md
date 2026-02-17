@@ -26,14 +26,16 @@ Ejecuta `git status` o mira el log con `git log -1`.
 Este proyecto utiliza **Restricciones de API Key** en Google Cloud para evitar el robo de cuota de IA y base de datos.
 
 ### 403 Forbidden / Referer Blocked (Error de Registro/Login):
-Si ves un error indicando que los requests desde un dominio están bloqueados, debes ir a [Google Cloud Console > API & Services > Credentials](https://console.cloud.google.com/apis/credentials) y editar la clave **"Browser key (auto created by Firebase)"**. Añade estos dominios a la lista blanca:
+Si ves un error indicando que los requests desde un dominio están bloqueados, debes ir a [Google Cloud Console > API & Services > Credentials](https://console.cloud.google.com/apis/credentials) y editar la clave **"Browser key (auto created by Firebase)"**. 
 
-- `*.cloudworkstations.dev/*` (OBLIGATORIO para el editor de Firebase Studio)
-- `*.firebaseapp.com/*` (Obligatorio para previsualizaciones)
-- `*.web.app/*`
-- `pcglicitacion.cl/*`
-- `www.pcglicitacion.cl/*`
-- `localhost:9002/*`
+**Añade estos dominios a la lista blanca obligatoriamente:**
+
+1. `*.cloudworkstations.dev/*` (REQUERIDO para el editor de Firebase Studio)
+2. `*.firebaseapp.com/*` (Requerido para previsualizaciones de Firebase)
+3. `*.web.app/*`
+4. `pcglicitacion.cl/*`
+5. `www.pcglicitacion.cl/*`
+6. `localhost:9002/*`
 
 ## Soporte
 Cualquier duda técnica debe ser gestionada a través del módulo de **Mesa de Ayuda** interno en la plataforma.

@@ -105,15 +105,23 @@ export default function LoginPage() {
         error.code === 'auth/network-request-failed' ||
         error.code?.includes('requests-from-referer')
       ) {
-        // Intentar extraer el dominio del error para guiar al usuario
         const domainMatch = error.message?.match(/https?:\/\/[^\s-]+/)
         setBlockedDomain(domainMatch ? domainMatch[0] : "este dominio")
-        message = "Dominio Bloqueado por Google Cloud."
+        message = "Dominio Bloqueado. Revisa la alerta roja arriba."
       }
       
-      if (error.code === 'auth/email-already-in-use') message = "Este correo ya está registrado."
-      if (error.code === 'auth/invalid-credential') message = "Correo o contraseña incorrectos."
-      if (error.code === 'auth/weak-password') message = "La contraseña debe tener al menos 6 caracteres."
+      if (error.code === 'auth/email-already-in-use') {
+        message = "Este correo ya está registrado. Intenta iniciar sesión."
+        setIsLoginMode(true)
+      }
+      
+      if (error.code === 'auth/invalid-credential') {
+        message = "Credenciales incorrectas. Si intentaste registrarte y falló antes, prueba registrarte de nuevo."
+      }
+      
+      if (error.code === 'auth/weak-password') {
+        message = "La contraseña debe tener al menos 6 caracteres."
+      }
       
       toast({
         variant: "destructive",
@@ -138,13 +146,13 @@ export default function LoginPage() {
       await sendPasswordResetEmail(auth, email)
       toast({ 
         title: "Correo de Recuperación Enviado", 
-        description: "Revisa tu bandeja de entrada (y spam) para restablecer tu contraseña." 
+        description: "Revisa tu bandeja de entrada para restablecer tu contraseña." 
       })
     } catch (error: any) {
       toast({ 
         variant: "destructive", 
         title: "Error al enviar", 
-        description: "Verifica que el correo sea correcto o intenta más tarde." 
+        description: "Verifica que el correo sea correcto." 
       })
     }
   }
@@ -168,9 +176,10 @@ export default function LoginPage() {
             <div className="bg-red-50 border-2 border-red-100 p-4 rounded-2xl flex items-start gap-3 animate-in fade-in zoom-in-95">
               <AlertTriangle className="h-5 w-5 text-red-600 shrink-0 mt-0.5" />
               <div className="space-y-1">
-                <p className="text-[10px] font-black text-red-800 uppercase tracking-widest leading-none">Acceso Denegado por Seguridad</p>
+                <p className="text-[10px] font-black text-red-800 uppercase tracking-widest leading-none">Configuración de Seguridad Requerida</p>
                 <p className="text-[9px] font-bold text-red-700/80 italic leading-tight">
-                  Debes añadir <b>*.cloudworkstations.dev/*</b> a la lista blanca de la <b>Browser key</b> en Google Cloud Console para que este entorno funcione.
+                  Debes editar la <b>Browser key</b> en Google Cloud Console y añadir: <br/>
+                  <code className="bg-white px-1 rounded border text-red-600 font-mono">*.cloudworkstations.dev/*</code>
                 </p>
               </div>
             </div>
@@ -256,12 +265,6 @@ export default function LoginPage() {
               </div>
             </div>
 
-            <div className="py-2">
-              <div className="flex items-center gap-2 text-[10px] font-black text-emerald-600 uppercase italic tracking-tighter">
-                <ShieldCheck className="h-3.5 w-3.5" /> No se requiere tarjeta de crédito para probar
-              </div>
-            </div>
-
             <Button 
               type="submit" 
               className="w-full h-14 font-black uppercase italic text-lg shadow-xl gap-2 rounded-2xl" 
@@ -276,7 +279,7 @@ export default function LoginPage() {
             <div className="flex items-start gap-3">
               <ShieldCheck className="h-4 w-4 text-primary mt-0.5 shrink-0" />
               <p className="font-bold text-muted-foreground italic leading-tight">
-                PCGLICITACIÓN utiliza seguridad de grado industrial. Al registrarte, obtienes 3 análisis estratégicos gratuitos para tu empresa.
+                PCGLICITACIÓN utiliza seguridad industrial. Si no te has registrado con éxito, cambia a la pestaña "Registrarse".
               </p>
             </div>
           </div>

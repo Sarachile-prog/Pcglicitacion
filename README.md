@@ -25,12 +25,14 @@ Ejecuta `git status` o mira el log con `git log -1`.
 ## Arquitectura de Seguridad
 
 Este proyecto utiliza **Restricciones de API Key** en Google Cloud. 
-**IMPORTANTE:** Si ves errores de "Insufficient Permissions" o "Referer Blocked", asegúrate de que en la consola de Google Cloud, la clave de API tenga permitidos los siguientes dominios:
-- `pcglicitacion.cl/*`
-- `www.pcglicitacion.cl/*`
-- `localhost:9002/*`
-- `studio-4126028826-31b2f.firebaseapp.com/*` (Dominio de Firebase Studio)
-- `studio-4126028826-31b2f.web.app/*`
+**IMPORTANTE:** Si ves errores de "Insufficient Permissions" o "Referer Blocked" en el editor de Firebase Studio, asegúrate de que en la consola de Google Cloud, la clave de API tenga permitidos los siguientes dominios:
+
+### Dominios Requeridos:
+- `pcglicitacion.cl/*` (Producción)
+- `www.pcglicitacion.cl/*` (Producción)
+- `localhost:9002/*` (Desarrollo local)
+- `studio-4126028826-31b2f.firebaseapp.com/*` (Dominio de Firebase Studio - ¡Vital para que el editor funcione!)
+- `studio-4126028826-31b2f.web.app/*` (Dominio alternativo de Studio)
 
 ## Soporte
 Cualquier duda técnica debe ser gestionada a través del módulo de **Mesa de Ayuda** interno en la plataforma.

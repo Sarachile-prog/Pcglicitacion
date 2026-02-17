@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useMemo, useEffect } from "react"
@@ -28,10 +29,12 @@ import {
   Clock,
   Filter,
   Hourglass,
-  Sparkles
+  Sparkles,
+  Zap,
+  FileSearch
 } from "lucide-react"
 import Link from "next/link"
-import { getBidsByDate } from "@/services/mercado-publico"
+import { getBidsByDate, getBidDetail } from "@/services/mercado-publico"
 import { useToast } from "@/hooks/use-toast"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Calendar } from "@/components/ui/calendar"
@@ -49,12 +52,12 @@ export default function BidsListPage() {
   const [selectedRubro, setSelectedRubro] = useState("all")
   const [timeRange, setTimeRange] = useState("all")
   const [isSyncing, setIsSyncing] = useState(false)
+  const [isEnriching, setIsEnriching] = useState(false)
   const [ticketError, setTicketError] = useState(false)
   const [isCalendarOpen, setIsCalendarOpen] = useState(false)
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('list')
   const [currentPage, setCurrentPage] = useState(1)
   
-  // Para evitar errores de hidratación, inicializamos la fecha en null y la seteamos en useEffect
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
   
   useEffect(() => {
@@ -88,14 +91,14 @@ export default function BidsListPage() {
     try {
       toast({
         title: "Iniciando Sincronización",
-        description: `Importando licitaciones oficiales del ${format(selectedDate, "dd/MM")}...`,
+        description: `Importando IDs del ${format(selectedDate, "dd/MM")}...`,
       })
       
       const result = await getBidsByDate(formattedDate)
       
       toast({
         title: "Importación Exitosa",
-        description: `Se han añadido ${result.count} nuevas oportunidades a la base de datos global.`,
+        description: `Se han añadido ${result.count} IDs. Usa el botón "Completar Datos" para obtener montos e instituciones.`,
       })
     } catch (error: any) {
       if (error.message?.toLowerCase().includes('ticket') || error.message?.toLowerCase().includes('inválido')) {
@@ -109,6 +112,39 @@ export default function BidsListPage() {
       })
     } finally {
       setIsSyncing(false)
+    }
+  }
+
+  const handleEnrich = async () => {
+    if (!pagedBids || pagedBids.length === 0) return;
+    setIsEnriching(true);
+    let count = 0;
+    try {
+      toast({ 
+        title: "Enriqueciendo Vista Actual", 
+        description: "Obteniendo instituciones y montos desde el API de detalle..." 
+      });
+      
+      // Procesamos las que no tienen institución o monto
+      const toEnrich = pagedBids.filter(b => b.entity === "Institución no especificada" || !b.amount);
+      
+      if (toEnrich.length === 0) {
+        toast({ title: "Datos Completos", description: "Todos los procesos visibles ya tienen su información completa." });
+        return;
+      }
+
+      for (const bid of toEnrich) {
+        await getBidDetail(bid.id);
+        count++;
+        // Pequeño delay para no saturar la API
+        if (count % 3 === 0) await new Promise(r => setTimeout(r, 800));
+      }
+      
+      toast({ title: "Proceso Finalizado", description: `Se actualizaron ${count} licitaciones con éxito.` });
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Límite de API", description: "La API oficial está saturada. Prueba enriquecer más tarde." });
+    } finally {
+      setIsEnriching(false);
     }
   }
 
@@ -220,10 +256,10 @@ export default function BidsListPage() {
           </div>
           
           <Card className="bg-primary/5 border-primary/10 p-2 shadow-sm">
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
                 <PopoverTrigger asChild>
-                  <Button variant="outline" className={cn("justify-start text-left font-normal w-[180px] h-9 border-primary/20 bg-white", !selectedDate && "text-muted-foreground")}>
+                  <Button variant="outline" className={cn("justify-start text-left font-normal w-[160px] h-10 border-primary/20 bg-white", !selectedDate && "text-muted-foreground")}>
                     <CalendarIcon className="mr-2 h-3 w-3 text-primary" />
                     {selectedDate ? format(selectedDate, "dd/MM/yyyy") : <span className="animate-pulse">Cargando...</span>}
                   </Button>
@@ -245,12 +281,21 @@ export default function BidsListPage() {
               </Popover>
               <Button 
                 size="sm"
-                className="bg-accent hover:bg-accent/90 gap-2 font-bold h-9"
+                className="bg-primary hover:bg-primary/90 gap-2 font-black h-10 uppercase italic text-[10px]"
                 onClick={handleSync} 
                 disabled={isSyncing || !selectedDate}
               >
                 <RefreshCw className={isSyncing ? "h-3 w-3 animate-spin" : "h-3 w-3"} />
-                {isSyncing ? "Importando..." : "Importar Datos"}
+                {isSyncing ? "Sincronizando..." : "Importar IDs"}
+              </Button>
+              <Button 
+                size="sm"
+                className="bg-accent hover:bg-accent/90 gap-2 font-black h-10 uppercase italic text-[10px] shadow-lg"
+                onClick={handleEnrich} 
+                disabled={isEnriching || isSyncing || !pagedBids.length}
+              >
+                {isEnriching ? <Loader2 className="h-3 w-3 animate-spin" /> : <Database className="h-3 w-3" />}
+                Completar Datos
               </Button>
             </div>
           </Card>
@@ -259,9 +304,9 @@ export default function BidsListPage() {
 
       <Alert className="bg-blue-50 border-blue-200">
         <Info className="h-4 w-4 text-blue-600" />
-        <AlertTitle className="text-blue-800 font-bold">Nota sobre la Cobertura de Datos</AlertTitle>
-        <AlertDescription className="text-blue-700 text-xs">
-          Los filtros se aplican sobre licitaciones sincronizadas en tu base de datos local. El tiempo restante se calcula en base a la fecha de cierre oficial de Mercado Público.
+        <AlertTitle className="text-blue-800 font-bold uppercase italic text-xs">Nota sobre la Sincronización</AlertTitle>
+        <AlertDescription className="text-blue-700 text-[10px] font-medium leading-relaxed">
+          La API masiva de Mercado Público solo entrega IDs y títulos. Usa el botón <b>"Completar Datos"</b> para que el sistema consulte la Institución y el Monto Estimado de las licitaciones que estás viendo actualmente.
         </AlertDescription>
       </Alert>
 
@@ -394,9 +439,13 @@ export default function BidsListPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {pagedBids.map((bid) => {
               const daysLeft = getDaysLeft(bid.deadlineDate);
+              const isMissingData = bid.entity === "Institución no especificada" || !bid.amount;
               return (
                 <Link key={bid.id} href={`/bids/${bid.id}`} className="group">
-                  <Card className="h-full hover:border-accent hover:shadow-2xl transition-all duration-300 overflow-hidden border-2 border-transparent relative">
+                  <Card className={cn(
+                    "h-full hover:border-accent hover:shadow-2xl transition-all duration-300 overflow-hidden border-2 relative",
+                    isMissingData ? "border-amber-100 bg-amber-50/10" : "border-transparent"
+                  )}>
                     <CardContent className="p-6">
                       <div className="flex justify-between items-start mb-4">
                         <div className="flex flex-col gap-1">
@@ -414,8 +463,13 @@ export default function BidsListPage() {
                       </h3>
                       <div className="space-y-3 text-sm text-muted-foreground">
                         <div className="flex items-start gap-2">
-                          <Building2 className="h-4 w-4 shrink-0 text-accent mt-0.5" />
-                          <span className="line-clamp-2 font-medium leading-tight uppercase text-xs">{bid.entity || "Institución..."}</span>
+                          <Building2 className={cn("h-4 w-4 shrink-0 mt-0.5", isMissingData ? "text-amber-400" : "text-accent")} />
+                          <span className={cn(
+                            "line-clamp-2 font-medium leading-tight uppercase text-xs",
+                            isMissingData && "italic opacity-60"
+                          )}>
+                            {isMissingData ? "Pendiente de Completar..." : bid.entity}
+                          </span>
                         </div>
                         <div className="pt-2">
                           <div className="flex items-center gap-1.5 bg-red-50 p-2 rounded-lg border border-red-100">
@@ -430,7 +484,10 @@ export default function BidsListPage() {
                       <div className="mt-6 pt-6 border-t border-border flex items-center justify-between">
                         <div className="flex flex-col">
                           <span className="text-[10px] uppercase font-bold text-muted-foreground/60">Estimado</span>
-                          <span className="text-lg font-black text-primary">
+                          <span className={cn(
+                            "text-lg font-black",
+                            isMissingData ? "text-amber-600 italic" : "text-primary"
+                          )}>
                             {formatCurrency(bid.amount, bid.currency)}
                           </span>
                         </div>
@@ -461,6 +518,7 @@ export default function BidsListPage() {
                 <TableBody>
                   {pagedBids.map((bid) => {
                     const daysLeft = getDaysLeft(bid.deadlineDate);
+                    const isMissingData = bid.entity === "Institución no especificada" || !bid.amount;
                     return (
                       <TableRow key={bid.id} className="group hover:bg-accent/5 cursor-pointer">
                         <TableCell className="font-mono text-xs font-bold text-primary">
@@ -472,8 +530,11 @@ export default function BidsListPage() {
                         <TableCell>
                           <Link href={`/bids/${bid.id}`} className="space-y-1 block">
                             <p className="font-bold text-sm line-clamp-1 group-hover:text-accent transition-colors uppercase italic text-primary">{bid.title}</p>
-                            <p className="text-[10px] text-muted-foreground flex items-center gap-1 uppercase font-medium">
-                              <Building2 className="h-3 w-3" /> {bid.entity || "Cargando..."}
+                            <p className={cn(
+                              "text-[10px] flex items-center gap-1 uppercase font-medium",
+                              isMissingData ? "text-amber-600 italic" : "text-muted-foreground"
+                            )}>
+                              <Building2 className="h-3 w-3" /> {isMissingData ? "Sincronización Pendiente" : bid.entity}
                             </p>
                           </Link>
                         </TableCell>
@@ -483,7 +544,10 @@ export default function BidsListPage() {
                         <TableCell className="text-xs font-bold text-red-600 text-center">
                           {formatDate(bid.deadlineDate)}
                         </TableCell>
-                        <TableCell className="text-right font-black text-primary">
+                        <TableCell className={cn(
+                          "text-right font-black",
+                          isMissingData ? "text-amber-600 italic" : "text-primary"
+                        )}>
                           {formatCurrency(bid.amount, bid.currency)}
                         </TableCell>
                         <TableCell>

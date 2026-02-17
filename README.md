@@ -1,3 +1,4 @@
+
 # PCG LICITACIÓN - Guía de Operación
 
 Este es el repositorio central del ecosistema de inteligencia para Mercado Público.
@@ -34,7 +35,7 @@ Ejecuta `git status`.
 
 ## Arquitectura de Seguridad
 
-Este proyecto utiliza **Variables de Entorno** para las llaves de Firebase. Asegúrate de configurar las restricciones de dominio en la consola de Google Cloud para:
+Este proyecto utiliza **Variables de Envío** para las llaves de Firebase. Asegúrate de configurar las restricciones de dominio en la consola de Google Cloud para:
 - `pcglicitacion.cl`
 - `studio.firebase.google.com` (para desarrollo en el editor)
 

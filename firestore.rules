@@ -31,16 +31,9 @@ service cloud.firestore {
     }
 
     match /support_tickets/{ticketId} {
-      // Permitir crear tickets a cualquier usuario logueado
       allow create: if isSignedIn();
-      
-      // Permitir listar tickets si es admin o si el filtro de la consulta es su propio UID
       allow list: if isSignedIn() && (isSuperAdmin() || resource.data.userId == request.auth.uid);
-      
-      // Permitir leer un ticket específico si le pertenece o es admin
       allow get: if isSignedIn() && (isSuperAdmin() || resource.data.userId == request.auth.uid);
-      
-      // Permitir actualizar (responder o cerrar) si le pertenece o es admin
       allow update: if isSignedIn() && (isSuperAdmin() || resource.data.userId == request.auth.uid);
 
       match /messages/{messageId} {

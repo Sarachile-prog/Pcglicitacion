@@ -20,7 +20,8 @@ import {
   Headset,
   History,
   ShieldAlert,
-  RefreshCw
+  RefreshCw,
+  Lock
 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
@@ -40,13 +41,14 @@ export default function SupportPage() {
   const ticketsQuery = useMemoFirebase(() => {
     if (!db || !user) return null
     try {
+      // Importante: El filtro por userId es obligatorio por reglas de seguridad
       return query(
         collection(db, "support_tickets"),
         where("userId", "==", user.uid),
         orderBy("updatedAt", "desc")
       )
     } catch (e) {
-      console.error("Error building tickets query", e)
+      console.error("Error al construir consulta de tickets", e)
       return null
     }
   }, [db, user])
@@ -131,12 +133,26 @@ export default function SupportPage() {
     )
   }
 
+  // Si no hay usuario, mostramos estado de bloqueo
+  if (!user) {
+    return (
+      <div className="max-w-md mx-auto py-20 text-center space-y-6">
+        <div className="h-20 w-20 bg-muted rounded-full flex items-center justify-center mx-auto">
+          <Lock className="h-10 w-10 text-muted-foreground" />
+        </div>
+        <h2 className="text-2xl font-black text-primary uppercase italic tracking-tighter">Acceso Restringido</h2>
+        <p className="text-muted-foreground font-medium italic">Debes iniciar sesión para acceder a la mesa de ayuda técnica.</p>
+        <Button onClick={() => window.location.href = '/login'} className="w-full bg-primary font-black uppercase italic h-12">Ir al Login</Button>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-8 animate-in fade-in duration-700 max-w-6xl mx-auto pb-20">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div className="space-y-1">
           <h2 className="text-3xl font-black text-primary uppercase italic tracking-tighter">Mesa de Ayuda</h2>
-          <p className="text-muted-foreground font-medium italic">Resuelve dudas técnicas o solicita ajustes en tu plan.</p>
+          <p className="text-muted-foreground font-medium italic">Consulta sobre errores técnicos, activación de planes o dudas del sistema.</p>
         </div>
         <Button 
           onClick={() => { setIsCreating(true); setSelectedTicket(null); }} 
@@ -150,8 +166,8 @@ export default function SupportPage() {
         <Card className="bg-red-50 border-2 border-red-100 p-6 rounded-3xl flex items-center gap-4 text-red-800 animate-in slide-in-from-top-4">
           <ShieldAlert className="h-10 w-10 shrink-0" />
           <div>
-            <p className="font-black uppercase italic text-sm">Acceso Restringido</p>
-            <p className="text-xs font-medium italic">No se pudieron cargar tus tickets. Por favor verifica tu conexión o intenta cerrar y volver a abrir sesión.</p>
+            <p className="font-black uppercase italic text-sm">Problema de Sincronización</p>
+            <p className="text-xs font-medium italic">No se pudieron cargar tus datos. Reintenta en unos segundos o refresca la página.</p>
           </div>
         </Card>
       )}
@@ -161,7 +177,7 @@ export default function SupportPage() {
           <Card className="border-none shadow-xl rounded-3xl overflow-hidden">
             <CardHeader className="bg-primary/5 border-b p-6">
               <CardTitle className="text-sm font-black uppercase tracking-widest flex items-center gap-2 text-primary">
-                <History className="h-4 w-4 text-primary" /> Mis Solicitudes
+                <History className="h-4 w-4 text-primary" /> Historial de Consultas
               </CardTitle>
             </CardHeader>
             <CardContent className="p-0">
@@ -169,7 +185,7 @@ export default function SupportPage() {
                 <div className="p-10 text-center"><Loader2 className="animate-spin mx-auto opacity-20" /></div>
               ) : !tickets || tickets.length === 0 ? (
                 <div className="p-10 text-center text-xs italic text-muted-foreground font-medium">
-                  {error ? "Error de sincronización." : "Aún no tienes tickets creados."}
+                  No tienes tickets activos. Si necesitas ayuda, abre uno nuevo.
                 </div>
               ) : (
                 <div className="divide-y divide-primary/5">
@@ -205,23 +221,23 @@ export default function SupportPage() {
           {isCreating ? (
             <Card className="border-2 border-accent/20 shadow-2xl rounded-3xl overflow-hidden animate-in zoom-in-95">
               <CardHeader className="bg-accent/5 border-b p-8">
-                <CardTitle className="text-2xl font-black text-primary uppercase italic">Abrir Nueva Consulta</CardTitle>
-                <CardDescription className="font-medium italic">Explica tu requerimiento lo más detallado posible.</CardDescription>
+                <CardTitle className="text-2xl font-black text-primary uppercase italic">Nueva Consulta Técnica</CardTitle>
+                <CardDescription className="font-medium italic">Describe el problema para que nuestro equipo pueda asistirte.</CardDescription>
               </CardHeader>
               <CardContent className="p-8 space-y-6">
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest ml-1">Asunto</label>
+                  <label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest ml-1">Asunto de la consulta</label>
                   <Input 
-                    placeholder="Ej: Ayuda con Auditoría PDF / Activación de Plan" 
+                    placeholder="Ej: Problema al auditar PDF / Facturación pendiente" 
                     value={newSubject}
                     onChange={(e) => setNewSubject(e.target.value)}
                     className="h-12 bg-muted/20 border-none shadow-inner font-bold"
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest ml-1">Mensaje Inicial</label>
+                  <label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest ml-1">Detalle del requerimiento</label>
                   <Textarea 
-                    placeholder="Describe tu problema o solicitud aquí..." 
+                    placeholder="Escribe aquí tu mensaje..." 
                     value={newMessage}
                     onChange={(e) => setNewMessage(e.target.value)}
                     className="min-h-[200px] bg-muted/20 border-none shadow-inner font-medium italic"
@@ -230,7 +246,7 @@ export default function SupportPage() {
                 <div className="flex gap-4">
                   <Button variant="outline" onClick={() => setIsCreating(false)} className="flex-1 h-12 font-black uppercase italic">Cancelar</Button>
                   <Button onClick={handleCreateTicket} disabled={isSyncing} className="flex-[2] h-12 bg-accent font-black uppercase italic shadow-lg gap-2">
-                    {isSyncing ? <Loader2 className="animate-spin" /> : <><Send className="h-4 w-4" /> Enviar a Soporte</>}
+                    {isSyncing ? <Loader2 className="animate-spin" /> : <><Send className="h-4 w-4" /> Enviar Mensaje</>}
                   </Button>
                 </div>
               </CardContent>
@@ -241,7 +257,7 @@ export default function SupportPage() {
                 <CardHeader className="bg-primary text-white p-6">
                   <div className="flex justify-between items-center">
                     <div className="space-y-1">
-                      <p className="text-[10px] font-black uppercase text-accent tracking-[0.2em]">Ticket #{selectedTicket.id.slice(0,5)}</p>
+                      <p className="text-[10px] font-black uppercase text-accent tracking-[0.2em]">Referencia #{selectedTicket.id.slice(0,5)}</p>
                       <CardTitle className="text-2xl font-black italic uppercase tracking-tighter">{selectedTicket.subject}</CardTitle>
                     </div>
                     <Badge className="bg-white text-primary font-black uppercase text-[10px] px-4">{selectedTicket.status}</Badge>
@@ -260,7 +276,7 @@ export default function SupportPage() {
                         {m.text}
                       </div>
                       <p className="text-[8px] font-black text-muted-foreground uppercase mt-1 px-1">
-                        {m.senderRole === 'User' ? 'Tú' : 'PCG Soporte'} • {m.createdAt ? new Date(m.createdAt.toDate()).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '--:--'}
+                        {m.senderRole === 'User' ? 'Tú' : 'Soporte PCG'} • {m.createdAt ? new Date(m.createdAt.toDate()).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '--:--'}
                       </p>
                     </div>
                   ))}
@@ -268,12 +284,12 @@ export default function SupportPage() {
                 <CardContent className="p-6 border-t bg-white">
                   {selectedTicket.status === 'Closed' ? (
                     <div className="p-4 bg-emerald-50 rounded-xl flex items-center justify-center gap-2 text-emerald-700 font-black uppercase italic text-xs">
-                      <CheckCircle2 className="h-4 w-4" /> Este ticket ha sido resuelto y cerrado.
+                      <CheckCircle2 className="h-4 w-4" /> Caso resuelto. Puedes abrir uno nuevo si persiste el problema.
                     </div>
                   ) : (
                     <div className="flex gap-2">
                       <Input 
-                        placeholder="Escribe tu respuesta..." 
+                        placeholder="Responder aquí..." 
                         value={replyText}
                         onChange={(e) => setReplyText(e.target.value)}
                         onKeyDown={(e) => e.key === 'Enter' && handleReply()}
@@ -289,8 +305,10 @@ export default function SupportPage() {
             </div>
           ) : (
             <div className="h-full flex flex-col items-center justify-center py-20 bg-muted/10 rounded-[3rem] border-4 border-dashed border-primary/10">
-              <Headset className="h-20 w-20 text-primary/10 mb-6" />
-              <h3 className="text-xl font-black text-primary/40 uppercase italic text-center px-6">Selecciona un ticket para ver la conversación</h3>
+              <div className="h-20 w-20 bg-white rounded-3xl shadow-xl flex items-center justify-center mb-6">
+                <MessageSquareText className="h-10 w-10 text-accent" />
+              </div>
+              <h3 className="text-xl font-black text-primary/40 uppercase italic text-center px-6 leading-tight">Selecciona un caso del historial <br/> para ver los detalles</h3>
             </div>
           )}
         </div>

@@ -67,13 +67,15 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
 
   // Determinamos si es la página de inicio o login para aplicar un layout sin sidebar
   const isPublicPage = pathname === '/' || pathname === '/login';
+  const isHomePage = pathname === '/';
 
   if (isPublicPage) {
     return (
       <div className="min-h-screen flex flex-col">
         <main className="flex-1">
           {children}
-          <WhatsAppButton />
+          {/* Solo mostramos WhatsApp en la Landing Page para prospectos */}
+          {isHomePage && !user && <WhatsAppButton />}
           <TermsAcceptanceModal />
         </main>
       </div>
@@ -180,7 +182,6 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
           </header>
           <main className="flex-1 p-6 lg:p-10 space-y-10 max-w-7xl mx-auto w-full">
             {children}
-            <WhatsAppButton />
             <TermsAcceptanceModal />
           </main>
         </SidebarInset>

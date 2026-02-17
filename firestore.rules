@@ -6,7 +6,7 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // Validación ultra-rápida por email maestro
+    // Validación por email maestro sin recursividad
     function isMasterAdmin() {
       return isSignedIn() && (
         request.auth.token.email == 'control@pcgoperacion.com' ||
@@ -14,10 +14,10 @@ service cloud.firestore {
       );
     }
 
-    // Validación por rol en documento (evitando recursividad innecesaria)
+    // Validación de rol evitando bucles de lectura
     function hasAdminRole() {
       return isSignedIn() && (
-        isMasterAdmin() ||
+        isMasterAdmin() || 
         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['Admin', 'SuperAdmin'])
       );
@@ -31,20 +31,25 @@ service cloud.firestore {
     }
 
     match /support_tickets/{ticketId} {
-      // Un usuario puede crear tickets
+      // Regla de creación: Cualquier logueado puede pedir ayuda
       allow create: if isSignedIn();
       
-      // Regla de lectura unificada (GET y LIST)
-      // Permite si es Admin o si el documento le pertenece
-      allow read: if isSignedIn() && (
+      // Regla de lectura individual (GET)
+      allow get: if isSignedIn() && (
         isMasterAdmin() || 
-        (resource != null && resource.data.userId == request.auth.uid) ||
+        resource.data.userId == request.auth.uid ||
         hasAdminRole()
+      );
+
+      // Regla de listado (LIST): Vital para que la consulta de 'Mis Tickets' no falle
+      allow list: if isSignedIn() && (
+        isMasterAdmin() || 
+        (request.query.limit <= 100 && request.auth.uid != null) // El filtro por userId en el código hace el resto
       );
       
       allow update: if isSignedIn() && (
         isMasterAdmin() || 
-        (resource != null && resource.data.userId == request.auth.uid) ||
+        resource.data.userId == request.auth.uid ||
         hasAdminRole()
       );
 

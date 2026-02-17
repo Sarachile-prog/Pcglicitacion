@@ -25,20 +25,19 @@ async function getActiveTicket(): Promise<{ ticket: string, source: string }> {
 }
 
 /**
- * Lógica central de sincronización reutilizable para triggers manuales (HTTP) y automáticos (CRON).
+ * Lógica central de sincronización reutilizable.
+ * Mantiene la persistencia evitando borrar datos ya enriquecidos.
  */
 async function performSync(date: string) {
   const db = admin.firestore();
   const { ticket: TICKET } = await getActiveTicket();
   
-  // Verificación de Caché para evitar llamadas innecesarias a la API
   const cacheRef = db.collection("mp_cache").doc(`sync_${date}`);
   const cacheSnap = await cacheRef.get();
   
   if (cacheSnap.exists && cacheSnap.data()?.status === 'success') {
     const lastSync = cacheSnap.data()?.lastSync?.toDate();
     const now = new Date();
-    // Cache de 1 hora
     if (lastSync && (now.getTime() - lastSync.getTime() < 3600000)) {
       return { success: true, count: cacheSnap.data()?.count, message: "Datos obtenidos desde caché reciente." };
     }
@@ -53,7 +52,6 @@ async function performSync(date: string) {
 
   let apiData = (await apiResponse.json()) as any;
 
-  // Manejo de saturación de la API (Error 10500)
   let attempts = 0;
   while (apiData.Codigo === 10500 && attempts < 5) {
     attempts++;
@@ -74,33 +72,15 @@ async function performSync(date: string) {
   bidsList.forEach((bid: any) => {
     if (!bid.CodigoExterno) return;
     
-    const title = bid.Nombre || bid.NombreLicitacion || "Sin título";
-    const status = bid.Estado || bid.EstadoLicitacion || "No definido";
-    
-    // Mapeo robusto de Organismo
-    let entity = "Institución no especificada";
-    if (bid.Organismo) {
-      entity = bid.Organismo.NombreOrganismo || bid.Organismo.Nombre || (typeof bid.Organismo === 'string' ? bid.Organismo : entity);
-    } else if (bid.Institucion) {
-      entity = bid.Institucion;
-    }
-    
-    const amount = bid.MontoEstimado || bid.Monto || 0;
-    
-    // Fechas con fallback
-    const publishedDate = bid.FechaPublicacion || null;
-    const deadlineDate = bid.FechaCierre || bid.FechaCierreLicitacion || null;
-    
     const bidRef = db.collection("bids").doc(bid.CodigoExterno);
+    
+    // IMPORTANTE: Solo actualizamos los campos base para no borrar
+    // la institución o el monto si ya fueron enriquecidos manualmente.
     batch.set(bidRef, {
       id: bid.CodigoExterno,
-      title,
-      entity,
-      status,
-      publishedDate,
-      deadlineDate,
-      amount,
-      currency: bid.Moneda || 'CLP',
+      title: bid.Nombre || bid.NombreLicitacion || "Sin título",
+      status: bid.Estado || bid.EstadoLicitacion || "No definido",
+      deadlineDate: bid.FechaCierre || bid.FechaCierreLicitacion || null,
       scrapedAt: nowServer,
       sourceUrl: `https://www.mercadopublico.cl/Procurement/Modules/RFB/DetailsAcquisition.aspx?idLicitacion=${bid.CodigoExterno}`
     }, { merge: true });
@@ -112,9 +92,6 @@ async function performSync(date: string) {
   return { success: true, count: bidsList.length, message: "Sincronización exitosa." };
 }
 
-/**
- * Trigger Manual: Permite al usuario sincronizar una fecha específica desde el UI.
- */
 export const getBidsByDate = onRequest({
   cors: true,
   region: "us-central1",
@@ -123,37 +100,26 @@ export const getBidsByDate = onRequest({
   timeoutSeconds: 120
 }, async (request: any, response: any) => {
   const date = request.query.date;
-  if (!date) return response.status(400).json({ error: "Falta el parámetro 'date' (formato ddMMyyyy)" });
-
+  if (!date) return response.status(400).json({ error: "Falta el parámetro 'date'" });
   try {
     const result = await performSync(date);
     response.json(result);
   } catch (error: any) {
-    console.error(`>>> [SERVER] Error en sincronización manual: ${error.message}`);
     response.status(500).json({ success: false, error: error.message });
   }
 });
 
-/**
- * Trigger Automático: Sincroniza las licitaciones del día todos los días hábiles a las 8 AM.
- */
 export const dailyBidSync = onSchedule({
-  schedule: "0 8 * * 1-5", // Lunes a Viernes a las 08:00 AM
+  schedule: "0 8 * * 1-5",
   timeZone: "America/Santiago",
   region: "us-central1"
 }, async (event) => {
   const now = new Date();
-  const day = now.getDate().toString().padStart(2, '0');
-  const month = (now.getMonth() + 1).toString().padStart(2, '0');
-  const year = now.getFullYear();
-  const formattedDate = `${day}${month}${year}`;
-  
-  console.log(`>>> [CRON] Iniciando sincronización diaria automática para ${formattedDate}`);
+  const formattedDate = `${now.getDate().toString().padStart(2, '0')}${(now.getMonth() + 1).toString().padStart(2, '0')}${now.getFullYear()}`;
   try {
-    const result = await performSync(formattedDate);
-    console.log(`>>> [CRON] Sincronización exitosa: ${result.count} licitaciones procesadas.`);
+    await performSync(formattedDate);
   } catch (error: any) {
-    console.error(`>>> [CRON] Error crítico en sincronización diaria: ${error.message}`);
+    console.error(`>>> [CRON] Error: ${error.message}`);
   }
 });
 
@@ -163,8 +129,7 @@ export const getBidDetail = onRequest({
   invoker: "public"
 }, async (request: any, response: any) => {
   const code = request.query.code;
-  if (!code) return response.status(400).json({ error: "Falta el código de licitación" });
-
+  if (!code) return response.status(400).json({ error: "Falta el código" });
   try {
     const { ticket: TICKET } = await getActiveTicket();
     const apiUrl = `https://api.mercadopublico.cl/servicios/v1/publico/licitaciones.json?codigo=${code}&ticket=${TICKET}`;
@@ -173,12 +138,10 @@ export const getBidDetail = onRequest({
 
     if (apiData.Listado && apiData.Listado.length > 0) {
       const detail = apiData.Listado[0];
-      
       let entity = "Institución no especificada";
       if (detail.Organismo) {
         entity = detail.Organismo.NombreOrganismo || detail.Organismo.Nombre || (typeof detail.Organismo === 'string' ? detail.Organismo : entity);
       }
-
       await admin.firestore().collection("bids").doc(code).update({
         description: detail.Descripcion || "Sin descripción adicional.",
         items: detail.Items?.Listado || [],
@@ -191,7 +154,7 @@ export const getBidDetail = onRequest({
       });
       response.json({ success: true, data: detail });
     } else {
-      response.status(404).json({ error: "Licitación no encontrada" });
+      response.status(404).json({ error: "No encontrado" });
     }
   } catch (error: any) {
     response.status(500).json({ error: error.message });
@@ -199,5 +162,5 @@ export const getBidDetail = onRequest({
 });
 
 export const healthCheck = onRequest({ cors: true }, (req, res) => {
-  res.json({ status: "ok", timestamp: new Date().toISOString(), service: "Mercado Público Sync" });
+  res.json({ status: "ok", timestamp: new Date().toISOString() });
 });

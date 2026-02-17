@@ -16,18 +16,21 @@ Para subir tus cambios a GitHub de forma segura:
    git add .
    ```
 
-2. **Crear punto de control:**
+2. **Crear punto de control (Local):**
    ```bash
    git commit -m "Descripción clara de tus cambios"
    ```
 
-3. **Subir a la nube:**
+3. **Subir a la nube (GitHub):**
    ```bash
    git push origin main
    ```
 
 ### ¿Cómo saber si el push fue exitoso?
-Ejecuta `git status`. Si el mensaje indica que tu rama está al día con 'origin/main' (`Your branch is up to date`), significa que los cambios ya están en GitHub.
+Ejecuta `git status`. 
+
+- **ÉXITO:** Si dice `Your branch is up to date with 'origin/main'`, tus cambios ya están en la nube.
+- **PENDIENTE:** Si dice `Your branch is ahead of 'origin/main' by X commits`, significa que hiciste el commit pero **te faltó el push**. Ejecuta `git push origin main`.
 
 ## Arquitectura de Seguridad
 

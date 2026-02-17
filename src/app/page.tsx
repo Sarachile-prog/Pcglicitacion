@@ -61,6 +61,9 @@ export default function HomePage() {
   const heroImage = PlaceHolderImages.find(img => img.id === 'hero-landing');
   const aiImage = PlaceHolderImages.find(img => img.id === 'ai-analysis');
 
+  // Ruta condicional para exploración: login si es anónimo, bids si está autenticado
+  const explorationPath = user ? "/bids" : "/login";
+
   return (
     <div className="space-y-12 pb-20 animate-in fade-in duration-1000">
       {/* NAVIGATION BAR - BRAND IDENTITY */}
@@ -77,7 +80,7 @@ export default function HomePage() {
           </Link>
 
           <nav className="hidden md:flex items-center gap-8">
-            <Link href="/bids" className="text-sm font-black uppercase italic text-muted-foreground hover:text-primary transition-colors">Explorar Mercado</Link>
+            <Link href={explorationPath} className="text-sm font-black uppercase italic text-muted-foreground hover:text-primary transition-colors">Explorar Mercado</Link>
             <Link href="#servicios" className="text-sm font-black uppercase italic text-muted-foreground hover:text-primary transition-colors">Servicios</Link>
             <a href={WHATSAPP_URL} target="_blank" className="text-sm font-black uppercase italic text-muted-foreground hover:text-primary transition-colors">Contacto</a>
           </nav>
@@ -128,7 +131,7 @@ export default function HomePage() {
               Transformamos los datos de Mercado Público en decisiones estratégicas. Automatiza tu postulación con IA y colabora con tu equipo en tiempo real.
             </p>
             <div className="flex flex-wrap gap-5 pt-4">
-              <Link href="/bids">
+              <Link href={explorationPath}>
                 <Button
                   size="lg"
                   className="bg-accent hover:bg-accent/90 text-white px-10 h-16 text-xl font-black gap-3 shadow-[0_10px_40px_rgba(38,166,154,0.4)] group uppercase italic rounded-2xl"
@@ -330,7 +333,7 @@ export default function HomePage() {
               </h3>
               <p className="text-muted-foreground font-medium italic">Datos reales sincronizados hoy desde la API oficial de Mercado Público.</p>
             </div>
-            <Link href="/bids">
+            <Link href={explorationPath}>
               <Button variant="ghost" className="text-primary hover:text-accent font-black text-lg group h-14 uppercase italic gap-2">
                 Ver Historial Completo <ChevronRight className="group-hover:translate-x-2 transition-transform" />
               </Button>
@@ -344,7 +347,7 @@ export default function HomePage() {
                 .map((_, i) => <Card key={i} className="animate-pulse bg-muted/30 h-72 border-none rounded-[2rem]" />)
             ) : bids && bids.length > 0 ? (
               bids.map(bid => (
-                <Link key={bid.id} href={`/bids/${bid.id}`} className="group">
+                <Link key={bid.id} href={user ? `/bids/${bid.id}` : "/login"} className="group">
                   <Card className="h-full border-2 border-transparent hover:border-accent/40 transition-all duration-300 overflow-hidden shadow-md hover:shadow-2xl rounded-[2rem] bg-muted/10">
                     <CardContent className="p-8 flex flex-col h-full space-y-6">
                       <div className="flex justify-between items-center">
@@ -390,7 +393,7 @@ export default function HomePage() {
               <div className="col-span-full py-24 text-center bg-muted/10 rounded-[3rem] border-4 border-dashed space-y-6">
                 <History className="h-16 w-16 text-primary/20 mx-auto" />
                 <p className="text-xl text-primary font-black uppercase italic">Base de Datos en Espera</p>
-                <Link href="/bids">
+                <Link href={explorationPath}>
                   <Button className="h-14 px-10 bg-primary font-black uppercase italic rounded-2xl">Activar Sincronización Manual</Button>
                 </Link>
               </div>

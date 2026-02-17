@@ -33,25 +33,27 @@ export default function AdminSupportPage() {
   const [isSyncing, setIsSyncing] = useState(false)
   const [statusFilter, setStatusFilter] = useState("all")
 
+  const isAuthorized = user?.email === 'control@pcgoperacion.com'
+
   const ticketsQuery = useMemoFirebase(() => {
-    if (!db) return null
+    if (!db || !isAuthorized) return null
     return query(collection(db, "support_tickets"), orderBy("updatedAt", "desc"))
-  }, [db])
+  }, [db, isAuthorized])
 
   const { data: tickets, isLoading } = useCollection(ticketsQuery)
 
   const messagesQuery = useMemoFirebase(() => {
-    if (!db || !selectedTicket) return null
+    if (!db || !selectedTicket || !isAuthorized) return null
     return query(
       collection(db, "support_tickets", selectedTicket.id, "messages"),
       orderBy("createdAt", "asc")
     )
-  }, [db, selectedTicket])
+  }, [db, selectedTicket, isAuthorized])
 
   const { data: messages } = useCollection(messagesQuery)
 
   const handleReply = async () => {
-    if (!db || !user || !selectedTicket || !replyText) return
+    if (!db || !user || !selectedTicket || !replyText || !isAuthorized) return
     setIsSyncing(true)
     try {
       await addDoc(collection(db, "support_tickets", selectedTicket.id, "messages"), {
@@ -77,13 +79,25 @@ export default function AdminSupportPage() {
   }
 
   const handleUpdateStatus = async (status: string) => {
-    if (!db || !selectedTicket) return
+    if (!db || !selectedTicket || !isAuthorized) return
     try {
       await updateDoc(doc(db, "support_tickets", selectedTicket.id), { status })
       toast({ title: `Ticket marcado como ${status}` })
     } catch (e: any) {
       toast({ variant: "destructive", title: "Error", description: e.message })
     }
+  }
+
+  if (!isAuthorized) {
+    return (
+      <div className="py-20 text-center space-y-4 max-w-md mx-auto">
+        <div className="h-20 w-20 bg-red-50 rounded-full flex items-center justify-center mx-auto">
+          <AlertCircle className="h-10 w-10 text-red-500" />
+        </div>
+        <h2 className="text-2xl font-black text-primary uppercase italic tracking-tighter">Acceso Denegado</h2>
+        <p className="text-muted-foreground font-medium italic">Esta sección es exclusiva para el administrador principal.</p>
+      </div>
+    )
   }
 
   const filteredTickets = tickets?.filter(t => statusFilter === "all" || t.status === statusFilter)
@@ -138,7 +152,7 @@ export default function AdminSupportPage() {
                     >
                       <div className="space-y-1.5 overflow-hidden">
                         <div className="flex items-center gap-2">
-                          <p className="text-[10px] font-black text-muted-foreground uppercase">{new Date(t.updatedAt?.toDate()).toLocaleDateString()}</p>
+                          <p className="text-[10px] font-black text-muted-foreground uppercase">{t.updatedAt ? new Date(t.updatedAt.toDate()).toLocaleDateString() : '---'}</p>
                           <Badge className={cn(
                             "text-[7px] uppercase font-black h-4",
                             t.status === 'Open' ? "bg-red-500" : t.status === 'InProgress' ? "bg-blue-500" : "bg-emerald-500"
@@ -192,7 +206,7 @@ export default function AdminSupportPage() {
                         {m.text}
                       </div>
                       <p className="text-[9px] font-black text-muted-foreground uppercase mt-2 px-1 tracking-widest">
-                        {m.senderRole === 'Admin' ? 'Tú (ADMIN)' : 'Usuario'} • {new Date(m.createdAt?.toDate()).toLocaleString([], {day:'2-digit', month:'2-digit', hour: '2-digit', minute:'2-digit'})}
+                        {m.senderRole === 'Admin' ? 'Tú (ADMIN)' : 'Usuario'} • {m.createdAt ? new Date(m.createdAt.toDate()).toLocaleString([], {day:'2-digit', month:'2-digit', hour: '2-digit', minute:'2-digit'}) : '---'}
                       </p>
                     </div>
                   ))}

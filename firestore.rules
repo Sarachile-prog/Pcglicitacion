@@ -10,7 +10,6 @@ service cloud.firestore {
     function isSuperAdmin() {
       return isSignedIn() && (
         request.auth.token.email == 'control@pcgoperacion.com' ||
-        request.auth.token.email == 'pcordova@woken.cl' ||
         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'SuperAdmin')
       );
@@ -24,10 +23,10 @@ service cloud.firestore {
     }
 
     match /companies/{companyId} {
-      allow read, write: if isSuperAdmin() || (isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.companyId == companyId);
+      allow read, write: if isSuperAdmin() || (isSignedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.companyId == companyId);
       
       match /bookmarks/{bidId} {
-        allow read, write: if isSuperAdmin() || (isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.companyId == companyId);
+        allow read, write: if isSuperAdmin() || (isSignedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.companyId == companyId);
       }
     }
 
@@ -36,7 +35,7 @@ service cloud.firestore {
       allow create: if isSignedIn();
       
       // Permitir listar tickets si es admin o si el filtro de la consulta es su propio UID
-      allow list: if isSignedIn() && (isSuperAdmin() || request.query.limit <= 100);
+      allow list: if isSignedIn() && (isSuperAdmin() || resource.data.userId == request.auth.uid);
       
       // Permitir leer un ticket específico si le pertenece o es admin
       allow get: if isSignedIn() && (isSuperAdmin() || resource.data.userId == request.auth.uid);
@@ -60,7 +59,6 @@ service cloud.firestore {
       allow write: if isSuperAdmin();
     }
     
-    // Cache y otros logs técnicos
     match /mp_cache/{cacheId} {
       allow read, write: if isSuperAdmin();
     }

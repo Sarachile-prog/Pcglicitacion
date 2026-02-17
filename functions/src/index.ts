@@ -26,7 +26,7 @@ async function getActiveTicket(): Promise<{ ticket: string, source: string }> {
 
 /**
  * Lógica central de sincronización reutilizable.
- * Mantiene la persistencia evitando borrar datos ya enriquecidos.
+ * EVITA SOBRESCRIBIR datos ya enriquecidos (Institución/Montos).
  */
 async function performSync(date: string) {
   const db = admin.firestore();
@@ -74,12 +74,12 @@ async function performSync(date: string) {
     
     const bidRef = db.collection("bids").doc(bid.CodigoExterno);
     
-    // Mapeo inicial ligero
+    // IMPORTANTE: Solo guardamos lo que la API de FECHA nos entrega (ID, Nombre, Estado).
+    // NO incluimos 'entity' o 'amount' aquí para no borrar datos previos ya enriquecidos.
     batch.set(bidRef, {
       id: bid.CodigoExterno,
       title: bid.Nombre || "Sin título",
       status: bid.Estado || "No definido",
-      deadlineDate: bid.FechaCierre || null,
       scrapedAt: nowServer,
       sourceUrl: `https://www.mercadopublico.cl/Procurement/Modules/RFB/DetailsAcquisition.aspx?idLicitacion=${bid.CodigoExterno}`
     }, { merge: true });
@@ -138,26 +138,22 @@ export const getBidDetail = onRequest({
     if (apiData.Listado && apiData.Listado.length > 0) {
       const detail = apiData.Listado[0];
       
-      // MAPEO SEGÚN DICCIONARIO DE DATOS OFICIAL
-      // Licitaciones/Listado/Licitacion/Comprador/NombreOrganismo
+      // MAPEO SEGÚN DICCIONARIO DE DATOS OFICIAL PCG
       let entity = "Institución no especificada";
       if (detail.Comprador) {
         entity = detail.Comprador.NombreOrganismo || entity;
-      } else if (detail.Organismo) {
-        entity = detail.Organismo.NombreOrganismo || detail.Organismo.Nombre || entity;
       }
 
-      // Licitaciones/Listado/Licitacion/Fechas/FechaCierre
       const deadlineDate = detail.Fechas?.FechaCierre || detail.FechaCierre || null;
       const publishedDate = detail.Fechas?.FechaPublicacion || detail.FechaPublicacion || null;
 
       await admin.firestore().collection("bids").doc(code).update({
         description: detail.Descripcion || "Sin descripción adicional.",
         items: detail.Items?.Listado || [],
-        amount: detail.MontoEstimado || 0, // Licitaciones/Listado/Licitacion/MontoEstimado
-        currency: detail.Moneda || 'CLP', // Unidades Monetarias
+        amount: detail.MontoEstimado || 0,
+        currency: detail.Moneda || 'CLP',
         entity: entity,
-        typeCode: detail.CodigoTipo || null, // L1, LE, LP, etc.
+        typeCode: detail.CodigoTipo || null,
         publishedDate: publishedDate,
         deadlineDate: deadlineDate,
         fullDetailAt: admin.firestore.FieldValue.serverTimestamp()

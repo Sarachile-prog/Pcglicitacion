@@ -97,7 +97,7 @@ export default function BidsListPage() {
       await getBidsByDate(formattedDate)
       toast({
         title: "Importación Exitosa",
-        description: `Datos actualizados. Los procesos nuevos aparecen como "Pendiente de Sincronización".`,
+        description: `Datos básicos actualizados. Los montos aparecerán tras el enriquecimiento.`,
       })
     } catch (error: any) {
       if (error.message?.toLowerCase().includes('ticket')) setTicketError(true)
@@ -116,19 +116,22 @@ export default function BidsListPage() {
     setIsEnriching(true);
     let count = 0;
     try {
-      const toEnrich = pagedBids.filter(b => b.entity === "Institución no especificada" || !b.amount);
+      const toEnrich = pagedBids.filter(b => !b.entity || b.entity === "Institución no especificada" || !b.amount);
       if (toEnrich.length === 0) {
-        toast({ title: "Datos Completos", description: "La vista actual ya está enriquecida." });
+        toast({ title: "Datos Completos", description: "La vista actual ya está enriquecida en caché." });
         return;
       }
+      toast({ title: "Enriqueciendo...", description: `Consultando detalles de ${toEnrich.length} procesos.` });
+      
       for (const bid of toEnrich) {
         await getBidDetail(bid.id);
         count++;
-        if (count % 3 === 0) await new Promise(r => setTimeout(r, 800));
+        // Pausa técnica para evitar bloqueos de la API oficial
+        if (count % 3 === 0) await new Promise(r => setTimeout(r, 1000));
       }
       toast({ title: "Proceso Finalizado", description: `Se actualizaron ${count} licitaciones.` });
     } catch (e: any) {
-      toast({ variant: "destructive", title: "Límite alcanzado", description: "La API oficial está saturada. Intenta de nuevo en unos minutos." });
+      toast({ variant: "destructive", title: "Límite API", description: "La API oficial está saturada. Reintenta en 1 minuto." });
     } finally {
       setIsEnriching(false);
     }
@@ -184,7 +187,7 @@ export default function BidsListPage() {
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="space-y-1">
             <h2 className="text-3xl font-extrabold text-primary italic uppercase flex items-center gap-2"><History className="h-6 w-6 text-accent" /> Historial de Mercado</h2>
-            <p className="text-muted-foreground">Datos persistentes en tu base de datos local PCG.</p>
+            <p className="text-muted-foreground">Datos enriquecidos y persistentes en tu base de datos local PCG.</p>
           </div>
           <Card className="bg-primary/5 border-primary/10 p-2 shadow-sm flex flex-wrap items-center gap-2">
             <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
@@ -192,7 +195,10 @@ export default function BidsListPage() {
               <PopoverContent className="w-auto p-0" align="end"><Calendar mode="single" selected={selectedDate || undefined} onSelect={(d) => { if(d){ setSelectedDate(d); setIsCalendarOpen(false); } }} disabled={(d) => d > new Date()} initialFocus /></PopoverContent>
             </Popover>
             <Button size="sm" className="bg-primary font-black h-10 uppercase italic text-[10px]" onClick={handleSync} disabled={isSyncing}><RefreshCw className={cn("h-3 w-3 mr-2", isSyncing && "animate-spin")} /> Importar IDs</Button>
-            <Button size="sm" className="bg-accent font-black h-10 uppercase italic text-[10px] shadow-lg" onClick={handleEnrich} disabled={isEnriching || isSyncing}><Database className={cn("h-3 w-3 mr-2", isEnriching && "animate-spin")} /> Completar Datos</Button>
+            <Button size="sm" className="bg-accent font-black h-10 uppercase italic text-[10px] shadow-lg" onClick={handleEnrich} disabled={isEnriching || isSyncing}>
+              {isEnriching ? <Loader2 className="h-3 w-3 mr-2 animate-spin" /> : <Database className="h-3 w-3 mr-2" />} 
+              Completar Datos
+            </Button>
           </Card>
         </div>
       </div>
@@ -203,8 +209,11 @@ export default function BidsListPage() {
           <div className="relative"><Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input placeholder="Título, institución o ID..." className="pl-10 h-12 bg-muted/20 border-none shadow-inner" value={searchTerm} onChange={(e) => {setSearchTerm(e.target.value); setCurrentPage(1);}} /></div>
         </div>
         <div className="md:col-span-4 space-y-2">
-          <label className="text-[10px] font-black uppercase text-muted-foreground ml-1">Estado en Base de Datos</label>
-          <div className="h-12 bg-muted/20 rounded-xl flex items-center px-4 gap-2 text-xs font-bold text-primary italic"><CheckCircle2 className="h-4 w-4 text-emerald-500" /> Los datos completos no requieren re-sincronización.</div>
+          <label className="text-[10px] font-black uppercase text-muted-foreground ml-1">Estado de Sincronización</label>
+          <div className="h-12 bg-muted/20 rounded-xl flex items-center px-4 gap-2 text-xs font-bold text-primary italic">
+            <CheckCircle2 className="h-4 w-4 text-emerald-500" /> 
+            Los procesos guardados no se pierden en la sincronización diaria.
+          </div>
         </div>
         <div className="md:col-span-2 flex bg-muted rounded-xl p-1.5 h-12 items-center justify-center">
           <Button variant={viewMode === 'grid' ? "secondary" : "ghost"} size="icon" className="h-full w-full rounded-lg" onClick={() => setViewMode('grid')}><LayoutGrid className="h-4 w-4" /></Button>
@@ -228,7 +237,7 @@ export default function BidsListPage() {
             </TableHeader>
             <TableBody>
               {pagedBids.map((bid) => {
-                const isMissingData = bid.entity === "Institución no especificada" || !bid.amount;
+                const isMissingData = !bid.entity || bid.entity === "Institución no especificada" || !bid.amount;
                 return (
                   <TableRow key={bid.id} className="group hover:bg-accent/5 cursor-pointer">
                     <TableCell className="font-mono text-xs font-bold text-primary"><Link href={`/bids/${bid.id}`} className="flex flex-col gap-1"><span>{bid.id}</span>{bid.aiAnalysis && <Sparkles className="h-3 w-3 text-accent fill-accent" />}</Link></TableCell>
@@ -236,7 +245,7 @@ export default function BidsListPage() {
                       <Link href={`/bids/${bid.id}`} className="space-y-1 block">
                         <p className="font-bold text-sm line-clamp-1 group-hover:text-accent uppercase italic text-primary">{bid.title}</p>
                         <p className={cn("text-[10px] flex items-center gap-1 uppercase font-medium", isMissingData ? "text-amber-600 italic" : "text-muted-foreground")}>
-                          <Building2 className="h-3 w-3" /> {isMissingData ? "Pendiente de completar..." : bid.entity}
+                          <Building2 className="h-3 w-3" /> {isMissingData ? "En la nube (Pendiente completar...)" : bid.entity}
                           {!isMissingData && <Badge variant="ghost" className="text-[8px] h-4 bg-emerald-50 text-emerald-600 font-black">LOCAL</Badge>}
                         </p>
                       </Link>

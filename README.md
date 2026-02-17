@@ -20,17 +20,17 @@ Para subir tus cambios a GitHub de forma segura:
 Ejecuta `git status` o mira el log con `git log -1`. 
 
 - **ÉXITO:** Si en el log ves `(HEAD -> main, origin/main)`, tus cambios ya están en la nube.
-- **PENDIENTE:** Si `git status` dice `Your branch is ahead of 'origin/main'`, ejecuta `git push origin main`.
 
 ## Arquitectura de Seguridad (IMPORTANTE)
 
 Este proyecto utiliza **Restricciones de API Key** en Google Cloud para evitar el robo de cuota de IA y base de datos.
 
-### 403 Forbidden / Error de Registro:
-Si ves un error 403 al intentar registrarte o loguearte desde el editor de Firebase Studio, debes ir a [Google Cloud Console > API & Services > Credentials](https://console.cloud.google.com/apis/credentials) y añadir estos dominios a la lista blanca de tu API Key:
+### 403 Forbidden / Referer Blocked (Error de Registro/Login):
+Si ves un error indicando que los requests desde un dominio están bloqueados, debes ir a [Google Cloud Console > API & Services > Credentials](https://console.cloud.google.com/apis/credentials) y añadir estos dominios a la lista blanca de tu API Key:
 
-- `*.firebaseapp.com/*` (Obligatorio para que el editor funcione)
-- `*.web.app/*` (Alternativo para previsualizaciones)
+- `*.cloudworkstations.dev/*` (Obligatorio para que el editor de Firebase Studio funcione)
+- `*.firebaseapp.com/*` (Obligatorio para previsualizaciones de Firebase)
+- `*.web.app/*` (Alternativo)
 - `pcglicitacion.cl/*` (Producción)
 - `www.pcglicitacion.cl/*` (Producción)
 - `localhost:9002/*` (Desarrollo local)

@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useEffect } from "react"
@@ -97,10 +98,15 @@ export default function LoginPage() {
       console.error(">>> [AUTH_ERROR]:", error);
       let message = "Hubo un problema con la autenticación."
       
-      // Detección de bloqueo de API Key (Error 403)
-      if (error.message?.includes('403') || error.code === 'auth/network-request-failed') {
+      // Detección de bloqueo de API Key (Referer / Domain Blocked)
+      if (
+        error.message?.includes('403') || 
+        error.message?.includes('referer') || 
+        error.code === 'auth/network-request-failed' ||
+        error.code?.includes('requests-from-referer')
+      ) {
         setApiKeyBlocked(true)
-        message = "Acceso Denegado (403): Tu API Key está bloqueando este dominio en Google Cloud."
+        message = "Dominio Bloqueado: Tu API Key en Google Cloud no permite peticiones desde este editor."
       }
       
       if (error.code === 'auth/email-already-in-use') message = "Este correo ya está registrado."
@@ -160,9 +166,9 @@ export default function LoginPage() {
             <div className="bg-red-50 border-2 border-red-100 p-4 rounded-2xl flex items-start gap-3 animate-bounce">
               <AlertTriangle className="h-5 w-5 text-red-600 shrink-0 mt-0.5" />
               <div className="space-y-1">
-                <p className="text-[10px] font-black text-red-800 uppercase tracking-widest leading-none">Bloqueo de Seguridad Detectado</p>
+                <p className="text-[10px] font-black text-red-800 uppercase tracking-widest leading-none">Acceso Denegado por Seguridad</p>
                 <p className="text-[9px] font-bold text-red-700/80 italic leading-tight">
-                  Debes autorizar <b>*.firebaseapp.com/*</b> en tu API Key desde la Consola de Google Cloud para poder registrarte desde el editor.
+                  Tu API Key en Google Cloud bloquea este dominio. Debes añadir <b>*.cloudworkstations.dev/*</b> a la lista blanca para usar el editor.
                 </p>
               </div>
             </div>

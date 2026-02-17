@@ -23,7 +23,10 @@ import {
   BarChart3,
   Layers,
   ShieldCheck,
-  CheckCircle2
+  CheckCircle2,
+  Filter,
+  ArrowUpDown,
+  X
 } from "lucide-react"
 import Link from "next/link"
 import { getBidsByDate, getBidDetail } from "@/services/mercado-publico"
@@ -32,6 +35,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar"
 import { format, subDays, startOfDay, differenceInDays } from "date-fns"
 import { cn } from "@/lib/utils"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 const ITEMS_PER_PAGE = 50;
 
@@ -39,6 +43,10 @@ export default function BidsListPage() {
   const db = useFirestore()
   const { user } = useUser()
   const [searchTerm, setSearchTerm] = useState("")
+  const [statusFilter, setStatusFilter] = useState("all")
+  const [amountFilter, setAmountFilter] = useState("all")
+  const [sortBy, setSortBy] = useState("scrapedAt")
+  
   const [isSyncing, setIsSyncing] = useState(false)
   const [isEnriching, setIsEnriching] = useState(false)
   const [isCalendarOpen, setIsCalendarOpen] = useState(false)
@@ -127,16 +135,47 @@ export default function BidsListPage() {
   }
 
   const filteredBids = useMemo(() => {
-    const allBids = bids || [];
-    return allBids.filter(bid => {
-      const searchString = searchTerm.toLowerCase()
-      return (
-        bid.title?.toLowerCase().includes(searchString) || 
-        bid.entity?.toLowerCase().includes(searchString) ||
-        bid.id?.toLowerCase().includes(searchString)
+    let results = bids ? [...bids] : [];
+    
+    // 1. Filtro por término de búsqueda
+    if (searchTerm) {
+      const search = searchTerm.toLowerCase()
+      results = results.filter(bid => 
+        bid.title?.toLowerCase().includes(search) || 
+        bid.entity?.toLowerCase().includes(search) ||
+        bid.id?.toLowerCase().includes(search)
       )
+    }
+
+    // 2. Filtro por Estado
+    if (statusFilter !== "all") {
+      results = results.filter(bid => bid.status === statusFilter)
+    }
+
+    // 3. Filtro por Monto
+    if (amountFilter !== "all") {
+      results = results.filter(bid => {
+        const amount = Number(bid.amount) || 0
+        if (amountFilter === "low") return amount < 5000000
+        if (amountFilter === "mid") return amount >= 5000000 && amount <= 50000000
+        if (amountFilter === "high") return amount > 50000000
+        return true
+      })
+    }
+
+    // 4. Ordenamiento
+    results.sort((a, b) => {
+      if (sortBy === "amount") return (Number(b.amount) || 0) - (Number(a.amount) || 0)
+      if (sortBy === "deadline") {
+        const dateA = a.deadlineDate ? new Date(a.deadlineDate).getTime() : 0
+        const dateB = b.deadlineDate ? new Date(b.deadlineDate).getTime() : 0
+        return dateA - dateB // Próximas a cerrar primero
+      }
+      return 0 // Por defecto mantiene el scrapedAt de la query original
     })
-  }, [bids, searchTerm])
+
+    return results
+  }, [bids, searchTerm, statusFilter, amountFilter, sortBy])
 
   const totalPages = Math.ceil(filteredBids.length / ITEMS_PER_PAGE);
   const pagedBids = useMemo(() => {
@@ -158,6 +197,16 @@ export default function BidsListPage() {
     if (diff === 0) return <Badge className="text-[9px] bg-red-600 text-white font-bold animate-pulse uppercase">Hoy</Badge>;
     return <Badge variant="secondary" className="text-[9px] bg-accent/10 text-accent font-bold uppercase">{diff} días</Badge>;
   }
+
+  const clearFilters = () => {
+    setSearchTerm("")
+    setStatusFilter("all")
+    setAmountFilter("all")
+    setSortBy("scrapedAt")
+    setCurrentPage(1)
+  }
+
+  const hasActiveFilters = searchTerm !== "" || statusFilter !== "all" || amountFilter !== "all" || sortBy !== "scrapedAt";
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500 pb-20">
@@ -185,7 +234,7 @@ export default function BidsListPage() {
         </div>
       </div>
 
-      {/* PANEL DE MAGNITUD (VISIBLE PARA TODOS) */}
+      {/* PANEL DE MAGNITUD */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card className="bg-white border-none shadow-md overflow-hidden group">
           <div className="h-1.5 bg-primary/20" />
@@ -221,12 +270,80 @@ export default function BidsListPage() {
         </Card>
       </div>
 
-      <div className="bg-white p-6 rounded-2xl shadow-md border-2 border-primary/5">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Buscar en el repositorio global (Título, Institución o ID)..." className="pl-10 h-12 bg-muted/20 border-none shadow-inner font-medium italic" value={searchTerm} onChange={(e) => {setSearchTerm(e.target.value); setCurrentPage(1);}} />
-        </div>
-      </div>
+      {/* FILTROS Y BÚSQUEDA */}
+      <Card className="border-none shadow-xl rounded-3xl overflow-hidden">
+        <CardContent className="p-8 space-y-6">
+          <div className="flex flex-col lg:flex-row gap-4 items-end">
+            <div className="flex-1 w-full space-y-2">
+              <label className="text-[10px] font-black uppercase text-muted-foreground ml-1 tracking-widest">Buscar</label>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input 
+                  placeholder="Título, Institución o ID..." 
+                  className="pl-10 h-12 bg-muted/20 border-none shadow-inner font-medium italic" 
+                  value={searchTerm} 
+                  onChange={(e) => {setSearchTerm(e.target.value); setCurrentPage(1);}} 
+                />
+              </div>
+            </div>
+
+            <div className="w-full lg:w-48 space-y-2">
+              <label className="text-[10px] font-black uppercase text-muted-foreground ml-1 tracking-widest">Estado</label>
+              <Select value={statusFilter} onValueChange={(v) => {setStatusFilter(v); setCurrentPage(1);}}>
+                <SelectTrigger className="h-12 bg-white border-2 font-bold text-xs uppercase">
+                  <SelectValue placeholder="Estado" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all" className="font-bold">Todos</SelectItem>
+                  <SelectItem value="Publicada" className="font-bold">Publicada</SelectItem>
+                  <SelectItem value="Cerrada" className="font-bold">Cerrada</SelectItem>
+                  <SelectItem value="Adjudicada" className="font-bold">Adjudicada</SelectItem>
+                  <SelectItem value="Desierta" className="font-bold">Desierta</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="w-full lg:w-48 space-y-2">
+              <label className="text-[10px] font-black uppercase text-muted-foreground ml-1 tracking-widest">Monto</label>
+              <Select value={amountFilter} onValueChange={(v) => {setAmountFilter(v); setCurrentPage(1);}}>
+                <SelectTrigger className="h-12 bg-white border-2 font-bold text-xs uppercase">
+                  <SelectValue placeholder="Rango" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all" className="font-bold">Cualquier Monto</SelectItem>
+                  <SelectItem value="low" className="font-bold">Menos de $5M</SelectItem>
+                  <SelectItem value="mid" className="font-bold">$5M - $50M</SelectItem>
+                  <SelectItem value="high" className="font-bold">Más de $50M</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="w-full lg:w-48 space-y-2">
+              <label className="text-[10px] font-black uppercase text-muted-foreground ml-1 tracking-widest">Ordenar por</label>
+              <Select value={sortBy} onValueChange={(v) => {setSortBy(v); setCurrentPage(1);}}>
+                <SelectTrigger className="h-12 bg-white border-2 font-bold text-xs uppercase">
+                  <SelectValue placeholder="Orden" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="scrapedAt" className="font-bold">Sincronización</SelectItem>
+                  <SelectItem value="deadline" className="font-bold">Fecha de Cierre</SelectItem>
+                  <SelectItem value="amount" className="font-bold">Monto Mayor</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {hasActiveFilters && (
+              <Button 
+                variant="ghost" 
+                onClick={clearFilters} 
+                className="h-12 px-4 text-xs font-black uppercase text-red-500 hover:bg-red-50"
+              >
+                <X className="h-4 w-4 mr-2" /> Limpiar
+              </Button>
+            )}
+          </div>
+        </CardContent>
+      </Card>
 
       {isDbLoading ? (
         <div className="flex flex-col items-center justify-center py-24 gap-4"><Loader2 className="h-12 w-12 text-primary animate-spin opacity-20" /><p className="text-muted-foreground font-medium uppercase text-[10px] tracking-widest font-black">Escaneando Repositorio Global...</p></div>
@@ -262,6 +379,7 @@ export default function BidsListPage() {
                               <Building2 className="h-3 w-3" /> {!isEnriched ? "Pendiente Datos (Nube)..." : bid.entity}
                             </p>
                             {isEnriched && <Badge variant="outline" className="text-[7px] h-3.5 px-1 border-emerald-200 text-emerald-600 font-black bg-emerald-50">PCG LOCAL</Badge>}
+                            <Badge variant="secondary" className="text-[7px] h-3.5 px-1 font-black uppercase">{bid.status}</Badge>
                           </div>
                         </Link>
                       </TableCell>
@@ -288,8 +406,9 @@ export default function BidsListPage() {
       ) : (
         <Card className="bg-primary/5 border-dashed border-2 border-primary/20 py-24 text-center space-y-4 rounded-[3rem]">
           <Globe className="h-12 w-12 text-primary/20 mx-auto" />
-          <h3 className="text-xl font-black text-primary italic uppercase">Sin resultados en el repositorio</h3>
-          <p className="text-muted-foreground max-w-sm mx-auto font-medium italic">Si eres administrador, utiliza el panel superior para cargar nuevos procesos.</p>
+          <h3 className="text-xl font-black text-primary italic uppercase">Sin resultados para esta búsqueda</h3>
+          <p className="text-muted-foreground max-w-sm mx-auto font-medium italic">Prueba ajustando los filtros o realizando una nueva ingesta desde el panel superior.</p>
+          <Button variant="outline" onClick={clearFilters} className="font-bold uppercase italic h-12">Mostrar todo el repositorio</Button>
         </Card>
       )}
     </div>

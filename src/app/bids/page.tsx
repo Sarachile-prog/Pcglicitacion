@@ -1,7 +1,7 @@
 
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { useCollection, useMemoFirebase, useFirestore } from "@/firebase"
 import { collection, query, orderBy, limit } from "firebase/firestore"
 import { Input } from "@/components/ui/input"
@@ -55,13 +55,18 @@ export default function BidsListPage() {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('list')
   const [currentPage, setCurrentPage] = useState(1)
   
-  const [selectedDate, setSelectedDate] = useState<Date>(() => {
+  // Para evitar errores de hidratación, inicializamos la fecha en null y la seteamos en useEffect
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null)
+  
+  useEffect(() => {
     const today = new Date();
     const day = today.getDay();
-    if (day === 0) return subDays(today, 2); 
-    if (day === 6) return subDays(today, 1);
-    return today;
-  })
+    let initialDate = today;
+    if (day === 0) initialDate = subDays(today, 2); 
+    if (day === 6) initialDate = subDays(today, 1);
+    setSelectedDate(initialDate);
+  }, []);
+
   const { toast } = useToast()
 
   const bidsQuery = useMemoFirebase(() => {
@@ -76,6 +81,7 @@ export default function BidsListPage() {
   const { data: bids, isLoading: isDbLoading } = useCollection(bidsQuery)
 
   const handleSync = async () => {
+    if (!selectedDate) return;
     setIsSyncing(true)
     setTicketError(false)
     const formattedDate = format(selectedDate, "ddMMyyyy")
@@ -112,14 +118,12 @@ export default function BidsListPage() {
     const now = new Date();
 
     return allBids.filter(bid => {
-      // 1. Filtro por texto
       const searchString = searchTerm.toLowerCase()
       const matchesSearch = 
         bid.title?.toLowerCase().includes(searchString) || 
         bid.entity?.toLowerCase().includes(searchString) ||
         bid.id?.toLowerCase().includes(searchString)
       
-      // 2. Filtro por rubro
       let matchesRubro = true
       if (selectedRubro !== "all") {
         const rubroLower = selectedRubro.toLowerCase()
@@ -129,7 +133,6 @@ export default function BidsListPage() {
           (bid.items && bid.items.some((item: any) => item.Categoria?.toLowerCase().includes(rubroLower)))
       }
 
-      // 3. Filtro por tiempo (scrapedAt)
       let matchesTime = true
       const scrapedAtDate = bid.scrapedAt?.toDate ? bid.scrapedAt.toDate() : new Date(bid.scrapedAt);
       
@@ -201,13 +204,13 @@ export default function BidsListPage() {
                 <PopoverTrigger asChild>
                   <Button variant="outline" className={cn("justify-start text-left font-normal w-[180px] h-9 border-primary/20 bg-white", !selectedDate && "text-muted-foreground")}>
                     <CalendarIcon className="mr-2 h-3 w-3 text-primary" />
-                    {selectedDate ? format(selectedDate, "dd/MM/yyyy") : <span>Fecha</span>}
+                    {selectedDate ? format(selectedDate, "dd/MM/yyyy") : <span className="animate-pulse">Cargando...</span>}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="end">
                   <Calendar
                     mode="single"
-                    selected={selectedDate}
+                    selected={selectedDate || undefined}
                     onSelect={(date) => {
                       if (date) {
                         setSelectedDate(date);
@@ -223,7 +226,7 @@ export default function BidsListPage() {
                 size="sm"
                 className="bg-accent hover:bg-accent/90 gap-2 font-bold h-9"
                 onClick={handleSync} 
-                disabled={isSyncing}
+                disabled={isSyncing || !selectedDate}
               >
                 <RefreshCw className={isSyncing ? "h-3 w-3 animate-spin" : "h-3 w-3"} />
                 {isSyncing ? "Importando..." : "Importar Datos"}
@@ -262,7 +265,6 @@ export default function BidsListPage() {
         </Card>
       )}
 
-      {/* FILTROS */}
       <div className="bg-white p-6 rounded-2xl shadow-md border-2 border-primary/5 space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
           <div className="md:col-span-5 space-y-2 w-full">

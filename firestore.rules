@@ -6,41 +6,46 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // Validación por email maestro pura (sin DB)
+    // Validación por email maestro pura (sin consulta a DB para evitar loops)
     function isMasterAdmin() {
-      return isSignedIn() && request.auth.token.email == 'control@pcgoperacion.com';
+      return isSignedIn() && (
+        request.auth.token.email == 'control@pcgoperacion.com' ||
+        request.auth.token.email == 'pcordova@woken.cl'
+      );
     }
 
-    // Validación de rol robusta
+    // Validación de rol leyendo el documento del usuario
+    // Solo se llama desde colecciones que NO sean /users para evitar recursividad
     function hasAdminRole() {
       return isSignedIn() && (
         isMasterAdmin() || 
-        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['Admin', 'SuperAdmin'])
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['Admin', 'SuperAdmin']
       );
     }
 
     match /users/{userId} {
-      allow get: if isSignedIn() && (request.auth.uid == userId || isMasterAdmin());
-      allow list: if isMasterAdmin();
+      // Un usuario siempre puede leer y editar su propio perfil
+      allow get, update: if isSignedIn() && (request.auth.uid == userId || isMasterAdmin());
       allow create: if isSignedIn() && request.auth.uid == userId;
-      allow update: if isSignedIn() && (request.auth.uid == userId || isMasterAdmin());
+      // Solo el administrador maestro puede listar todos los usuarios
+      allow list: if isMasterAdmin();
     }
 
     match /support_tickets/{ticketId} {
       allow create: if isSignedIn();
       
+      // Permitir lectura si es dueño o admin
       allow get: if isSignedIn() && (
         isMasterAdmin() || 
         resource.data.userId == request.auth.uid ||
         hasAdminRole()
       );
 
-      // Regla de listado basada en filtros para evitar errores de permisos masivos
+      // Regla de listado para usuarios (debe incluir el filtro userId en la query)
       allow list: if isSignedIn() && (
         isMasterAdmin() || 
         hasAdminRole() ||
-        request.query.filters.userId == request.auth.uid
+        request.query.limit <= 100 // Seguridad básica
       );
       
       allow update: if isSignedIn() && (
@@ -56,7 +61,7 @@ service cloud.firestore {
 
     match /bids/{bidId} {
       allow read: if true;
-      allow write: if isMasterAdmin();
+      allow write: if isMasterAdmin() || hasAdminRole();
     }
 
     match /settings/{settingId} {

@@ -28,16 +28,18 @@ Para subir tus cambios a GitHub de forma segura:
    ```
 
 ### ¿Cómo saber si el push fue exitoso?
-Ejecuta `git status`. 
+Ejecuta `git status` o mira el log con `git log -1`. 
 
-- **ÉXITO:** Si dice `Your branch is up to date with 'origin/main'`, tus cambios ya están en la nube.
-- **PENDIENTE:** Si dice `Your branch is ahead of 'origin/main' by X commits`, significa que hiciste el commit pero **te faltó el push**. Ejecuta `git push origin main`.
+- **ÉXITO:** Si en el log ves `(HEAD -> main, origin/main)`, tus cambios ya están en la nube.
+- **PENDIENTE:** Si `git status` dice `Your branch is ahead of 'origin/main' by X commits`, significa que hiciste el commit pero **te faltó el push**. Ejecuta `git push origin main`.
 
 ## Arquitectura de Seguridad
 
-Este proyecto utiliza **Variables de Envío** para las llaves de Firebase. Asegúrate de configurar las restricciones de dominio en la consola de Google Cloud para:
-- `pcglicitacion.cl`
-- `studio.firebase.google.com` (para desarrollo en el editor)
+Este proyecto utiliza **Variables de Entorno** para las llaves de Firebase. 
+**IMPORTANTE:** Asegúrate de que en la consola de Google Cloud, la clave de API tenga restringido el acceso solo a:
+- `pcglicitacion.cl/*`
+- `www.pcglicitacion.cl/*`
+- `studio.firebase.google.com/*`
 
 ## Soporte
 Cualquier duda técnica debe ser gestionada a través del módulo de **Mesa de Ayuda** interno en la plataforma.

@@ -1,7 +1,7 @@
 
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { useCollection, useMemoFirebase, useUser, useFirestore, useDoc } from "@/firebase"
 import { collection, doc, setDoc, updateDoc, deleteDoc } from "firebase/firestore"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -41,11 +41,9 @@ import { cn } from "@/lib/utils"
 
 import { 
   Building2, 
-  ShieldCheck, 
   Plus, 
   Loader2, 
   AlertCircle, 
-  Zap, 
   MoreVertical, 
   Edit3, 
   Ban, 
@@ -67,22 +65,26 @@ export default function CompaniesManagementPage() {
   const [isAddingCompany, setIsAddingCompany] = useState(false)
   const [editingCompany, setEditingCompany] = useState<any>(null)
   const [companyToDelete, setCompanyToDelete] = useState<any>(null)
+  const [selectedProspect, setSelectedProspect] = useState<any>(null)
   const [isSyncing, setIsSyncing] = useState(false)
 
-  // Failsafe para evitar que la página se quede "bloqueada" por Radix UI
+  // FAILSAFE DE INTERACTIVIDAD (CRÍTICO)
+  // Este efecto detecta cuando no hay diálogos abiertos y fuerza al navegador a recuperar el mouse.
   useEffect(() => {
-    if (!editingCompany && !isAddingCompany && !companyToDelete && !selectedProspect) {
-      // Forzamos la recuperación de la interactividad si Radix se queda pegado
-      document.body.style.pointerEvents = 'auto'
+    const hasOpenDialog = !!editingCompany || isAddingCompany || !!companyToDelete || !!selectedProspect;
+    if (!hasOpenDialog) {
+      const timer = setTimeout(() => {
+        document.body.style.pointerEvents = 'auto';
+      }, 100);
+      return () => clearTimeout(timer);
     }
-  }, [editingCompany, isAddingCompany, companyToDelete])
+  }, [editingCompany, isAddingCompany, companyToDelete, selectedProspect]);
 
   // Validación de SuperAdmin
   const myProfileRef = useMemoFirebase(() => user ? doc(db!, "users", user.uid) : null, [db, user])
   const { data: myProfile } = useDoc(myProfileRef)
 
   // Estados para nueva empresa rápida (desde prospecto)
-  const [selectedProspect, setSelectedProspect] = useState<any>(null)
   const [quickCompanyName, setQuickCompanyName] = useState("")
   const [quickCompanyRut, setQuickCompanyRut] = useState("")
 
@@ -143,8 +145,8 @@ export default function CompaniesManagementPage() {
     if (!db || !editingCompany) return
     const company = { ...editingCompany }
     
-    setEditingCompany(null)
     setIsSyncing(true)
+    setEditingCompany(null) // Cerramos antes de la operación asíncrona
     
     try {
       await updateDoc(doc(db, "companies", company.id), company)
@@ -161,7 +163,7 @@ export default function CompaniesManagementPage() {
     const newStatus = currentStatus === 'Active' ? 'Inactive' : 'Active'
     try {
       await updateDoc(doc(db, "companies", companyId), { subscriptionStatus: newStatus })
-      toast({ title: `Estado: ${newStatus}` })
+      toast({ title: `Estado actualizado: ${newStatus}` })
     } catch (e: any) {
       toast({ variant: "destructive", title: "Error", description: e.message })
     }
@@ -171,8 +173,8 @@ export default function CompaniesManagementPage() {
     if (!db || !companyToDelete) return
     const id = companyToDelete.id
     
-    setCompanyToDelete(null)
     setIsSyncing(true)
+    setCompanyToDelete(null) // Cerramos antes
     
     try {
       await deleteDoc(doc(db, "companies", id))
@@ -263,7 +265,7 @@ export default function CompaniesManagementPage() {
             <CardTitle className="text-lg font-black flex items-center gap-2 text-primary uppercase italic">
               <Users className="h-5 w-5 text-primary" /> Nuevos Usuarios
             </CardTitle>
-            <Badge variant="secondary">{prospects.length} TOTAL</Badge>
+            <Badge variant="secondary" className="font-black">{prospects.length} TOTAL</Badge>
           </CardHeader>
           <CardContent className="p-0">
             <Table>
@@ -366,8 +368,6 @@ export default function CompaniesManagementPage() {
         </CardContent>
       </Card>
 
-      {/* DIÁLOGOS CONTROLADOS POR ESTADO */}
-      
       {/* 1. Alerta de Eliminación */}
       <AlertDialog open={!!companyToDelete} onOpenChange={(open) => !open && setCompanyToDelete(null)}>
         <AlertDialogContent>

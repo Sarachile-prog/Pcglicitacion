@@ -8,43 +8,14 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { 
-  Building2, 
-  ShieldCheck, 
-  Plus, 
-  Search as SearchIcon, 
-  Loader2, 
-  ArrowRight,
-  UserPlus,
-  CheckCircle2,
-  AlertCircle,
-  UserCog,
-  UserCheck,
-  Zap,
-  MoreVertical,
-  Edit3,
-  Ban,
-  Trash2,
-  UserMinus,
-  Coins,
-  Ticket,
-  ExternalLink,
-  ChevronRight,
-  Save,
-  Lock,
-  Unlock,
-  Sparkles,
-  Mail,
-  Users
-} from "lucide-react"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { 
   Dialog, 
   DialogContent, 
   DialogHeader, 
   DialogTitle, 
   DialogTrigger,
-  DialogFooter,
   DialogDescription
 } from "@/components/ui/dialog"
 import {
@@ -57,7 +28,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
 import { 
@@ -70,6 +40,26 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { cn } from "@/lib/utils"
 
+// Iconos importados individualmente para evitar errores de referencia
+import { Building2 } from "lucide-react"
+import { ShieldCheck } from "lucide-react"
+import { Plus } from "lucide-react"
+import { Loader2 } from "lucide-react"
+import { AlertCircle } from "lucide-react"
+import { Zap } from "lucide-react"
+import { MoreVertical } from "lucide-react"
+import { Edit3 } from "lucide-react"
+import { Ban } from "lucide-react"
+import { Trash2 } from "lucide-react"
+import { UserMinus } from "lucide-react"
+import { CheckCircle2 } from "lucide-react"
+import { Save } from "lucide-react"
+import { Lock } from "lucide-react"
+import { Unlock } from "lucide-react"
+import { Sparkles } from "lucide-react"
+import { Mail } from "lucide-react"
+import { Users } from "lucide-react"
+
 export default function CompaniesManagementPage() {
   const db = useFirestore()
   const { user } = useUser()
@@ -81,7 +71,7 @@ export default function CompaniesManagementPage() {
   const [companyToDelete, setCompanyToDelete] = useState<any>(null)
   const [isSyncing, setIsSyncing] = useState(false)
 
-  // Perfil del usuario actual para validación de SuperAdmin
+  // Validación de SuperAdmin
   const myProfileRef = useMemoFirebase(() => user ? doc(db!, "users", user.uid) : null, [db, user])
   const { data: myProfile } = useDoc(myProfileRef)
 
@@ -94,20 +84,11 @@ export default function CompaniesManagementPage() {
   const [newCompanyName, setNewCompanyName] = useState("")
   const [newCompanyRut, setNewCompanyRut] = useState("")
 
-  // Colección de Empresas
-  const companiesRef = useMemoFirebase(() => {
-    if (!db) return null
-    return collection(db, "companies")
-  }, [db])
-
+  // Datos de Firebase
+  const companiesRef = useMemoFirebase(() => db ? collection(db, "companies") : null, [db])
   const { data: companies, isLoading: isCompaniesLoading } = useCollection(companiesRef)
 
-  // Colección de Usuarios
-  const usersRef = useMemoFirebase(() => {
-    if (!db) return null
-    return collection(db, "users")
-  }, [db])
-
+  const usersRef = useMemoFirebase(() => db ? collection(db, "users") : null, [db])
   const { data: allUsers, isLoading: isUsersLoading } = useCollection(usersRef)
 
   const prospects = allUsers?.filter(u => !u.companyId && u.role !== 'SuperAdmin') || []
@@ -138,7 +119,7 @@ export default function CompaniesManagementPage() {
         })
       }
 
-      toast({ title: "Empresa Creada y Vinculada", description: "El tenant está activo." })
+      toast({ title: "Empresa Creada", description: "Tenant activado correctamente." })
       setIsAddingCompany(false)
       setSelectedProspect(null)
       setNewCompanyName("")
@@ -155,7 +136,7 @@ export default function CompaniesManagementPage() {
     setIsSyncing(true)
     try {
       await updateDoc(doc(db, "companies", editingCompany.id), editingCompany)
-      toast({ title: "Empresa Actualizada", description: "Cambios guardados correctamente." })
+      toast({ title: "Cambios Guardados" })
       setEditingCompany(null)
     } catch (error: any) {
       toast({ variant: "destructive", title: "Error", description: error.message })
@@ -169,9 +150,9 @@ export default function CompaniesManagementPage() {
     const newStatus = currentStatus === 'Active' ? 'Inactive' : 'Active'
     try {
       await updateDoc(doc(db, "companies", companyId), { subscriptionStatus: newStatus })
-      toast({ title: `Servicio ${newStatus === 'Active' ? 'Activado' : 'Suspendido'}` })
+      toast({ title: `Estado: ${newStatus}` })
     } catch (e: any) {
-      toast({ variant: "destructive", title: "Error de permisos", description: e.message })
+      toast({ variant: "destructive", title: "Error", description: e.message })
     }
   }
 
@@ -180,7 +161,7 @@ export default function CompaniesManagementPage() {
     setIsSyncing(true)
     try {
       await deleteDoc(doc(db, "companies", companyToDelete.id))
-      toast({ title: "Empresa Eliminada", description: "El tenant ha sido removido del sistema." })
+      toast({ title: "Tenant Eliminado" })
       setCompanyToDelete(null)
     } catch (e: any) {
       toast({ variant: "destructive", title: "Error al eliminar", description: e.message })
@@ -189,27 +170,26 @@ export default function CompaniesManagementPage() {
     }
   }
 
-  const handleAssignUser = async (userId: string, companyId: string | null, role: string = 'User') => {
+  const handleAssignUser = async (userId: string, companyId: string | null) => {
     if (!db) return
     try {
-      await updateDoc(doc(db, "users", userId), { companyId, role, status: 'Active' })
-      toast({ 
-        title: companyId ? "Usuario Vinculado" : "Usuario Desvinculado", 
-        description: companyId ? "El usuario ya tiene acceso al dashboard corporativo." : "El usuario ha vuelto al modo Prospecto."
-      })
+      await updateDoc(doc(db, "users", userId), { companyId, role: companyId ? 'User' : 'User', status: 'Active' })
+      toast({ title: companyId ? "Usuario Vinculado" : "Usuario Desvinculado" })
     } catch (error: any) {
       toast({ variant: "destructive", title: "Error", description: error.message })
     }
   }
 
-  const handleUpdateUserStatus = async (userId: string, status: 'Active' | 'Suspended') => {
-    if (!db) return
-    try {
-      await updateDoc(doc(db, "users", userId), { status })
-      toast({ title: status === 'Active' ? "Usuario Activado" : "Usuario Suspendido" })
-    } catch (error: any) {
-      toast({ variant: "destructive", title: "Error", description: error.message })
-    }
+  const isSuperAdmin = user?.email === 'control@pcgoperacion.com' || myProfile?.role === 'SuperAdmin'
+
+  if (!user || !isSuperAdmin) {
+    return (
+      <div className="py-20 text-center space-y-4 max-w-md mx-auto">
+        <AlertCircle className="h-12 w-12 text-red-500 mx-auto" />
+        <h2 className="text-2xl font-black text-primary uppercase italic">Acceso Restringido</h2>
+        <p className="text-muted-foreground italic">Solo el SuperAdministrador puede gestionar esta área.</p>
+      </div>
+    )
   }
 
   const filteredCompanies = companies?.filter(c => 
@@ -217,97 +197,46 @@ export default function CompaniesManagementPage() {
     c.rut.includes(searchTerm)
   )
 
-  const isSuperAdmin = user?.email === 'control@pcgoperacion.com' || myProfile?.role === 'SuperAdmin'
-
-  if (!user || !isSuperAdmin) {
-    return (
-      <div className="py-20 text-center space-y-4 max-w-md mx-auto">
-        <div className="h-20 w-20 bg-red-50 rounded-full flex items-center justify-center mx-auto">
-          <AlertCircle className="h-10 w-10 text-red-500" />
-        </div>
-        <h2 className="text-2xl font-black text-primary uppercase italic tracking-tighter">Acceso Requerido</h2>
-        <Button onClick={() => window.location.href = '/login'} className="w-full bg-primary font-black uppercase italic h-12">Login Administrativo</Button>
-      </div>
-    )
-  }
-
   return (
-    <div className="space-y-8 animate-in fade-in duration-700 max-w-7xl mx-auto pb-20">
+    <div className="space-y-8 animate-in fade-in duration-500 max-w-7xl mx-auto pb-20">
+      {/* HEADER */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b pb-6">
         <div>
-          <div className="flex items-center gap-2 mb-1">
-            <ShieldCheck className="h-5 w-5 text-accent" />
-            <h2 className="text-3xl font-black tracking-tight text-primary uppercase italic tracking-tighter">Consola de Control Tenancy</h2>
-          </div>
-          <p className="text-muted-foreground font-medium italic">Gestiona empresas, planes de suscripción y usuarios corporativos.</p>
+          <h2 className="text-3xl font-black text-primary uppercase italic tracking-tighter">Control de Tenancy</h2>
+          <p className="text-muted-foreground italic">Gestión de empresas y usuarios del ecosistema.</p>
         </div>
-        <Dialog open={isAddingCompany} onOpenChange={setIsAddingCompany}>
-          <DialogTrigger asChild>
-            <Button className="bg-primary hover:bg-primary/90 gap-2 font-black shadow-lg uppercase italic h-12 px-6">
-              <Plus className="h-4 w-4" /> Nueva Empresa
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle className="text-2xl font-black text-primary uppercase italic">Registrar Empresa Cliente</DialogTitle>
-              <DialogDescription>Crea un nuevo tenant aislado en el sistema.</DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label className="text-[10px] font-black uppercase">Nombre de la Empresa</Label>
-                <Input placeholder="Ej: Alfa Ingeniería SpA" value={newCompanyName} onChange={(e) => setNewCompanyName(e.target.value)} />
-              </div>
-              <div className="space-y-2">
-                <Label className="text-[10px] font-black uppercase">RUT Corporativo</Label>
-                <Input placeholder="77.665.443-K" value={newCompanyRut} onChange={(e) => setNewCompanyRut(e.target.value)} />
-              </div>
-              <Button onClick={() => handleCreateCompany(newCompanyName, newCompanyRut)} className="w-full h-12 font-black uppercase italic" disabled={isSyncing}>
-                {isSyncing ? <Loader2 className="animate-spin" /> : "Crear Tenant Corporativo"}
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
+        <Button onClick={() => setIsAddingCompany(true)} className="bg-primary font-black uppercase italic h-12 px-6">
+          <Plus className="h-4 w-4 mr-2" /> Nueva Empresa
+        </Button>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        <Card className="border-accent/20 bg-accent/5 rounded-3xl overflow-hidden shadow-xl border-2">
-          <CardHeader className="bg-accent/10 border-b p-6">
-            <div className="flex justify-between items-center">
-              <CardTitle className="text-xl font-black flex items-center gap-2 text-primary uppercase italic tracking-tighter">
-                <Sparkles className="h-5 w-5 text-accent" /> Solicitudes de Activación
-              </CardTitle>
-              <Badge className="bg-accent text-white font-black px-4 animate-bounce">{planRequests.length} INTERESADOS</Badge>
-            </div>
+        {/* SOLICITUDES */}
+        <Card className="border-2 border-accent/20 bg-accent/5 rounded-3xl overflow-hidden shadow-xl">
+          <CardHeader className="bg-accent/10 border-b p-6 flex flex-row justify-between items-center">
+            <CardTitle className="text-lg font-black flex items-center gap-2 text-primary uppercase italic">
+              <Sparkles className="h-5 w-5 text-accent" /> Solicitudes
+            </CardTitle>
+            <Badge className="bg-accent text-white">{planRequests.length} PENDIENTES</Badge>
           </CardHeader>
           <CardContent className="p-0">
             {planRequests.length === 0 ? (
-              <div className="p-10 text-center italic text-muted-foreground font-medium text-xs">No hay solicitudes pendientes hoy.</div>
+              <div className="p-10 text-center italic text-muted-foreground text-xs">Sin solicitudes hoy.</div>
             ) : (
               <div className="divide-y divide-accent/10">
                 {planRequests.map(u => (
-                  <div key={u.id} className="p-6 space-y-4 hover:bg-white/50 transition-colors">
-                    <div className="flex justify-between items-start">
-                      <div className="space-y-1">
-                        <p className="text-[10px] font-black text-accent uppercase tracking-widest">Empresa Prospecto</p>
-                        <p className="text-xl font-black text-primary uppercase italic leading-none">{u.requestedCompanyName || "No declarada"}</p>
-                        <p className="text-xs font-bold text-muted-foreground flex items-center gap-1">
-                          <Mail className="h-3 w-3" /> {u.email}
-                        </p>
-                      </div>
-                      <Badge variant="outline" className="border-accent text-accent font-black text-[9px] uppercase">URGENTE</Badge>
+                  <div key={u.id} className="p-6 flex justify-between items-center hover:bg-white/50 transition-colors">
+                    <div className="space-y-1">
+                      <p className="text-xl font-black text-primary uppercase italic leading-none">{u.requestedCompanyName || "No declarada"}</p>
+                      <p className="text-xs font-bold text-muted-foreground flex items-center gap-1"><Mail className="h-3 w-3" /> {u.email}</p>
                     </div>
-                    <div className="flex gap-2">
-                      <Button 
-                        size="sm" 
-                        className="flex-1 font-black text-[10px] uppercase italic h-10 bg-accent"
-                        onClick={() => {
-                          setSelectedProspect(u);
-                          setQuickCompanyName(u.requestedCompanyName || "");
-                        }}
-                      >
-                        Crear Empresa y Vincular
-                      </Button>
-                    </div>
+                    <Button 
+                      size="sm" 
+                      className="bg-accent font-black text-[10px] uppercase italic h-10"
+                      onClick={() => { setSelectedProspect(u); setQuickCompanyName(u.requestedCompanyName || ""); }}
+                    >
+                      Activar
+                    </Button>
                   </div>
                 ))}
               </div>
@@ -315,40 +244,29 @@ export default function CompaniesManagementPage() {
           </CardContent>
         </Card>
 
-        <Card className="border-primary/10 bg-white rounded-3xl overflow-hidden shadow-xl border-2">
-          <CardHeader className="bg-muted/30 border-b p-6">
-            <div className="flex justify-between items-center">
-              <CardTitle className="text-xl font-black flex items-center gap-2 text-primary uppercase italic tracking-tighter">
-                <Users className="h-5 w-5 text-primary" /> Nuevos Registros
-              </CardTitle>
-              <Badge variant="secondary" className="font-black px-4">{prospects.length} TOTAL</Badge>
-            </div>
+        {/* NUEVOS REGISTROS */}
+        <Card className="border-2 border-primary/10 bg-white rounded-3xl overflow-hidden shadow-xl">
+          <CardHeader className="bg-muted/30 border-b p-6 flex flex-row justify-between items-center">
+            <CardTitle className="text-lg font-black flex items-center gap-2 text-primary uppercase italic">
+              <Users className="h-5 w-5 text-primary" /> Nuevos Usuarios
+            </CardTitle>
+            <Badge variant="secondary">{prospects.length} TOTAL</Badge>
           </CardHeader>
           <CardContent className="p-0">
             <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="font-black uppercase text-[10px]">Email / Empresa</TableHead>
-                  <TableHead className="text-right font-black uppercase text-[10px] pr-6">Acción</TableHead>
-                </TableRow>
-              </TableHeader>
               <TableBody>
                 {prospects.filter(u => !u.planRequested).map((u) => (
                   <TableRow key={u.id}>
                     <TableCell className="py-4 pl-6">
-                      <p className="font-bold text-xs text-primary">{u.email}</p>
+                      <p className="font-bold text-xs">{u.email}</p>
                       <p className="text-[9px] font-black text-muted-foreground uppercase">{u.requestedCompanyName || "Sin empresa"}</p>
                     </TableCell>
                     <TableCell className="text-right pr-6">
                       <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="sm" className="font-black text-[9px] uppercase">Vincular</Button>
-                        </DropdownMenuTrigger>
+                        <DropdownMenuTrigger asChild><Button variant="ghost" size="sm" className="text-[9px] font-black uppercase">Vincular</Button></DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="w-56">
                           {companies?.map(c => (
-                            <DropdownMenuItem key={c.id} className="font-bold text-xs" onClick={() => handleAssignUser(u.id, c.id)}>
-                              {c.name}
-                            </DropdownMenuItem>
+                            <DropdownMenuItem key={c.id} onClick={() => handleAssignUser(u.id, c.id)} className="text-xs font-bold">{c.name}</DropdownMenuItem>
                           ))}
                         </DropdownMenuContent>
                       </DropdownMenu>
@@ -361,91 +279,67 @@ export default function CompaniesManagementPage() {
         </Card>
       </div>
 
-      <Card className="border-none shadow-xl overflow-hidden rounded-3xl mt-12">
-        <CardHeader className="border-b bg-primary/5 p-6 flex flex-col md:flex-row justify-between gap-4">
-          <div className="flex-1">
-            <div className="flex items-center gap-3 mb-2">
-              <Building2 className="h-5 w-5 text-primary" />
-              <CardTitle className="text-2xl font-black text-primary uppercase italic tracking-tighter">Cartera de Empresas Activas</CardTitle>
-            </div>
-            <Input 
-              placeholder="Buscar empresa por nombre o RUT..." 
-              className="h-12 bg-white border-primary/10 shadow-inner"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
+      {/* CARTERA ACTIVA */}
+      <Card className="border-none shadow-xl rounded-3xl overflow-hidden mt-8">
+        <CardHeader className="bg-primary/5 p-6 space-y-4">
+          <div className="flex items-center gap-3">
+            <Building2 className="h-6 w-6 text-primary" />
+            <CardTitle className="text-2xl font-black text-primary uppercase italic tracking-tighter">Empresas Activas</CardTitle>
           </div>
+          <Input 
+            placeholder="Filtrar por nombre o RUT..." 
+            value={searchTerm} 
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="h-12 bg-white"
+          />
         </CardHeader>
         <CardContent className="p-0">
           <Table>
             <TableHeader className="bg-muted/50">
               <TableRow>
-                <TableHead className="font-black uppercase text-[10px] py-4 pl-6">Empresa / Equipo</TableHead>
-                <TableHead className="font-black uppercase text-[10px]">Plan / Suscripción</TableHead>
+                <TableHead className="font-black uppercase text-[10px] pl-6">Empresa / Equipo</TableHead>
+                <TableHead className="font-black uppercase text-[10px]">Suscripción</TableHead>
                 <TableHead className="text-right font-black uppercase text-[10px] pr-6">Acciones</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isCompaniesLoading ? (
-                <TableRow><TableCell colSpan={3} className="text-center py-24"><Loader2 className="animate-spin mx-auto opacity-20" /></TableCell></TableRow>
+                <TableRow><TableCell colSpan={3} className="text-center py-20"><Loader2 className="animate-spin mx-auto opacity-20" /></TableCell></TableRow>
               ) : filteredCompanies?.map((company) => {
                 const companyUsers = allUsers?.filter(u => u.companyId === company.id) || []
                 return (
-                  <TableRow key={company.id} className="hover:bg-muted/10 align-top">
+                  <TableRow key={company.id} className="align-top hover:bg-muted/10">
                     <TableCell className="py-6 pl-6 space-y-4">
                       <div className="space-y-1">
-                        <p className="font-black text-primary uppercase italic tracking-tighter text-xl leading-none">{company.name}</p>
+                        <p className="font-black text-primary uppercase italic text-xl leading-none">{company.name}</p>
                         <p className="text-[10px] font-bold text-muted-foreground uppercase">{company.rut}</p>
                       </div>
-                      
-                      <div className="space-y-2">
-                        <p className="text-[9px] font-black uppercase text-muted-foreground tracking-[0.2em]">Equipo Vinculado ({companyUsers.length})</p>
-                        <div className="space-y-1">
-                          {companyUsers.map(u => (
-                            <div key={u.id} className="flex items-center justify-between bg-white p-2 rounded-xl border text-[10px] shadow-sm">
-                              <div className="flex flex-col">
-                                <span className="font-bold text-primary">{u.email}</span>
-                                <span className="text-[8px] uppercase opacity-60">{u.role} • {u.status || 'Active'}</span>
-                              </div>
-                              <div className="flex gap-1">
-                                <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleUpdateUserStatus(u.id, u.status === 'Suspended' ? 'Active' : 'Suspended')}>
-                                  {u.status === 'Suspended' ? <Unlock className="h-3 w-3 text-emerald-500" /> : <Lock className="h-3 w-3 text-red-400" />}
-                                </Button>
-                                <Button variant="ghost" size="icon" className="h-6 w-6 text-red-400" onClick={() => handleAssignUser(u.id, null)}>
-                                  <UserMinus className="h-3 w-3" />
-                                </Button>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
+                      <div className="space-y-1">
+                        <p className="text-[9px] font-black uppercase opacity-40">Equipo ({companyUsers.length})</p>
+                        {companyUsers.map(u => (
+                          <div key={u.id} className="flex justify-between items-center bg-white p-2 rounded-lg border text-[10px] shadow-sm">
+                            <span className="font-bold">{u.email}</span>
+                            <Button variant="ghost" size="icon" className="h-5 w-5 text-red-400" onClick={() => handleAssignUser(u.id, null)}><UserMinus className="h-3 w-3" /></Button>
+                          </div>
+                        ))}
                       </div>
                     </TableCell>
                     <TableCell className="py-6">
-                      <div className="space-y-2">
-                        <Badge variant="secondary" className="font-black text-[10px] uppercase block w-fit">PLAN: {company.plan}</Badge>
-                        <Badge className={cn("text-[9px] font-black uppercase shadow-sm", company.subscriptionStatus === 'Active' ? "bg-emerald-500" : "bg-red-500")}>
-                          {company.subscriptionStatus === 'Active' ? "SUSCRIPCIÓN ACTIVA" : "INACTIVA / PENDIENTE"}
-                        </Badge>
-                        <p className="text-[9px] text-muted-foreground italic font-medium">Expira: {company.subscriptionExpiresAt ? new Date(company.subscriptionExpiresAt).toLocaleDateString() : 'No definida'}</p>
-                      </div>
+                      <Badge variant="secondary" className="font-black text-[10px] mb-2">PLAN: {company.plan}</Badge>
+                      <Badge className={cn("text-[9px] font-black block w-fit", company.subscriptionStatus === 'Active' ? "bg-emerald-500" : "bg-red-500")}>
+                        {company.subscriptionStatus === 'Active' ? "ACTIVA" : "INACTIVA"}
+                      </Badge>
                     </TableCell>
                     <TableCell className="text-right pr-6 py-6">
                       <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="outline" size="icon" className="h-10 w-10 border-primary/20"><MoreVertical className="h-5 w-5" /></Button>
-                        </DropdownMenuTrigger>
+                        <DropdownMenuTrigger asChild><Button variant="outline" size="icon"><MoreVertical className="h-4 w-4" /></Button></DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="w-56">
-                          <DropdownMenuLabel className="text-[9px] font-black uppercase">Gestión Administrativa</DropdownMenuLabel>
-                          <DropdownMenuItem className="font-bold text-xs gap-2" onClick={() => setEditingCompany(company)}>
-                            <Edit3 className="h-3.5 w-3.5" /> Editar Datos / Plan
-                          </DropdownMenuItem>
+                          <DropdownMenuItem className="font-bold text-xs gap-2" onClick={() => setEditingCompany(company)}><Edit3 className="h-3.5 w-3.5" /> Editar Plan</DropdownMenuItem>
                           <DropdownMenuItem className="font-bold text-xs gap-2" onClick={() => handleToggleCompanyStatus(company.id, company.subscriptionStatus)}>
-                            {company.subscriptionStatus === 'Active' ? <><Ban className="h-3.5 w-3.5 text-red-500" /> Suspender Servicio</> : <><CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" /> Activar Servicio</>}
+                            {company.subscriptionStatus === 'Active' ? <><Ban className="h-3.5 w-3.5 text-red-500" /> Suspender</> : <><CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" /> Activar</>}
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
-                          <DropdownMenuItem className="text-red-600 font-bold text-xs gap-2" onClick={() => setCompanyToDelete(company)}>
-                            <Trash2 className="h-3.5 w-3.5" /> Eliminar Tenant
-                          </DropdownMenuItem>
+                          <DropdownMenuItem className="text-red-600 font-bold text-xs gap-2" onClick={() => setCompanyToDelete(company)}><Trash2 className="h-3.5 w-3.5" /> Eliminar Tenant</DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>
@@ -457,96 +351,70 @@ export default function CompaniesManagementPage() {
         </CardContent>
       </Card>
 
-      {/* DIALOGO DE ACTIVACIÓN RÁPIDA (DESDE PROSPECTO) */}
-      <Dialog open={!!selectedProspect} onOpenChange={(open) => !open && setSelectedProspect(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle className="text-2xl font-black text-primary uppercase italic">Activar Plan Corporativo</DialogTitle>
-            <DialogDescription>Convertir prospecto en cliente vinculado.</DialogDescription>
-          </DialogHeader>
-          {selectedProspect && (
-            <div className="space-y-4 py-4">
-              <div className="p-4 bg-muted/20 rounded-xl space-y-1">
-                <p className="text-[9px] font-black uppercase text-muted-foreground">Usuario</p>
-                <p className="font-bold text-sm">{selectedProspect.email}</p>
-              </div>
-              <div className="space-y-2">
-                <Label className="text-[10px] font-black uppercase">Nombre de la Empresa</Label>
-                <Input value={quickCompanyName} onChange={(e) => setQuickCompanyName(e.target.value)} />
-              </div>
-              <div className="space-y-2">
-                <Label className="text-[10px] font-black uppercase">RUT Empresa (Opcional)</Label>
-                <Input placeholder="77.665.443-K" value={quickCompanyRut} onChange={(e) => setQuickCompanyRut(e.target.value)} />
-              </div>
-              <Button onClick={() => handleCreateCompany(quickCompanyName, quickCompanyRut, selectedProspect.id)} className="w-full h-12 bg-accent hover:bg-accent/90 font-black uppercase italic gap-2 shadow-xl" disabled={isSyncing}>
-                {isSyncing ? <Loader2 className="animate-spin" /> : <><CheckCircle2 className="h-4 w-4" /> Crear y Activar Plan</>}
-              </Button>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
-
-      {/* DIALOGO DE EDICIÓN GENERAL */}
-      <Dialog open={!!editingCompany} onOpenChange={(open) => !open && setEditingCompany(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle className="text-2xl font-black text-primary uppercase italic">Editar Empresa</DialogTitle>
-          </DialogHeader>
-          {editingCompany && (
-            <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label className="text-[10px] font-black uppercase">Nombre</Label>
-                <Input value={editingCompany.name} onChange={(e) => setEditingCompany({...editingCompany, name: e.target.value})} />
-              </div>
-              <div className="space-y-2">
-                <Label className="text-[10px] font-black uppercase">RUT</Label>
-                <Input value={editingCompany.rut} onChange={(e) => setEditingCompany({...editingCompany, rut: e.target.value})} />
-              </div>
-              <div className="space-y-2">
-                <Label className="text-[10px] font-black uppercase">Plan de Suscripción</Label>
-                <Select value={editingCompany.plan} onValueChange={(val) => setEditingCompany({...editingCompany, plan: val})}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Standard" className="font-bold">Plan Standard (1.5 UF)</SelectItem>
-                    <SelectItem value="Enterprise" className="font-bold">Plan Enterprise (Custom)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label className="text-[10px] font-black uppercase">Fecha de Expiración</Label>
-                <Input type="date" value={editingCompany.subscriptionExpiresAt?.split('T')[0] || ""} onChange={(e) => setEditingCompany({...editingCompany, subscriptionExpiresAt: new Date(e.target.value).toISOString()})} />
-              </div>
-              <Button onClick={handleUpdateCompany} className="w-full h-12 bg-accent hover:bg-accent/90 font-black uppercase italic gap-2 shadow-xl" disabled={isSyncing}>
-                {isSyncing ? <Loader2 className="animate-spin" /> : <><Save className="h-4 w-4" /> Guardar Cambios</>}
-              </Button>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
-
-      {/* ALERT DIALOG PARA ELIMINACIÓN SEGURA (SIN BLOQUEO DE NAVEGADOR) */}
+      {/* DIÁLOGOS CONTROLADOS POR ESTADO (EVITAN BLOQUEO) */}
+      
+      {/* 1. Alerta de Eliminación */}
       <AlertDialog open={!!companyToDelete} onOpenChange={(open) => !open && setCompanyToDelete(null)}>
-        <AlertDialogContent className="rounded-3xl border-2 border-primary/10">
+        <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle className="text-2xl font-black text-primary uppercase italic">¿Confirmar Eliminación?</AlertDialogTitle>
-            <AlertDialogDescription className="font-medium italic">
-              Estás a punto de eliminar permanentemente el tenant <b>{companyToDelete?.name}</b>. 
-              Esta acción no se puede deshacer y todos los datos vinculados se perderán.
-            </AlertDialogDescription>
+            <AlertDialogTitle className="text-xl font-black uppercase italic">¿Eliminar permanentemente?</AlertDialogTitle>
+            <AlertDialogDescription>Estás a punto de borrar a <b>{companyToDelete?.name}</b>. Esta acción no tiene vuelta atrás.</AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter className="gap-2">
-            <AlertDialogCancel className="rounded-xl font-bold uppercase italic">Cancelar</AlertDialogCancel>
-            <AlertDialogAction 
-              onClick={handleDeleteCompany} 
-              className="bg-red-600 hover:bg-red-700 rounded-xl font-black uppercase italic"
-              disabled={isSyncing}
-            >
-              {isSyncing ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : <Trash2 className="mr-2 h-4 w-4" />}
-              Eliminar Definitivamente
+          <AlertDialogFooter>
+            <AlertDialogCancel className="font-bold uppercase">Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteCompany} className="bg-red-600 font-black uppercase italic" disabled={isSyncing}>
+              {isSyncing ? <Loader2 className="animate-spin mr-2" /> : <Trash2 className="mr-2 h-4 w-4" />} Confirmar Eliminación
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* 2. Diálogo de Registro Manual / Edición */}
+      <Dialog open={isAddingCompany} onOpenChange={setIsAddingCompany}>
+        <DialogContent>
+          <DialogHeader><DialogTitle className="text-xl font-black uppercase italic">Registrar Empresa</DialogTitle></DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2"><Label className="text-[10px] font-black uppercase">Nombre</Label><Input value={newCompanyName} onChange={(e) => setNewCompanyName(e.target.value)} /></div>
+            <div className="space-y-2"><Label className="text-[10px] font-black uppercase">RUT</Label><Input value={newCompanyRut} onChange={(e) => setNewCompanyRut(e.target.value)} /></div>
+            <Button onClick={() => handleCreateCompany(newCompanyName, newCompanyRut)} className="w-full h-12 font-black uppercase italic" disabled={isSyncing}>{isSyncing ? <Loader2 className="animate-spin" /> : "Crear Tenant"}</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* 3. Activación Rápida desde Prospecto */}
+      <Dialog open={!!selectedProspect} onOpenChange={(open) => !open && setSelectedProspect(null)}>
+        <DialogContent>
+          <DialogHeader><DialogTitle className="text-xl font-black uppercase italic">Activar Plan Empresa</DialogTitle></DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="p-3 bg-muted/20 rounded-xl"><p className="text-[9px] font-black uppercase opacity-50">Usuario</p><p className="font-bold text-xs">{selectedProspect?.email}</p></div>
+            <div className="space-y-2"><Label className="text-[10px] font-black uppercase">Nombre de la Empresa</Label><Input value={quickCompanyName} onChange={(e) => setQuickCompanyName(e.target.value)} /></div>
+            <div className="space-y-2"><Label className="text-[10px] font-black uppercase">RUT Corporativo</Label><Input value={quickCompanyRut} onChange={(e) => setQuickCompanyRut(e.target.value)} /></div>
+            <Button onClick={() => handleCreateCompany(quickCompanyName, quickCompanyRut, selectedProspect?.id)} className="w-full h-12 bg-accent font-black uppercase italic" disabled={isSyncing}>
+              {isSyncing ? <Loader2 className="animate-spin" /> : "Vincular y Activar"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* 4. Editar Plan Existente */}
+      <Dialog open={!!editingCompany} onOpenChange={(open) => !open && setEditingCompany(null)}>
+        <DialogContent>
+          <DialogHeader><DialogTitle className="text-xl font-black uppercase italic">Editar Empresa</DialogTitle></DialogHeader>
+          {editingCompany && (
+            <div className="space-y-4 py-4">
+              <div className="space-y-2"><Label className="text-[10px] font-black uppercase">Nombre</Label><Input value={editingCompany.name} onChange={(e) => setEditingCompany({...editingCompany, name: e.target.value})} /></div>
+              <div className="space-y-2">
+                <Label className="text-[10px] font-black uppercase">Plan</Label>
+                <Select value={editingCompany.plan} onValueChange={(v) => setEditingCompany({...editingCompany, plan: v})}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent><SelectItem value="Standard">Standard (1.5 UF)</SelectItem><SelectItem value="Enterprise">Enterprise (Custom)</SelectItem></SelectContent>
+                </Select>
+              </div>
+              <Button onClick={handleUpdateCompany} className="w-full h-12 bg-primary font-black uppercase italic" disabled={isSyncing}><Save className="h-4 w-4 mr-2" /> Guardar Cambios</Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

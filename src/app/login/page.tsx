@@ -31,7 +31,7 @@ export default function LoginPage() {
   const [companyName, setCompanyName] = useState("")
   const [isLoginMode, setIsLoginMode] = useState(true)
   const [isLoading, setIsLoading] = useState(false)
-  const [apiKeyBlocked, setApiKeyBlocked] = useState(false)
+  const [blockedDomain, setBlockedDomain] = useState<string | null>(null)
 
   useEffect(() => {
     if (user && !isUserLoading && !isLoading) {
@@ -74,7 +74,7 @@ export default function LoginPage() {
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault()
-    setApiKeyBlocked(false)
+    setBlockedDomain(null)
     if (!email || !password) return
     if (!isLoginMode && !companyName) {
       toast({ variant: "destructive", title: "Datos incompletos", description: "Por favor indica el nombre de tu empresa." })
@@ -105,8 +105,10 @@ export default function LoginPage() {
         error.code === 'auth/network-request-failed' ||
         error.code?.includes('requests-from-referer')
       ) {
-        setApiKeyBlocked(true)
-        message = "Dominio Bloqueado: Tu API Key en Google Cloud no permite peticiones desde este editor."
+        // Intentar extraer el dominio del error para guiar al usuario
+        const domainMatch = error.message?.match(/https?:\/\/[^\s-]+/)
+        setBlockedDomain(domainMatch ? domainMatch[0] : "este dominio")
+        message = "Dominio Bloqueado por Google Cloud."
       }
       
       if (error.code === 'auth/email-already-in-use') message = "Este correo ya está registrado."
@@ -162,13 +164,13 @@ export default function LoginPage() {
           </div>
         </CardHeader>
         <CardContent className="space-y-6 pt-8">
-          {apiKeyBlocked && (
-            <div className="bg-red-50 border-2 border-red-100 p-4 rounded-2xl flex items-start gap-3 animate-bounce">
+          {blockedDomain && (
+            <div className="bg-red-50 border-2 border-red-100 p-4 rounded-2xl flex items-start gap-3 animate-in fade-in zoom-in-95">
               <AlertTriangle className="h-5 w-5 text-red-600 shrink-0 mt-0.5" />
               <div className="space-y-1">
                 <p className="text-[10px] font-black text-red-800 uppercase tracking-widest leading-none">Acceso Denegado por Seguridad</p>
                 <p className="text-[9px] font-bold text-red-700/80 italic leading-tight">
-                  Tu API Key en Google Cloud bloquea este dominio. Debes añadir <b>*.cloudworkstations.dev/*</b> a la lista blanca para usar el editor.
+                  Debes añadir <b>*.cloudworkstations.dev/*</b> a la lista blanca de la <b>Browser key</b> en Google Cloud Console para que este entorno funcione.
                 </p>
               </div>
             </div>

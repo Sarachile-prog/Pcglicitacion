@@ -40,7 +40,8 @@ import {
   FileCheck,
   Cloud,
   TrendingUp,
-  AlertCircle
+  AlertCircle,
+  Plus
 } from "lucide-react"
 import { auditBidProposal, AuditOutput } from "@/ai/flows/audit-bid-proposal"
 import { useToast } from "@/hooks/use-toast"

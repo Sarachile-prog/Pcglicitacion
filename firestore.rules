@@ -1,4 +1,3 @@
-
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -7,17 +6,20 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // Verifica si es el correo maestro de la operación (No recursivo)
+    // Validación ultra-rápida por email maestro
     function isMasterAdmin() {
-      return isSignedIn() && request.auth.token.email == 'control@pcgoperacion.com';
+      return isSignedIn() && (
+        request.auth.token.email == 'control@pcgoperacion.com' ||
+        request.auth.token.email == 'pcordova@woken.cl'
+      );
     }
 
-    // Verifica rol de SuperAdmin (Solo usar en colecciones que no sean /users para evitar recursividad)
-    function hasSuperAdminRole() {
+    // Validación por rol en documento (evitando recursividad innecesaria)
+    function hasAdminRole() {
       return isSignedIn() && (
         isMasterAdmin() ||
         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'SuperAdmin')
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['Admin', 'SuperAdmin'])
       );
     }
 
@@ -28,46 +30,26 @@ service cloud.firestore {
       allow update: if isSignedIn() && (request.auth.uid == userId || isMasterAdmin());
     }
 
-    match /companies/{companyId} {
-      allow read, write: if isMasterAdmin() || (isSignedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.companyId == companyId);
-      
-      match /bookmarks/{bidId} {
-        allow read, write: if isMasterAdmin() || (isSignedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.companyId == companyId);
-      }
-    }
-
     match /support_tickets/{ticketId} {
+      // Un usuario puede crear tickets
       allow create: if isSignedIn();
       
-      // Permitimos listar si el usuario es dueño del ticket o es el admin maestro
-      allow list: if isSignedIn() && (
+      // Regla de lectura unificada (GET y LIST)
+      // Permite si es Admin o si el documento le pertenece
+      allow read: if isSignedIn() && (
         isMasterAdmin() || 
-        resource.data.userId == request.auth.uid
-      );
-      
-      allow get: if isSignedIn() && (
-        isMasterAdmin() || 
-        resource.data.userId == request.auth.uid || 
-        hasSuperAdminRole()
+        (resource != null && resource.data.userId == request.auth.uid) ||
+        hasAdminRole()
       );
       
       allow update: if isSignedIn() && (
         isMasterAdmin() || 
-        resource.data.userId == request.auth.uid || 
-        hasSuperAdminRole()
+        (resource != null && resource.data.userId == request.auth.uid) ||
+        hasAdminRole()
       );
 
       match /messages/{messageId} {
-        allow read: if isSignedIn() && (
-          isMasterAdmin() || 
-          get(/databases/$(database)/documents/support_tickets/$(ticketId)).data.userId == request.auth.uid || 
-          hasSuperAdminRole()
-        );
-        allow create: if isSignedIn() && (
-          isMasterAdmin() || 
-          get(/databases/$(database)/documents/support_tickets/$(ticketId)).data.userId == request.auth.uid || 
-          hasSuperAdminRole()
-        );
+        allow read, create: if isSignedIn();
       }
     }
 
@@ -81,6 +63,13 @@ service cloud.firestore {
       allow write: if isMasterAdmin();
     }
     
+    match /companies/{companyId} {
+      allow read, write: if isSignedIn();
+      match /bookmarks/{bidId} {
+        allow read, write: if isSignedIn();
+      }
+    }
+
     match /mp_cache/{cacheId} {
       allow read, write: if isMasterAdmin();
     }

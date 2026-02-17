@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState } from "react"
@@ -20,13 +19,14 @@ import {
   ChevronRight,
   Headset,
   History,
-  ShieldAlert
+  ShieldAlert,
+  RefreshCw
 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 
 export default function SupportPage() {
-  const { user } = useUser()
+  const { user, isUserLoading } = useUser()
   const db = useFirestore()
   const { toast } = useToast()
   
@@ -39,11 +39,16 @@ export default function SupportPage() {
 
   const ticketsQuery = useMemoFirebase(() => {
     if (!db || !user) return null
-    return query(
-      collection(db, "support_tickets"),
-      where("userId", "==", user.uid),
-      orderBy("updatedAt", "desc")
-    )
+    try {
+      return query(
+        collection(db, "support_tickets"),
+        where("userId", "==", user.uid),
+        orderBy("updatedAt", "desc")
+      )
+    } catch (e) {
+      console.error("Error building tickets query", e)
+      return null
+    }
   }, [db, user])
 
   const { data: tickets, isLoading, error } = useCollection(ticketsQuery)
@@ -106,7 +111,7 @@ export default function SupportPage() {
       await updateDoc(doc(db, "support_tickets", selectedTicket.id), {
         updatedAt: serverTimestamp(),
         lastMessage: replyText,
-        status: "Open" // Re-abrir si estaba en espera
+        status: "Open"
       })
 
       setReplyText("")
@@ -115,6 +120,15 @@ export default function SupportPage() {
     } finally {
       setIsSyncing(false)
     }
+  }
+
+  if (isUserLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center py-40 gap-4">
+        <RefreshCw className="h-10 w-10 animate-spin text-primary opacity-20" />
+        <p className="text-muted-foreground font-bold italic uppercase text-xs tracking-widest">Validando Identidad...</p>
+      </div>
+    )
   }
 
   return (
@@ -133,11 +147,11 @@ export default function SupportPage() {
       </div>
 
       {error && (
-        <Card className="bg-red-50 border-2 border-red-100 p-6 rounded-3xl flex items-center gap-4 text-red-800">
+        <Card className="bg-red-50 border-2 border-red-100 p-6 rounded-3xl flex items-center gap-4 text-red-800 animate-in slide-in-from-top-4">
           <ShieldAlert className="h-10 w-10 shrink-0" />
           <div>
-            <p className="font-black uppercase italic text-sm">Error de Acceso a Datos</p>
-            <p className="text-xs font-medium italic">No se pudo sincronizar con la base de datos de soporte. Por favor, refresca la página o contacta a administración.</p>
+            <p className="font-black uppercase italic text-sm">Acceso Restringido</p>
+            <p className="text-xs font-medium italic">No se pudieron cargar tus tickets. Por favor verifica tu conexión o intenta cerrar y volver a abrir sesión.</p>
           </div>
         </Card>
       )}
@@ -146,7 +160,7 @@ export default function SupportPage() {
         <div className="lg:col-span-4 space-y-4">
           <Card className="border-none shadow-xl rounded-3xl overflow-hidden">
             <CardHeader className="bg-primary/5 border-b p-6">
-              <CardTitle className="text-sm font-black uppercase tracking-widest flex items-center gap-2">
+              <CardTitle className="text-sm font-black uppercase tracking-widest flex items-center gap-2 text-primary">
                 <History className="h-4 w-4 text-primary" /> Mis Solicitudes
               </CardTitle>
             </CardHeader>
@@ -154,8 +168,8 @@ export default function SupportPage() {
               {isLoading ? (
                 <div className="p-10 text-center"><Loader2 className="animate-spin mx-auto opacity-20" /></div>
               ) : !tickets || tickets.length === 0 ? (
-                <div className="p-10 text-center text-xs italic text-muted-foreground">
-                  {error ? "No se pudieron cargar los tickets." : "No tienes tickets activos."}
+                <div className="p-10 text-center text-xs italic text-muted-foreground font-medium">
+                  {error ? "Error de sincronización." : "Aún no tienes tickets creados."}
                 </div>
               ) : (
                 <div className="divide-y divide-primary/5">
@@ -189,7 +203,7 @@ export default function SupportPage() {
 
         <div className="lg:col-span-8">
           {isCreating ? (
-            <Card className="border-2 border-accent/20 shadow-2xl rounded-3xl overflow-hidden">
+            <Card className="border-2 border-accent/20 shadow-2xl rounded-3xl overflow-hidden animate-in zoom-in-95">
               <CardHeader className="bg-accent/5 border-b p-8">
                 <CardTitle className="text-2xl font-black text-primary uppercase italic">Abrir Nueva Consulta</CardTitle>
                 <CardDescription className="font-medium italic">Explica tu requerimiento lo más detallado posible.</CardDescription>
@@ -222,7 +236,7 @@ export default function SupportPage() {
               </CardContent>
             </Card>
           ) : selectedTicket ? (
-            <div className="space-y-6">
+            <div className="space-y-6 animate-in slide-in-from-bottom-4">
               <Card className="border-none shadow-xl rounded-3xl overflow-hidden flex flex-col h-[600px]">
                 <CardHeader className="bg-primary text-white p-6">
                   <div className="flex justify-between items-center">

@@ -21,6 +21,23 @@ Ejecuta `git status` o mira el log con `git log -1`.
 
 - **ÉXITO:** Si en el log ves `(HEAD -> main, origin/main)`, tus cambios ya están en la nube.
 
+## Solución de Errores de Git (Autenticación)
+
+Si al hacer `git push` recibes el error **"Missing or invalid credentials"** o **"Authentication failed"**, sigue estos pasos:
+
+1. **Configurar persistencia:** Ejecuta en la terminal:
+   `git config --global credential.helper store`
+
+2. **Generar un Token en GitHub:**
+   - Ve a [GitHub Settings > Developer Settings > Personal access tokens > Tokens (classic)](https://github.com/settings/tokens).
+   - Genera un nuevo token con permisos de `repo`.
+   - **Copia el token** (no lo pierdas).
+
+3. **Reintentar el Push:**
+   - Ejecuta `git push origin main`.
+   - **Username:** Tu nombre de usuario de GitHub.
+   - **Password:** Pega el **Token** que generaste (no uses tu contraseña de login).
+
 ## Arquitectura de Seguridad (IMPORTANTE)
 
 Este proyecto utiliza **Restricciones de API Key** en Google Cloud para evitar el robo de cuota de IA y base de datos.

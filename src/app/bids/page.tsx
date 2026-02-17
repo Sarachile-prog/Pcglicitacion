@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useMemo, useEffect } from "react"
@@ -31,7 +30,8 @@ import {
   Hourglass,
   Sparkles,
   Zap,
-  FileSearch
+  FileSearch,
+  Loader2
 } from "lucide-react"
 import Link from "next/link"
 import { getBidsByDate, getBidDetail } from "@/services/mercado-publico"
@@ -125,7 +125,6 @@ export default function BidsListPage() {
         description: "Obteniendo instituciones y montos desde el API de detalle..." 
       });
       
-      // Procesamos las que no tienen institución o monto
       const toEnrich = pagedBids.filter(b => b.entity === "Institución no especificada" || !b.amount);
       
       if (toEnrich.length === 0) {
@@ -136,7 +135,6 @@ export default function BidsListPage() {
       for (const bid of toEnrich) {
         await getBidDetail(bid.id);
         count++;
-        // Pequeño delay para no saturar la API
         if (count % 3 === 0) await new Promise(r => setTimeout(r, 800));
       }
       

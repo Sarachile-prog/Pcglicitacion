@@ -6,15 +6,12 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // Validación por email maestro sin recursividad
+    // Validación por email maestro pura (sin DB)
     function isMasterAdmin() {
-      return isSignedIn() && (
-        request.auth.token.email == 'control@pcgoperacion.com' ||
-        request.auth.token.email == 'pcordova@woken.cl'
-      );
+      return isSignedIn() && request.auth.token.email == 'control@pcgoperacion.com';
     }
 
-    // Validación de rol evitando bucles de lectura
+    // Validación de rol robusta
     function hasAdminRole() {
       return isSignedIn() && (
         isMasterAdmin() || 
@@ -31,20 +28,19 @@ service cloud.firestore {
     }
 
     match /support_tickets/{ticketId} {
-      // Regla de creación: Cualquier logueado puede pedir ayuda
       allow create: if isSignedIn();
       
-      // Regla de lectura individual (GET)
       allow get: if isSignedIn() && (
         isMasterAdmin() || 
         resource.data.userId == request.auth.uid ||
         hasAdminRole()
       );
 
-      // Regla de listado (LIST): Vital para que la consulta de 'Mis Tickets' no falle
+      // Regla de listado basada en filtros para evitar errores de permisos masivos
       allow list: if isSignedIn() && (
         isMasterAdmin() || 
-        (request.query.limit <= 100 && request.auth.uid != null) // El filtro por userId en el código hace el resto
+        hasAdminRole() ||
+        request.query.filters.userId == request.auth.uid
       );
       
       allow update: if isSignedIn() && (

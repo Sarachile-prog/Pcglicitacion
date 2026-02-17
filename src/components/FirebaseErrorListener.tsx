@@ -1,30 +1,25 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect } from 'react';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 
 /**
- * Componente que escucha errores de permisos.
- * HEMOS ELIMINADO EL 'throw error' para evitar el colapso global (Pantalla Blanca).
- * Los componentes individuales ahora manejan sus propios estados de error.
+ * Componente silenciado para evitar colapsos globales (White Screens).
+ * Las notificaciones de error ahora se manejan a nivel de componente individual.
  */
 export function FirebaseErrorListener() {
-  const [error, setError] = useState<FirestorePermissionError | null>(null);
-
   useEffect(() => {
     const handleError = (error: FirestorePermissionError) => {
-      console.warn('>>> [FIREBASE_PERMISSION_DENIED]:', error.request.path, error.request.method);
-      setError(error);
+      // Solo registramos el error en consola para debugging sin romper la UI
+      console.warn('>>> [FIREBASE_PERMISSIONS]: Acceso denegado en', error.request.path);
     };
 
     errorEmitter.on('permission-error', handleError);
-
     return () => {
       errorEmitter.off('permission-error', handleError);
     };
   }, []);
 
-  // Ya no lanzamos el error al árbol de React para evitar el Crash global.
   return null;
 }

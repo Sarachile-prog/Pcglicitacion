@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useMemo, useEffect } from "react"
@@ -18,7 +17,6 @@ import {
   ChevronLeft,
   LayoutGrid,
   List,
-  CircleHelp as TooltipIcon,
   History,
   Settings as SettingsIcon,
   AlertTriangle,
@@ -28,17 +26,17 @@ import {
   Database,
   CheckCircle2,
   Clock,
-  Filter
+  Filter,
+  Hourglass
 } from "lucide-react"
 import Link from "next/link"
 import { getBidsByDate } from "@/services/mercado-publico"
 import { useToast } from "@/hooks/use-toast"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Calendar } from "@/components/ui/calendar"
-import { format, subDays, isAfter, startOfDay } from "date-fns"
+import { format, subDays, isAfter, startOfDay, differenceInDays } from "date-fns"
 import { cn } from "@/lib/utils"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { CATEGORIES } from "@/app/lib/mock-data"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 
@@ -180,6 +178,28 @@ export default function BidsListPage() {
     }
   }
 
+  const getDaysLeft = (deadlineStr?: string) => {
+    if (!deadlineStr) return null;
+    try {
+      const deadline = new Date(deadlineStr);
+      if (isNaN(deadline.getTime())) return null;
+      const today = startOfDay(new Date());
+      const deadlineDate = startOfDay(deadline);
+      const diff = differenceInDays(deadlineDate, today);
+      return diff;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  const renderDaysLeftBadge = (days: number | null) => {
+    if (days === null) return null;
+    if (days < 0) return <Badge variant="outline" className="text-[9px] border-gray-300 text-gray-400 font-bold uppercase">Cerrada</Badge>;
+    if (days === 0) return <Badge className="text-[9px] bg-red-600 text-white font-bold animate-pulse uppercase">Cierra Hoy</Badge>;
+    if (days === 1) return <Badge className="text-[9px] bg-orange-600 text-white font-bold uppercase">Queda 1 día</Badge>;
+    return <Badge variant="secondary" className="text-[9px] bg-accent/10 text-accent font-bold uppercase">Quedan {days} días</Badge>;
+  }
+
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
       <div className="flex flex-col gap-4">
@@ -240,7 +260,7 @@ export default function BidsListPage() {
         <Info className="h-4 w-4 text-blue-600" />
         <AlertTitle className="text-blue-800 font-bold">Nota sobre la Cobertura de Datos</AlertTitle>
         <AlertDescription className="text-blue-700 text-xs">
-          Los filtros se aplican sobre licitaciones sincronizadas en tu base de datos local. La fecha de cierre es la oficial, mientras que los rangos de tiempo se basan en cuándo la licitación fue detectada por PCG.
+          Los filtros se aplican sobre licitaciones sincronizadas en tu base de datos local. El tiempo restante se calcula en base a la fecha de cierre oficial de Mercado Público.
         </AlertDescription>
       </Alert>
 
@@ -371,54 +391,50 @@ export default function BidsListPage() {
       ) : pagedBids.length > 0 ? (
         viewMode === 'grid' ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {pagedBids.map((bid) => (
-              <Link key={bid.id} href={`/bids/${bid.id}`} className="group">
-                <Card className="h-full hover:border-accent hover:shadow-2xl transition-all duration-300 overflow-hidden border-2 border-transparent">
-                  <CardContent className="p-6">
-                    <div className="flex justify-between items-start mb-4">
-                      <Badge variant="outline" className="text-[10px] uppercase border-primary/20 text-primary font-bold">ID: {bid.id}</Badge>
-                      <Badge className={cn(
-                        "text-[10px] uppercase font-bold text-white",
-                        bid.status?.includes('Publicada') || bid.status?.includes('Abierta') ? 'bg-emerald-500' : 
-                        bid.status?.includes('Adjudicada') ? 'bg-blue-600' :
-                        bid.status?.includes('Cerrada') ? 'bg-gray-500' : 'bg-orange-500'
-                      )}>
-                        {bid.status || 'No definido'}
-                      </Badge>
-                    </div>
-                    <h3 className="font-bold text-lg mb-4 line-clamp-2 group-hover:text-accent transition-colors min-h-[3.5rem] uppercase italic tracking-tighter text-primary">
-                      {bid.title}
-                    </h3>
-                    <div className="space-y-3 text-sm text-muted-foreground">
-                      <div className="flex items-start gap-2">
-                        <Building2 className="h-4 w-4 shrink-0 text-accent mt-0.5" />
-                        <span className="line-clamp-2 font-medium leading-tight uppercase text-xs">{bid.entity || "Institución..."}</span>
+            {pagedBids.map((bid) => {
+              const daysLeft = getDaysLeft(bid.deadlineDate);
+              return (
+                <Link key={bid.id} href={`/bids/${bid.id}`} className="group">
+                  <Card className="h-full hover:border-accent hover:shadow-2xl transition-all duration-300 overflow-hidden border-2 border-transparent relative">
+                    <CardContent className="p-6">
+                      <div className="flex justify-between items-start mb-4">
+                        <Badge variant="outline" className="text-[10px] uppercase border-primary/20 text-primary font-bold">ID: {bid.id}</Badge>
+                        {renderDaysLeftBadge(daysLeft)}
                       </div>
-                      <div className="pt-2">
-                        <div className="flex items-center gap-1.5 bg-red-50 p-2 rounded-lg border border-red-100">
-                          <Clock className="h-3.5 w-3.5 text-red-500" />
-                          <div className="flex flex-col">
-                            <span className="text-[8px] uppercase font-black text-red-400">Cierre Oficial</span>
-                            <span className="text-[10px] font-bold text-red-700">{formatDate(bid.deadlineDate)}</span>
+                      <h3 className="font-bold text-lg mb-4 line-clamp-2 group-hover:text-accent transition-colors min-h-[3.5rem] uppercase italic tracking-tighter text-primary">
+                        {bid.title}
+                      </h3>
+                      <div className="space-y-3 text-sm text-muted-foreground">
+                        <div className="flex items-start gap-2">
+                          <Building2 className="h-4 w-4 shrink-0 text-accent mt-0.5" />
+                          <span className="line-clamp-2 font-medium leading-tight uppercase text-xs">{bid.entity || "Institución..."}</span>
+                        </div>
+                        <div className="pt-2">
+                          <div className="flex items-center gap-1.5 bg-red-50 p-2 rounded-lg border border-red-100">
+                            <Clock className="h-3.5 w-3.5 text-red-500" />
+                            <div className="flex flex-col">
+                              <span className="text-[8px] uppercase font-black text-red-400">Cierre Oficial</span>
+                              <span className="text-[10px] font-bold text-red-700">{formatDate(bid.deadlineDate)}</span>
+                            </div>
                           </div>
                         </div>
                       </div>
-                    </div>
-                    <div className="mt-6 pt-6 border-t border-border flex items-center justify-between">
-                      <div className="flex flex-col">
-                        <span className="text-[10px] uppercase font-bold text-muted-foreground/60">Estimado</span>
-                        <span className="text-lg font-black text-primary">
-                          {formatCurrency(bid.amount, bid.currency)}
-                        </span>
+                      <div className="mt-6 pt-6 border-t border-border flex items-center justify-between">
+                        <div className="flex flex-col">
+                          <span className="text-[10px] uppercase font-bold text-muted-foreground/60">Estimado</span>
+                          <span className="text-lg font-black text-primary">
+                            {formatCurrency(bid.amount, bid.currency)}
+                          </span>
+                        </div>
+                        <div className="h-10 w-10 rounded-full bg-accent/5 flex items-center justify-center group-hover:bg-accent group-hover:text-white transition-all">
+                          <ChevronRight className="h-5 w-5" />
+                        </div>
                       </div>
-                      <div className="h-10 w-10 rounded-full bg-accent/5 flex items-center justify-center group-hover:bg-accent group-hover:text-white transition-all">
-                        <ChevronRight className="h-5 w-5" />
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </Link>
-            ))}
+                    </CardContent>
+                  </Card>
+                </Link>
+              )
+            })}
           </div>
         ) : (
           <Card className="overflow-hidden border-none shadow-sm">
@@ -428,49 +444,45 @@ export default function BidsListPage() {
                   <TableRow>
                     <TableHead className="w-[120px] font-bold">ID</TableHead>
                     <TableHead className="min-w-[250px] font-bold">Título / Institución</TableHead>
+                    <TableHead className="font-bold text-center">Días Restantes</TableHead>
                     <TableHead className="font-bold text-red-600 text-center">Cierre Oficial</TableHead>
-                    <TableHead className="font-bold">Estado</TableHead>
                     <TableHead className="text-right font-bold">Monto Estimado</TableHead>
                     <TableHead className="w-[50px]"></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {pagedBids.map((bid) => (
-                    <TableRow key={bid.id} className="group hover:bg-accent/5 cursor-pointer">
-                      <TableCell className="font-mono text-xs font-bold text-primary">
-                        <Link href={`/bids/${bid.id}`}>{bid.id}</Link>
-                      </TableCell>
-                      <TableCell>
-                        <Link href={`/bids/${bid.id}`} className="space-y-1 block">
-                          <p className="font-bold text-sm line-clamp-1 group-hover:text-accent transition-colors uppercase italic text-primary">{bid.title}</p>
-                          <p className="text-[10px] text-muted-foreground flex items-center gap-1 uppercase font-medium">
-                            <Building2 className="h-3 w-3" /> {bid.entity || "Cargando..."}
-                          </p>
-                        </Link>
-                      </TableCell>
-                      <TableCell className="text-xs font-bold text-red-600 text-center">
-                        {formatDate(bid.deadlineDate)}
-                      </TableCell>
-                      <TableCell>
-                        <Badge className={cn(
-                          "text-[10px] uppercase font-bold text-white whitespace-nowrap",
-                          bid.status?.includes('Publicada') || bid.status?.includes('Abierta') ? 'bg-emerald-500' : 
-                          bid.status?.includes('Adjudicada') ? 'bg-blue-600' :
-                          bid.status?.includes('Cerrada') ? 'bg-gray-500' : 'bg-orange-500'
-                        )}>
-                          {bid.status || 'No definido'}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right font-black text-primary">
-                        {formatCurrency(bid.amount, bid.currency)}
-                      </TableCell>
-                      <TableCell>
-                        <Link href={`/bids/${bid.id}`}>
-                          <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-accent" />
-                        </Link>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {pagedBids.map((bid) => {
+                    const daysLeft = getDaysLeft(bid.deadlineDate);
+                    return (
+                      <TableRow key={bid.id} className="group hover:bg-accent/5 cursor-pointer">
+                        <TableCell className="font-mono text-xs font-bold text-primary">
+                          <Link href={`/bids/${bid.id}`}>{bid.id}</Link>
+                        </TableCell>
+                        <TableCell>
+                          <Link href={`/bids/${bid.id}`} className="space-y-1 block">
+                            <p className="font-bold text-sm line-clamp-1 group-hover:text-accent transition-colors uppercase italic text-primary">{bid.title}</p>
+                            <p className="text-[10px] text-muted-foreground flex items-center gap-1 uppercase font-medium">
+                              <Building2 className="h-3 w-3" /> {bid.entity || "Cargando..."}
+                            </p>
+                          </Link>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          {renderDaysLeftBadge(daysLeft)}
+                        </TableCell>
+                        <TableCell className="text-xs font-bold text-red-600 text-center">
+                          {formatDate(bid.deadlineDate)}
+                        </TableCell>
+                        <TableCell className="text-right font-black text-primary">
+                          {formatCurrency(bid.amount, bid.currency)}
+                        </TableCell>
+                        <TableCell>
+                          <Link href={`/bids/${bid.id}`}>
+                            <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-accent" />
+                          </Link>
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })}
                 </TableBody>
               </Table>
             </div>

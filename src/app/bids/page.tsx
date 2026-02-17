@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useMemo, useEffect } from "react"
@@ -253,7 +252,7 @@ export default function BidsListPage() {
         <Card className="bg-white border-none shadow-xl overflow-hidden rounded-[2rem] border-2 hover:border-emerald-100 transition-all">
           <div className="h-2 bg-emerald-500" />
           <CardContent className="p-8 flex items-center gap-6">
-            <div className="h-16 w-16 rounded-3xl bg-emerald-50 flex items-center justify-center shrink-0"><Server className="h-8 w-8 text-emerald-600" /></div>
+            <div className="h-16 w-16 rounded-3xl bg-emerald-50 flex items-center justify-center shrink-0"><CheckCircle2 className="h-8 w-8 text-emerald-600" /></div>
             <div>
               <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] mb-1">PCG Local (Listos)</p>
               <h3 className="text-4xl font-black text-emerald-600 italic tracking-tighter leading-none">{stats.enriched} <span className="text-xs font-medium opacity-40 uppercase tracking-widest">Base</span></h3>

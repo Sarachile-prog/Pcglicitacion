@@ -26,7 +26,9 @@ import {
   BrainCircuit,
   MessageCircle,
   CheckCircle2,
-  Headset
+  Headset,
+  AlertTriangle,
+  FileWarning
 } from "lucide-react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
@@ -353,11 +355,15 @@ export default function DashboardPage() {
                   {bookmarks.map((item) => {
                     const prepStatus = (item as any).preparationStatus || "En Estudio";
                     const hasAnalysis = (item as any).aiAnalysis || false;
+                    const annexes = (item as any).annexes || [];
+                    const errorAnnexesCount = annexes.filter((a: any) => a.status === 'error').length;
+                    const hasAnnexErrors = errorAnnexesCount > 0;
+
                     return (
                       <div key={item.id} className="flex items-center justify-between p-6 hover:bg-muted/20 transition-colors group relative">
                         <Link href={`/bids/${item.bidId}`} className="flex-1 min-w-0 mr-4">
                           <div className="space-y-1.5">
-                            <div className="flex items-center gap-2">
+                            <div className="flex flex-wrap items-center gap-2">
                                <Badge variant="outline" className="text-[9px] font-mono border-primary/20 text-primary font-black uppercase tracking-tighter">{item.bidId}</Badge>
                                <Badge className={cn(
                                  "text-[9px] uppercase font-black px-2 py-0.5 shadow-sm",
@@ -368,7 +374,12 @@ export default function DashboardPage() {
                                </Badge>
                                {hasAnalysis && (
                                  <Badge className="bg-accent/10 text-accent border-accent/20 gap-1 px-2 py-0.5 text-[8px] font-black uppercase italic">
-                                   <Sparkles className="h-2 w-2 fill-accent" /> IA ACTIVA
+                                   <Sparkles className="h-2 w-2 fill-accent" /> IA ESTRATÉGICA
+                                 </Badge>
+                               )}
+                               {hasAnnexErrors && (
+                                 <Badge className="bg-red-500 text-white gap-1 px-2 py-0.5 text-[8px] font-black uppercase italic animate-bounce shadow-md">
+                                   <FileWarning className="h-2 w-2 fill-white" /> {errorAnnexesCount} HALLAZGOS IA
                                  </Badge>
                                )}
                             </div>
@@ -381,8 +392,12 @@ export default function DashboardPage() {
                         <div className="flex items-center gap-4">
                           {!isSuperAdmin && (
                             <Link href={`/bids/${item.bidId}/apply`} className="hidden md:block">
-                              <Button variant="outline" size="sm" className="h-9 text-[10px] font-black gap-2 text-accent border-accent/30 hover:bg-accent hover:text-white uppercase italic shadow-sm">
-                                <SendHorizontal className="h-3.5 w-3.5" /> Carpeta Digital
+                              <Button variant="outline" size="sm" className={cn(
+                                "h-9 text-[10px] font-black gap-2 uppercase italic shadow-sm",
+                                hasAnnexErrors ? "bg-red-50 border-red-500 text-red-600 hover:bg-red-500 hover:text-white" : "text-accent border-accent/30 hover:bg-accent hover:text-white"
+                              )}>
+                                <SendHorizontal className="h-3.5 w-3.5" /> 
+                                {hasAnnexErrors ? "Corregir Carpeta" : "Carpeta Digital"}
                               </Button>
                             </Link>
                           )}

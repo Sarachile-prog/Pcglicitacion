@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useParams } from "next/navigation"
@@ -8,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog"
 import { extractAndSummarizeBidDetails, PostulationAdvisorOutput } from "@/ai/flows/extract-and-summarize-bid-details"
+import { getBidDetail } from "@/services/mercado-publico"
 import { useState, useEffect } from "react"
 import { 
   Building2, 
@@ -34,7 +36,8 @@ import {
   MessageCircle,
   Scale,
   BrainCircuit,
-  AlertCircle
+  AlertCircle,
+  Package
 } from "lucide-react"
 import Link from "next/link"
 import { useToast } from "@/hooks/use-toast"
@@ -52,6 +55,7 @@ export default function BidDetailPage() {
   const { toast } = useToast()
   
   const [loadingAI, setLoadingAI] = useState(false)
+  const [isRefreshingDetail, setIsRefreshingDetail] = useState(false)
   const [analysis, setAnalysis] = useState<PostulationAdvisorOutput | null>(null)
   const [manualText, setManualText] = useState("")
   const [isDialogOpen, setIsDialogOpen] = useState(false)
@@ -90,6 +94,23 @@ export default function BidDetailPage() {
   const demoUsage = profile?.demoUsageCount || 0
   const isLimitReached = isDemo && demoUsage >= 3
 
+  // Efecto para cargar detalles profundos si faltan
+  useEffect(() => {
+    const fetchFullDetail = async () => {
+      if (bid && !bid.description && !isRefreshingDetail) {
+        setIsRefreshingDetail(true)
+        try {
+          await getBidDetail(bid.id)
+        } catch (e) {
+          console.error("Error al actualizar detalle profundo", e)
+        } finally {
+          setIsRefreshingDetail(false)
+        }
+      }
+    }
+    fetchFullDetail()
+  }, [bid, isRefreshingDetail])
+
   useEffect(() => {
     if (bid?.aiAnalysis) {
       setAnalysis(bid.aiAnalysis as PostulationAdvisorOutput)
@@ -97,7 +118,7 @@ export default function BidDetailPage() {
         setActiveTab("ai-advisor")
       }
     }
-  }, [bid])
+  }, [bid, activeTab])
 
   const handleToggleFollow = async () => {
     if (!user || !profile?.companyId) {
@@ -166,7 +187,6 @@ export default function BidDetailPage() {
         await updateDoc(bookmarkRef, { aiAnalysis: result })
       }
 
-      // Incrementar contador si es demo
       if (isDemo) {
         await updateDoc(profileRef, { demoUsageCount: increment(1) })
       }
@@ -233,6 +253,11 @@ export default function BidDetailPage() {
               <Badge className={cn("text-xs font-black uppercase tracking-widest py-1.5 px-4 shadow-lg", getStatusColor(bid.status))}>
                 {bid.status || 'NO DEFINIDO'}
               </Badge>
+              {isRefreshingDetail && (
+                <Badge variant="ghost" className="animate-pulse text-accent font-black uppercase text-[10px] gap-2">
+                  <RefreshCw className="h-3 w-3 animate-spin" /> Sincronizando Detalle...
+                </Badge>
+              )}
             </div>
             <h1 className="text-4xl font-black text-primary leading-tight uppercase italic tracking-tighter">
               {bid.title}
@@ -291,12 +316,80 @@ export default function BidDetailPage() {
             <TabsContent value="description" className="animate-in fade-in space-y-6">
               <Card className="border-none shadow-lg">
                 <CardContent className="pt-8 space-y-6">
-                  <div className="text-lg leading-relaxed whitespace-pre-wrap text-muted-foreground font-medium">
-                    {bid.description || "Sin descripción detallada."}
-                  </div>
-                  <Button asChild variant="outline" className="gap-2 border-primary text-primary font-black uppercase italic">
-                    <a href={bid.sourceUrl} target="_blank">Ficha Oficial <ExternalLink className="h-4 w-4" /></a>
-                  </Button>
+                  {isRefreshingDetail && !bid.description ? (
+                    <div className="py-20 text-center space-y-4">
+                      <Loader2 className="h-10 w-10 animate-spin mx-auto text-accent" />
+                      <p className="text-muted-foreground font-medium italic">Obteniendo ficha técnica desde Mercado Público...</p>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="text-lg leading-relaxed whitespace-pre-wrap text-muted-foreground font-medium">
+                        {bid.description || "Sin descripción detallada disponible en el resumen."}
+                      </div>
+                      <Button asChild variant="outline" className="gap-2 border-primary text-primary font-black uppercase italic">
+                        <a href={bid.sourceUrl} target="_blank">Ver en Portal Oficial <ExternalLink className="h-4 w-4" /></a>
+                      </Button>
+                    </>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="items" className="animate-in fade-in space-y-6">
+              <Card className="border-none shadow-lg">
+                <CardContent className="pt-8">
+                  {bid.items && bid.items.length > 0 ? (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead className="border-b bg-muted/50">
+                          <tr>
+                            <th className="p-4 text-left font-black uppercase text-[10px] tracking-widest text-muted-foreground">Producto / Descripción</th>
+                            <th className="p-4 text-center font-black uppercase text-[10px] tracking-widest text-muted-foreground">Cantidad</th>
+                            <th className="p-4 text-left font-black uppercase text-[10px] tracking-widest text-muted-foreground">Rubro</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y">
+                          {bid.items.map((item: any, i: number) => (
+                            <tr key={i} className="hover:bg-muted/30 transition-colors">
+                              <td className="p-4">
+                                <div className="flex items-center gap-3">
+                                  <div className="h-8 w-8 rounded-lg bg-primary/5 flex items-center justify-center shrink-0">
+                                    <Package className="h-4 w-4 text-primary" />
+                                  </div>
+                                  <div>
+                                    <p className="font-bold text-primary uppercase italic">{item.NombreProducto || 'Sin nombre'}</p>
+                                    <p className="text-[10px] text-muted-foreground italic line-clamp-1">{item.Descripcion}</p>
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="p-4 text-center">
+                                <span className="font-black text-primary bg-muted px-2 py-1 rounded text-xs">
+                                  {item.Cantidad} {item.UnidadMedida}
+                                </span>
+                              </td>
+                              <td className="p-4">
+                                <Badge variant="outline" className="text-[9px] font-bold uppercase border-primary/10">
+                                  {item.Categoria || 'No definido'}
+                                </Badge>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : isRefreshingDetail ? (
+                    <div className="py-20 text-center space-y-4">
+                      <Loader2 className="h-8 w-8 animate-spin mx-auto text-accent" />
+                      <p className="text-muted-foreground font-medium italic">Consultando lista de productos...</p>
+                    </div>
+                  ) : (
+                    <div className="py-20 text-center space-y-4">
+                      <div className="h-16 w-16 bg-muted rounded-full flex items-center justify-center mx-auto opacity-20">
+                        <Database className="h-8 w-8" />
+                      </div>
+                      <p className="text-muted-foreground italic font-medium">Esta licitación no declara ítems específicos en su ficha técnica.</p>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>
@@ -430,24 +523,26 @@ export default function BidDetailPage() {
                       <p className="text-[10px] text-red-900/70 font-bold italic">
                         Has utilizado tus 3 análisis de prueba. Contacta a soporte para activar tu plan ilimitado.
                       </p>
-                      <Button asChild className="w-full bg-accent hover:bg-accent/90 font-black uppercase italic shadow-lg gap-2">
-                        <a href={WHATSAPP_URL} target="_blank"><MessageCircle className="h-4 w-4" /> Activar Plan</a>
-                      </Button>
+                      <Link href="/support">
+                        <Button className="w-full bg-accent hover:bg-accent/90 font-black uppercase italic shadow-lg gap-2">
+                          <MessageCircle className="h-4 w-4" /> Activar Plan
+                        </Button>
+                      </Link>
                     </div>
                   ) : (
                     <div className="grid gap-3">
                       <Button 
                         className="w-full bg-accent hover:bg-accent/90 font-black h-14 text-lg gap-3 shadow-lg uppercase italic" 
                         onClick={() => handleAnalyze('fast')} 
-                        disabled={loadingAI}
+                        disabled={loadingAI || isRefreshingDetail}
                       >
                         {loadingAI ? <Loader2 className="animate-spin h-5 w-5" /> : <Zap className="h-5 w-5" />}
-                        Ejecutar Análisis
+                        {isRefreshingDetail ? "Esperando ficha..." : "Ejecutar Análisis"}
                       </Button>
                       
                       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                         <DialogTrigger asChild>
-                          <Button variant="outline" className="w-full border-accent text-accent font-black h-12 uppercase italic" disabled={loadingAI}>
+                          <Button variant="outline" className="w-full border-accent text-accent font-black h-12 uppercase italic" disabled={loadingAI || isRefreshingDetail}>
                             Entrenar con PDF (Opcional)
                           </Button>
                         </DialogTrigger>

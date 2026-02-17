@@ -26,7 +26,9 @@ import {
   CheckCircle2,
   Filter,
   ArrowUpDown,
-  X
+  X,
+  CloudDownload,
+  Server
 } from "lucide-react"
 import Link from "next/link"
 import { getBidsByDate, getBidDetail } from "@/services/mercado-publico"
@@ -81,7 +83,7 @@ export default function BidsListPage() {
 
   const { data: bids, isLoading: isDbLoading } = useCollection(bidsQuery)
 
-  // ESTADÍSTICAS DE MAGNITUD
+  // ESTADÍSTICAS DE MAGNITUD REALES
   const stats = useMemo(() => {
     if (!bids) return { total: 0, enriched: 0, pending: 0 };
     const total = bids.length;
@@ -124,11 +126,12 @@ export default function BidsListPage() {
       for (const bid of toEnrich) {
         await getBidDetail(bid.id);
         count++;
-        if (count % 3 === 0) await new Promise(r => setTimeout(r, 800));
+        // Pausa táctica para evitar 429 Too Many Requests
+        if (count % 3 === 0) await new Promise(r => setTimeout(r, 1000));
       }
       toast({ title: "Actualización Finalizada", description: `Se han guardado ${count} licitaciones enriquecidas.` });
     } catch (e: any) {
-      toast({ variant: "destructive", title: "Límite API", description: "El portal oficial está saturado." });
+      toast({ variant: "destructive", title: "Límite API", description: "El portal oficial está saturado. Intenta en unos minutos." });
     } finally {
       setIsEnriching(false);
     }
@@ -137,7 +140,6 @@ export default function BidsListPage() {
   const filteredBids = useMemo(() => {
     let results = bids ? [...bids] : [];
     
-    // 1. Filtro por término de búsqueda
     if (searchTerm) {
       const search = searchTerm.toLowerCase()
       results = results.filter(bid => 
@@ -147,12 +149,10 @@ export default function BidsListPage() {
       )
     }
 
-    // 2. Filtro por Estado
     if (statusFilter !== "all") {
       results = results.filter(bid => bid.status === statusFilter)
     }
 
-    // 3. Filtro por Monto
     if (amountFilter !== "all") {
       results = results.filter(bid => {
         const amount = Number(bid.amount) || 0
@@ -163,15 +163,14 @@ export default function BidsListPage() {
       })
     }
 
-    // 4. Ordenamiento
     results.sort((a, b) => {
       if (sortBy === "amount") return (Number(b.amount) || 0) - (Number(a.amount) || 0)
       if (sortBy === "deadline") {
         const dateA = a.deadlineDate ? new Date(a.deadlineDate).getTime() : 0
         const dateB = b.deadlineDate ? new Date(b.deadlineDate).getTime() : 0
-        return dateA - dateB // Próximas a cerrar primero
+        return dateA - dateB
       }
-      return 0 // Por defecto mantiene el scrapedAt de la query original
+      return 0
     })
 
     return results
@@ -215,18 +214,22 @@ export default function BidsListPage() {
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="space-y-1">
             <h2 className="text-3xl font-extrabold text-primary italic uppercase flex items-center gap-2"><Globe className="h-6 w-6 text-accent" /> Explorador de Mercado</h2>
-            <p className="text-muted-foreground">Repositorio Global PCG: Inteligencia compartida entre todos los usuarios.</p>
+            <p className="text-muted-foreground font-medium italic">Repositorio Global PCG: Los datos enriquecidos son compartidos por toda la red.</p>
           </div>
           
-          {/* CONTROL EXCLUSIVO SUPERADMIN */}
+          {/* CONTROL DE INFRAESTRUCTURA (SOLO SUPERADMIN) */}
           {isSuperAdmin && (
-            <Card className="bg-primary/5 border-primary/10 p-2 shadow-sm flex flex-wrap items-center gap-2">
+            <Card className="bg-primary/5 border-primary/20 p-2 shadow-inner flex flex-wrap items-center gap-2 rounded-2xl">
+              <div className="px-3 py-1 bg-white rounded-xl border flex items-center gap-2">
+                <ShieldCheck className="h-4 w-4 text-primary" />
+                <span className="text-[10px] font-black uppercase text-primary italic">Modo Admin</span>
+              </div>
               <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
-                <PopoverTrigger asChild><Button variant="outline" className="w-[160px] h-10 border-primary/20 bg-white font-bold text-xs">{selectedDate ? format(selectedDate, "dd/MM/yyyy") : "---"}</Button></PopoverTrigger>
+                <PopoverTrigger asChild><Button variant="outline" className="w-[160px] h-10 border-primary/20 bg-white font-bold text-xs rounded-xl">{selectedDate ? format(selectedDate, "dd/MM/yyyy") : "---"}</Button></PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="end"><Calendar mode="single" selected={selectedDate || undefined} onSelect={(d) => { if(d){ setSelectedDate(d); setIsCalendarOpen(false); } }} disabled={(d) => d > new Date()} initialFocus /></PopoverContent>
               </Popover>
-              <Button size="sm" className="bg-primary font-black h-10 uppercase italic text-[9px]" onClick={handleSync} disabled={isSyncing}><RefreshCw className={cn("h-3 w-3 mr-2", isSyncing && "animate-spin")} /> Ingesta Admin</Button>
-              <Button size="sm" className="bg-accent font-black h-10 uppercase italic text-[9px] shadow-lg" onClick={handleEnrich} disabled={isEnriching || isSyncing || !pagedBids.length}>
+              <Button size="sm" className="bg-primary font-black h-10 uppercase italic text-[9px] rounded-xl px-4" onClick={handleSync} disabled={isSyncing}><RefreshCw className={cn("h-3 w-3 mr-2", isSyncing && "animate-spin")} /> Ingesta IDs</Button>
+              <Button size="sm" className="bg-accent font-black h-10 uppercase italic text-[9px] shadow-lg rounded-xl px-4" onClick={handleEnrich} disabled={isEnriching || isSyncing || !pagedBids.length}>
                 {isEnriching ? <Loader2 className="h-3 w-3 mr-2 animate-spin" /> : <Database className="h-3 w-3 mr-2" />} Enriquecer Repo
               </Button>
             </Card>
@@ -234,53 +237,53 @@ export default function BidsListPage() {
         </div>
       </div>
 
-      {/* PANEL DE MAGNITUD */}
+      {/* PANEL DE MAGNITUD OPERATIVA */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card className="bg-white border-none shadow-md overflow-hidden group">
-          <div className="h-1.5 bg-primary/20" />
-          <CardContent className="p-6 flex items-center gap-4">
-            <div className="h-12 w-12 rounded-2xl bg-primary/5 flex items-center justify-center shrink-0"><Layers className="h-6 w-6 text-primary" /></div>
+        <Card className="bg-white border-none shadow-xl overflow-hidden rounded-[2rem] group border-2 hover:border-primary/10 transition-all">
+          <div className="h-2 bg-primary/20" />
+          <CardContent className="p-8 flex items-center gap-6">
+            <div className="h-16 w-16 rounded-3xl bg-primary/5 flex items-center justify-center shrink-0"><Layers className="h-8 w-8 text-primary" /></div>
             <div>
-              <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Magnitud Total</p>
-              <h3 className="text-3xl font-black text-primary italic tracking-tighter">{stats.total} <span className="text-sm font-medium opacity-40">PROCESOS</span></h3>
+              <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] mb-1">Volumen Total</p>
+              <h3 className="text-4xl font-black text-primary italic tracking-tighter leading-none">{stats.total} <span className="text-xs font-medium opacity-40 uppercase tracking-widest">Bids</span></h3>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="bg-white border-none shadow-md overflow-hidden">
-          <div className="h-1.5 bg-emerald-500" />
-          <CardContent className="p-6 flex items-center gap-4">
-            <div className="h-12 w-12 rounded-2xl bg-emerald-50 flex items-center justify-center shrink-0"><CheckCircle2 className="h-6 w-6 text-emerald-600" /></div>
+        <Card className="bg-white border-none shadow-xl overflow-hidden rounded-[2rem] border-2 hover:border-emerald-100 transition-all">
+          <div className="h-2 bg-emerald-500" />
+          <CardContent className="p-8 flex items-center gap-6">
+            <div className="h-16 w-16 rounded-3xl bg-emerald-50 flex items-center justify-center shrink-0"><Server className="h-8 w-8 text-emerald-600" /></div>
             <div>
-              <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Enriquecidos (Local)</p>
-              <h3 className="text-3xl font-black text-emerald-600 italic tracking-tighter">{stats.enriched} <span className="text-sm font-medium opacity-40">LISTOS</span></h3>
+              <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] mb-1">PCG Local (Listos)</p>
+              <h3 className="text-4xl font-black text-emerald-600 italic tracking-tighter leading-none">{stats.enriched} <span className="text-xs font-medium opacity-40 uppercase tracking-widest">Base</span></h3>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="bg-white border-none shadow-md overflow-hidden">
-          <div className="h-1.5 bg-amber-500" />
-          <CardContent className="p-6 flex items-center gap-4">
-            <div className="h-12 w-12 rounded-2xl bg-amber-50 flex items-center justify-center shrink-0"><Zap className="h-6 w-6 text-amber-600" /></div>
+        <Card className="bg-white border-none shadow-xl overflow-hidden rounded-[2rem] border-2 hover:border-amber-100 transition-all">
+          <div className="h-2 bg-amber-500" />
+          <CardContent className="p-8 flex items-center gap-6">
+            <div className="h-16 w-16 rounded-3xl bg-amber-50 flex items-center justify-center shrink-0"><CloudDownload className="h-8 w-8 text-amber-600" /></div>
             <div>
-              <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Pendiente Completar</p>
-              <h3 className="text-3xl font-black text-amber-600 italic tracking-tighter">{stats.pending} <span className="text-sm font-medium opacity-40">EN NUBE</span></h3>
+              <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] mb-1">En la Nube (Pendiente)</p>
+              <h3 className="text-4xl font-black text-amber-600 italic tracking-tighter leading-none">{stats.pending} <span className="text-xs font-medium opacity-40 uppercase tracking-widest">Sync</span></h3>
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* FILTROS Y BÚSQUEDA */}
-      <Card className="border-none shadow-xl rounded-3xl overflow-hidden">
-        <CardContent className="p-8 space-y-6">
+      {/* FILTROS TÁCTICOS */}
+      <Card className="border-none shadow-2xl rounded-[2.5rem] overflow-hidden">
+        <CardContent className="p-8 space-y-6 bg-muted/5">
           <div className="flex flex-col lg:flex-row gap-4 items-end">
             <div className="flex-1 w-full space-y-2">
-              <label className="text-[10px] font-black uppercase text-muted-foreground ml-1 tracking-widest">Buscar</label>
+              <label className="text-[10px] font-black uppercase text-muted-foreground ml-2 tracking-[0.2em]">Buscador Inteligente</label>
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground opacity-40" />
                 <Input 
-                  placeholder="Título, Institución o ID..." 
-                  className="pl-10 h-12 bg-muted/20 border-none shadow-inner font-medium italic" 
+                  placeholder="ID, Título o Institución..." 
+                  className="pl-12 h-14 bg-white border-2 border-primary/5 rounded-2xl shadow-sm font-bold italic" 
                   value={searchTerm} 
                   onChange={(e) => {setSearchTerm(e.target.value); setCurrentPage(1);}} 
                 />
@@ -288,9 +291,9 @@ export default function BidsListPage() {
             </div>
 
             <div className="w-full lg:w-48 space-y-2">
-              <label className="text-[10px] font-black uppercase text-muted-foreground ml-1 tracking-widest">Estado</label>
+              <label className="text-[10px] font-black uppercase text-muted-foreground ml-2 tracking-[0.2em]">Estado</label>
               <Select value={statusFilter} onValueChange={(v) => {setStatusFilter(v); setCurrentPage(1);}}>
-                <SelectTrigger className="h-12 bg-white border-2 font-bold text-xs uppercase">
+                <SelectTrigger className="h-14 bg-white border-2 rounded-2xl font-black text-xs uppercase italic">
                   <SelectValue placeholder="Estado" />
                 </SelectTrigger>
                 <SelectContent>
@@ -304,9 +307,9 @@ export default function BidsListPage() {
             </div>
 
             <div className="w-full lg:w-48 space-y-2">
-              <label className="text-[10px] font-black uppercase text-muted-foreground ml-1 tracking-widest">Monto</label>
+              <label className="text-[10px] font-black uppercase text-muted-foreground ml-2 tracking-[0.2em]">Monto</label>
               <Select value={amountFilter} onValueChange={(v) => {setAmountFilter(v); setCurrentPage(1);}}>
-                <SelectTrigger className="h-12 bg-white border-2 font-bold text-xs uppercase">
+                <SelectTrigger className="h-14 bg-white border-2 rounded-2xl font-black text-xs uppercase italic">
                   <SelectValue placeholder="Rango" />
                 </SelectTrigger>
                 <SelectContent>
@@ -319,14 +322,14 @@ export default function BidsListPage() {
             </div>
 
             <div className="w-full lg:w-48 space-y-2">
-              <label className="text-[10px] font-black uppercase text-muted-foreground ml-1 tracking-widest">Ordenar por</label>
+              <label className="text-[10px] font-black uppercase text-muted-foreground ml-2 tracking-[0.2em]">Prioridad</label>
               <Select value={sortBy} onValueChange={(v) => {setSortBy(v); setCurrentPage(1);}}>
-                <SelectTrigger className="h-12 bg-white border-2 font-bold text-xs uppercase">
+                <SelectTrigger className="h-14 bg-white border-2 rounded-2xl font-black text-xs uppercase italic">
                   <SelectValue placeholder="Orden" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="scrapedAt" className="font-bold">Sincronización</SelectItem>
-                  <SelectItem value="deadline" className="font-bold">Fecha de Cierre</SelectItem>
+                  <SelectItem value="deadline" className="font-bold">Próximas a Cerrar</SelectItem>
                   <SelectItem value="amount" className="font-bold">Monto Mayor</SelectItem>
                 </SelectContent>
               </Select>
@@ -336,7 +339,7 @@ export default function BidsListPage() {
               <Button 
                 variant="ghost" 
                 onClick={clearFilters} 
-                className="h-12 px-4 text-xs font-black uppercase text-red-500 hover:bg-red-50"
+                className="h-14 px-6 text-xs font-black uppercase text-red-500 hover:bg-red-50 hover:text-red-600 transition-all rounded-2xl"
               >
                 <X className="h-4 w-4 mr-2" /> Limpiar
               </Button>
@@ -346,48 +349,56 @@ export default function BidsListPage() {
       </Card>
 
       {isDbLoading ? (
-        <div className="flex flex-col items-center justify-center py-24 gap-4"><Loader2 className="h-12 w-12 text-primary animate-spin opacity-20" /><p className="text-muted-foreground font-medium uppercase text-[10px] tracking-widest font-black">Escaneando Repositorio Global...</p></div>
+        <div className="flex flex-col items-center justify-center py-32 gap-6">
+          <div className="relative">
+            <Loader2 className="h-16 w-16 text-primary animate-spin opacity-20" />
+            <Server className="absolute inset-0 m-auto h-6 w-6 text-primary animate-pulse" />
+          </div>
+          <p className="text-muted-foreground font-black uppercase text-xs tracking-[0.3em] italic">Escaneando Repositorio Global PCG...</p>
+        </div>
       ) : pagedBids.length > 0 ? (
-        <div className="space-y-4">
-          <Card className="overflow-hidden border-none shadow-sm rounded-2xl">
+        <div className="space-y-6">
+          <Card className="overflow-hidden border-none shadow-2xl rounded-[2rem]">
             <Table>
-              <TableHeader className="bg-muted/50">
+              <TableHeader className="bg-muted/50 border-b-2">
                 <TableRow>
-                  <TableHead className="w-[120px] font-black uppercase text-[10px]">Identificador</TableHead>
-                  <TableHead className="min-w-[250px] font-black uppercase text-[10px]">Detalle de Licitación</TableHead>
-                  <TableHead className="font-black uppercase text-center text-[10px]">Cierre</TableHead>
-                  <TableHead className="text-right font-black uppercase text-[10px]">Monto Est.</TableHead>
-                  <TableHead className="w-[50px]"></TableHead>
+                  <TableHead className="w-[140px] font-black uppercase text-[10px] py-6 px-6 tracking-widest">ID / Status</TableHead>
+                  <TableHead className="min-w-[300px] font-black uppercase text-[10px] py-6 tracking-widest">Detalle Estratégico</TableHead>
+                  <TableHead className="font-black uppercase text-center text-[10px] py-6 tracking-widest">Cierre</TableHead>
+                  <TableHead className="text-right font-black uppercase text-[10px] py-6 px-6 tracking-widest">Monto Est.</TableHead>
+                  <TableHead className="w-[60px]"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {pagedBids.map((bid) => {
                   const isEnriched = bid.entity && bid.entity !== "Institución no especificada";
                   return (
-                    <TableRow key={bid.id} className="group hover:bg-accent/5 cursor-pointer">
-                      <TableCell className="font-mono text-xs font-bold text-primary">
-                        <Link href={`/bids/${bid.id}`} className="flex flex-col gap-1">
-                          <span>{bid.id}</span>
-                          {bid.aiAnalysis && <Badge className="bg-accent/10 text-accent border-none h-4 px-1.5 text-[8px] font-black"><Sparkles className="h-2 w-2 mr-1 fill-accent" /> IA</Badge>}
-                        </Link>
-                      </TableCell>
-                      <TableCell>
-                        <Link href={`/bids/${bid.id}`} className="space-y-1 block">
-                          <p className="font-black text-sm line-clamp-1 group-hover:text-accent uppercase italic text-primary leading-tight">{bid.title}</p>
-                          <div className="flex items-center gap-2">
-                            <p className={cn("text-[9px] flex items-center gap-1 uppercase font-bold", !isEnriched ? "text-amber-600 italic" : "text-muted-foreground")}>
-                              <Building2 className="h-3 w-3" /> {!isEnriched ? "Pendiente Datos (Nube)..." : bid.entity}
-                            </p>
-                            {isEnriched && <Badge variant="outline" className="text-[7px] h-3.5 px-1 border-emerald-200 text-emerald-600 font-black bg-emerald-50">PCG LOCAL</Badge>}
-                            <Badge variant="secondary" className="text-[7px] h-3.5 px-1 font-black uppercase">{bid.status}</Badge>
+                    <TableRow key={bid.id} className="group hover:bg-primary/5 transition-colors cursor-pointer border-b last:border-0">
+                      <TableCell className="font-mono text-xs font-bold text-primary py-6 px-6">
+                        <Link href={`/bids/${bid.id}`} className="flex flex-col gap-2">
+                          <span className="bg-primary/5 px-2 py-1 rounded-lg border border-primary/10 inline-block w-fit">{bid.id}</span>
+                          <div className="flex flex-wrap gap-1">
+                            <Badge variant="secondary" className="text-[8px] h-4 px-1.5 font-black uppercase leading-none">{bid.status}</Badge>
+                            {bid.aiAnalysis && <Badge className="bg-accent/10 text-accent border-none h-4 px-1.5 text-[8px] font-black"><Sparkles className="h-2 w-2 mr-1 fill-accent" /> IA</Badge>}
                           </div>
                         </Link>
                       </TableCell>
-                      <TableCell className="text-center">{renderDaysLeftBadge(bid.deadlineDate)}</TableCell>
-                      <TableCell className={cn("text-right font-black italic", !isEnriched ? "text-amber-600/50" : "text-primary")}>
+                      <TableCell className="py-6">
+                        <Link href={`/bids/${bid.id}`} className="space-y-2 block">
+                          <p className="font-black text-lg line-clamp-1 group-hover:text-accent uppercase italic text-primary leading-tight tracking-tight transition-colors">{bid.title}</p>
+                          <div className="flex items-center gap-3">
+                            <p className={cn("text-[10px] flex items-center gap-1.5 uppercase font-bold tracking-tight", !isEnriched ? "text-amber-600 italic" : "text-muted-foreground")}>
+                              <Building2 className="h-3.5 w-3.5" /> {!isEnriched ? "Pendiente Datos (Nube)..." : bid.entity}
+                            </p>
+                            {isEnriched && <Badge className="text-[8px] h-4 px-2 border-emerald-500/20 text-emerald-600 font-black bg-emerald-500/10 uppercase italic">PCG Local</Badge>}
+                          </div>
+                        </Link>
+                      </TableCell>
+                      <TableCell className="text-center py-6">{renderDaysLeftBadge(bid.deadlineDate)}</TableCell>
+                      <TableCell className={cn("text-right font-black italic py-6 px-6 text-xl tracking-tighter", !isEnriched ? "text-amber-600/30" : "text-primary")}>
                         {formatCurrency(bid.amount, bid.currency)}
                       </TableCell>
-                      <TableCell><Link href={`/bids/${bid.id}`}><ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-accent" /></Link></TableCell>
+                      <TableCell className="py-6 pr-6"><Link href={`/bids/${bid.id}`}><div className="h-10 w-10 rounded-full bg-primary/5 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-white transition-all shadow-sm"><ChevronRight className="h-5 w-5" /></div></Link></TableCell>
                     </TableRow>
                   )
                 })}
@@ -395,20 +406,26 @@ export default function BidsListPage() {
             </Table>
           </Card>
           
-          <div className="flex justify-between items-center px-2">
-            <p className="text-[10px] font-black text-muted-foreground uppercase italic">Página {currentPage} de {totalPages} • Total: {filteredBids.length} registros</p>
-            <div className="flex gap-2">
-              <Button variant="outline" size="sm" onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))} disabled={currentPage === 1} className="h-8 w-8 p-0"><ChevronLeft className="h-4 w-4" /></Button>
-              <Button variant="outline" size="sm" onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))} disabled={currentPage === totalPages} className="h-8 w-8 p-0"><ChevronRight className="h-4 w-4" /></Button>
+          <div className="flex justify-between items-center px-4 bg-white/50 p-4 rounded-3xl border">
+            <p className="text-[10px] font-black text-muted-foreground uppercase italic tracking-widest">Página {currentPage} de {totalPages} • Mostrando {pagedBids.length} de {filteredBids.length} registros</p>
+            <div className="flex gap-3">
+              <Button variant="outline" size="sm" onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))} disabled={currentPage === 1} className="h-10 w-10 p-0 rounded-xl"><ChevronLeft className="h-5 w-5" /></Button>
+              <Button variant="outline" size="sm" onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))} disabled={currentPage === totalPages} className="h-10 w-10 p-0 rounded-xl"><ChevronRight className="h-5 w-5" /></Button>
             </div>
           </div>
         </div>
       ) : (
-        <Card className="bg-primary/5 border-dashed border-2 border-primary/20 py-24 text-center space-y-4 rounded-[3rem]">
-          <Globe className="h-12 w-12 text-primary/20 mx-auto" />
-          <h3 className="text-xl font-black text-primary italic uppercase">Sin resultados para esta búsqueda</h3>
-          <p className="text-muted-foreground max-w-sm mx-auto font-medium italic">Prueba ajustando los filtros o realizando una nueva ingesta desde el panel superior.</p>
-          <Button variant="outline" onClick={clearFilters} className="font-bold uppercase italic h-12">Mostrar todo el repositorio</Button>
+        <Card className="bg-primary/5 border-dashed border-4 border-primary/10 py-32 text-center space-y-6 rounded-[4rem] animate-in zoom-in-95">
+          <div className="h-24 w-24 bg-white rounded-3xl shadow-xl flex items-center justify-center mx-auto transform -rotate-6 border border-primary/10">
+            <Globe className="h-12 w-12 text-primary/20" />
+          </div>
+          <div className="space-y-2">
+            <h3 className="text-3xl font-black text-primary italic uppercase tracking-tighter">Sin coincidencias tácticas</h3>
+            <p className="text-muted-foreground max-w-sm mx-auto font-bold italic leading-relaxed">
+              El repositorio es vasto, pero no encontramos nada con estos filtros. Prueba ampliando el rango de búsqueda.
+            </p>
+          </div>
+          <Button variant="outline" onClick={clearFilters} className="font-black uppercase italic h-14 px-10 border-primary text-primary hover:bg-primary hover:text-white transition-all shadow-lg rounded-2xl">Reiniciar Explorador</Button>
         </Card>
       )}
     </div>

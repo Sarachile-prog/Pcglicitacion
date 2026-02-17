@@ -136,6 +136,11 @@ export default function BidDetailPage() {
             <div className="flex flex-wrap items-center gap-3">
               <Badge variant="outline" className="text-xs font-black uppercase border-primary/20">ID: {bid.id}</Badge>
               <Badge className="text-xs font-black uppercase bg-primary text-white py-1 px-4">{bid.status || 'NO DEFINIDO'}</Badge>
+              {analysis && (
+                <Badge className="bg-accent text-white gap-1 px-3 py-1 text-[10px] font-black uppercase italic shadow-[0_0_15px_rgba(38,166,154,0.4)] animate-pulse">
+                  <Sparkles className="h-3 w-3 fill-white" /> Inteligencia IA Activa
+                </Badge>
+              )}
             </div>
             <h1 className="text-3xl font-black text-primary uppercase italic tracking-tighter leading-tight">{bid.title}</h1>
           </div>
@@ -157,7 +162,14 @@ export default function BidDetailPage() {
             <TabsList className="bg-muted p-1 h-14 mb-6">
               <TabsTrigger value="description" className="px-8 font-black text-[10px] uppercase">Descripción</TabsTrigger>
               <TabsTrigger value="items" className="px-8 font-black text-[10px] uppercase">Ítems</TabsTrigger>
-              {analysis && <TabsTrigger value="ai-advisor" className="px-8 font-black text-[10px] uppercase text-accent border-2 border-accent/20"><Sparkles className="h-4 w-4 mr-2" /> Inteligencia IA</TabsTrigger>}
+              {analysis && (
+                <TabsTrigger 
+                  value="ai-advisor" 
+                  className="px-8 font-black text-[10px] uppercase text-accent border-2 border-accent bg-accent/5 data-[state=active]:bg-accent data-[state=active]:text-white shadow-lg transition-all"
+                >
+                  <Sparkles className="h-4 w-4 mr-2" /> Inteligencia IA
+                </TabsTrigger>
+              )}
             </TabsList>
 
             <TabsContent value="description" className="space-y-6">
@@ -210,8 +222,16 @@ export default function BidDetailPage() {
             <CardContent className="p-6 space-y-6 text-center">
               <div className="h-16 w-16 bg-primary/5 rounded-full flex items-center justify-center mx-auto"><BrainCircuit className="h-8 w-8 text-primary" /></div>
               <div className="grid gap-3">
-                <Button className="w-full bg-accent hover:bg-accent/90 font-black h-14 uppercase italic shadow-lg" onClick={() => handleAnalyze('fast')} disabled={loadingAI || isRefreshingDetail}>
-                  {loadingAI ? <Loader2 className="animate-spin" /> : <Zap className="h-5 w-5 mr-2" />} Ejecutar Análisis
+                <Button 
+                  className={cn(
+                    "w-full font-black h-14 uppercase italic shadow-lg transition-all",
+                    analysis ? "bg-emerald-600 hover:bg-emerald-700" : "bg-accent hover:bg-accent/90"
+                  )} 
+                  onClick={() => handleAnalyze('fast')} 
+                  disabled={loadingAI || isRefreshingDetail}
+                >
+                  {loadingAI ? <Loader2 className="animate-spin" /> : <Zap className="h-5 w-5 mr-2" />} 
+                  {analysis ? "Refrescar Análisis" : "Ejecutar Análisis"}
                 </Button>
                 <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                   <DialogTrigger asChild><Button variant="outline" className="w-full border-accent text-accent font-black h-12 uppercase italic">Análisis Profundo (Bases)</Button></DialogTrigger>

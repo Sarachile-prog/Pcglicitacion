@@ -352,6 +352,7 @@ export default function DashboardPage() {
                 <div className="divide-y divide-primary/5">
                   {bookmarks.map((item) => {
                     const prepStatus = (item as any).preparationStatus || "En Estudio";
+                    const hasAnalysis = (item as any).aiAnalysis || false;
                     return (
                       <div key={item.id} className="flex items-center justify-between p-6 hover:bg-muted/20 transition-colors group relative">
                         <Link href={`/bids/${item.bidId}`} className="flex-1 min-w-0 mr-4">
@@ -365,6 +366,11 @@ export default function DashboardPage() {
                                )}>
                                  {prepStatus}
                                </Badge>
+                               {hasAnalysis && (
+                                 <Badge className="bg-accent/10 text-accent border-accent/20 gap-1 px-2 py-0.5 text-[8px] font-black uppercase italic">
+                                   <Sparkles className="h-2 w-2 fill-accent" /> IA ACTIVA
+                                 </Badge>
+                               )}
                             </div>
                             <h4 className="font-black text-primary group-hover:text-accent transition-colors truncate uppercase italic text-lg leading-none tracking-tight">{item.title}</h4>
                             <p className="text-xs text-muted-foreground flex items-center gap-1.5 uppercase font-bold text-[10px] italic">

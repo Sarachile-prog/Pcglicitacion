@@ -27,7 +27,8 @@ import {
   CheckCircle2,
   Clock,
   Filter,
-  Hourglass
+  Hourglass,
+  Sparkles
 } from "lucide-react"
 import Link from "next/link"
 import { getBidsByDate } from "@/services/mercado-publico"
@@ -398,7 +399,14 @@ export default function BidsListPage() {
                   <Card className="h-full hover:border-accent hover:shadow-2xl transition-all duration-300 overflow-hidden border-2 border-transparent relative">
                     <CardContent className="p-6">
                       <div className="flex justify-between items-start mb-4">
-                        <Badge variant="outline" className="text-[10px] uppercase border-primary/20 text-primary font-bold">ID: {bid.id}</Badge>
+                        <div className="flex flex-col gap-1">
+                          <Badge variant="outline" className="text-[10px] uppercase border-primary/20 text-primary font-bold w-fit">ID: {bid.id}</Badge>
+                          {bid.aiAnalysis && (
+                            <Badge className="bg-accent text-white border-none gap-1 px-2 py-0.5 text-[8px] font-black italic shadow-md w-fit">
+                              <Sparkles className="h-2 w-2 fill-white" /> IA ACTIVA
+                            </Badge>
+                          )}
+                        </div>
                         {renderDaysLeftBadge(daysLeft)}
                       </div>
                       <h3 className="font-bold text-lg mb-4 line-clamp-2 group-hover:text-accent transition-colors min-h-[3.5rem] uppercase italic tracking-tighter text-primary">
@@ -456,7 +464,10 @@ export default function BidsListPage() {
                     return (
                       <TableRow key={bid.id} className="group hover:bg-accent/5 cursor-pointer">
                         <TableCell className="font-mono text-xs font-bold text-primary">
-                          <Link href={`/bids/${bid.id}`}>{bid.id}</Link>
+                          <Link href={`/bids/${bid.id}`} className="flex flex-col gap-1">
+                            <span>{bid.id}</span>
+                            {bid.aiAnalysis && <Sparkles className="h-3 w-3 text-accent fill-accent" />}
+                          </Link>
                         </TableCell>
                         <TableCell>
                           <Link href={`/bids/${bid.id}`} className="space-y-1 block">

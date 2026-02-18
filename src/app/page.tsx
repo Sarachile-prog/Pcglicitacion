@@ -1,3 +1,4 @@
+
 'use client';
 
 import {useCollection, useMemoFirebase, useFirestore, useUser, useDoc} from '@/firebase';
@@ -60,12 +61,10 @@ export default function HomePage() {
   const heroImage = PlaceHolderImages.find(img => img.id === 'hero-landing');
   const aiImage = PlaceHolderImages.find(img => img.id === 'ai-analysis');
 
-  // Ruta condicional para exploración: login si es anónimo, bids si está autenticado
   const explorationPath = user ? "/bids" : "/login";
 
   return (
     <div className="space-y-12 pb-20 animate-in fade-in duration-1000">
-      {/* NAVIGATION BAR - BRAND IDENTITY */}
       <header className="sticky top-0 z-[100] w-full bg-background/80 backdrop-blur-md border-b">
         <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-3 group">
@@ -103,7 +102,6 @@ export default function HomePage() {
       </header>
 
       <div className="max-w-7xl mx-auto px-4 space-y-24">
-        {/* HERO SECTION - HIGH IMPACT */}
         <section className="relative overflow-hidden rounded-[2.5rem] bg-primary text-white p-8 md:p-16 lg:p-24 shadow-2xl">
           <div className="absolute inset-0 opacity-25">
             {heroImage && (
@@ -173,7 +171,6 @@ export default function HomePage() {
             </div>
           </div>
 
-          {/* Floating Badges for Hero */}
           <div className="absolute top-10 right-10 hidden xl:flex flex-col gap-4 animate-bounce duration-[3000ms]">
             <div className="bg-white/10 backdrop-blur-md border border-white/20 p-4 rounded-2xl flex items-center gap-4">
               <div className="h-10 w-10 rounded-full bg-accent flex items-center justify-center">
@@ -187,7 +184,6 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* KEY STATS - TRUST BUILDER */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 -mt-16 relative z-20 px-4">
           {[
             {
@@ -236,7 +232,6 @@ export default function HomePage() {
           ))}
         </div>
 
-        {/* SERVICES GRID - THE CORE VALUE */}
         <section id="servicios" className="space-y-16 py-10">
           <div className="flex flex-col items-center text-center space-y-4 max-w-3xl mx-auto">
             <Badge variant="outline" className="border-primary text-primary font-black uppercase tracking-widest px-4 py-1">
@@ -323,7 +318,6 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* RECENT BIDS - SOCIAL PROOF / DATA PROOF */}
         <section className="bg-white rounded-[3rem] p-12 md:p-20 shadow-xl border border-primary/5 space-y-12">
           <div className="flex flex-col md:flex-row justify-between items-end gap-6">
             <div className="space-y-4">
@@ -390,7 +384,7 @@ export default function HomePage() {
               ))
             ) : (
               <div className="col-span-full py-24 text-center bg-muted/10 rounded-[3rem] border-4 border-dashed space-y-6">
-                <History className="h-16 w-16 text-primary/20 mx-auto" />
+                <HistoryIcon className="h-16 w-16 text-primary/20 mx-auto" />
                 <p className="text-xl text-primary font-black uppercase italic">Base de Datos en Espera</p>
                 <Link href={explorationPath}>
                   <Button className="h-14 px-10 bg-primary font-black uppercase italic rounded-2xl">Activar Sincronización Manual</Button>
@@ -400,7 +394,6 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* CALL TO ACTION - CONVERSION */}
         <section className="bg-accent rounded-[4rem] p-12 md:p-24 text-center text-white space-y-10 shadow-2xl overflow-hidden relative group">
           <div className="absolute top-0 right-0 opacity-10 -translate-y-1/2 translate-x-1/2 rotate-12 group-hover:rotate-45 transition-transform duration-[5000ms]">
             <Sparkles className="h-[40rem] w-[40rem]" />
@@ -447,7 +440,6 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* FINAL TRUST BAR */}
         <div className="flex flex-wrap justify-center items-center gap-16 py-10 opacity-30 grayscale hover:grayscale-0 transition-all duration-1000 px-8">
           <div className="flex items-center gap-3 font-black text-2xl tracking-tighter uppercase italic">
             <ShieldCheck className="h-8 w-8 text-primary" /> Transparencia Ley 19.886
@@ -464,7 +456,7 @@ export default function HomePage() {
   );
 }
 
-function History({className}: {className?: string}) {
+function HistoryIcon({className}: {className?: string}) {
   return (
     <svg
       className={className}

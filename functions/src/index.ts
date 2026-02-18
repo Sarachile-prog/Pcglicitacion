@@ -4,8 +4,9 @@ import { onSchedule } from "firebase-functions/v2/scheduler";
 import * as admin from "firebase-admin";
 
 /**
- * RE-DEPLOY POKE: 18-02-2026 16:15
- * Forzando actualización de servidores para limpiar colas de publicación.
+ * EMERGENCY RE-DEPLOY POKE: 18-02-2026 16:20
+ * Resolviendo bloqueo de publicación y errores de sesión 403.
+ * Forzando limpieza de caché de compilación en GCP.
  */
 
 if (admin.apps.length === 0) {
@@ -118,7 +119,6 @@ export const syncOcdsHistorical = onRequest({
   const now = new Date();
   const reqDate = new Date(parseInt(year as string), parseInt(month as string) - 1, 1);
   
-  // Validación de seguridad Feb 2026
   if (reqDate > now) {
     return response.json({ success: false, message: "No se puede sincronizar el futuro. Selecciona un mes pasado (Contexto: Feb 2026)." });
   }
@@ -128,7 +128,6 @@ export const syncOcdsHistorical = onRequest({
                        type === 'TratoDirecto' ? 'listaOCDSAgnoMesTratoDirecto' : 'listaOCDSAgnoMesConvenio';
   
   try {
-    // Rango base de 1000 registros para evitar sobrecarga
     const initialUrl = `https://api.mercadopublico.cl/APISOCDS/OCDS/${endpointBase}/${year}/${month}/0/999`;
     console.log(`>>> [OCDS] Consultando: ${initialUrl}`);
     
@@ -186,7 +185,6 @@ export const syncOcdsHistorical = onRequest({
     await processBatch(data.data);
     processedCount += data.data.length;
 
-    // Límite táctico de lotes para no exceder el timeout de la función de Google
     const limitRecords = Math.min(totalRecords, 2000);
     
     for (let start = 1000; start < limitRecords; start += 1000) {
@@ -203,7 +201,7 @@ export const syncOcdsHistorical = onRequest({
       } catch (e) {
         console.warn(`>>> [OCDS] Fallo lote ${start}:`, e);
       }
-      await sleep(1500); // Delay preventivo para evitar bloqueo por IP
+      await sleep(1500);
     }
 
     response.json({ 

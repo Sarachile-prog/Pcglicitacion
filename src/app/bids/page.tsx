@@ -64,10 +64,9 @@ export default function BidsListPage() {
   const [currentPage, setCurrentPage] = useState(1)
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
 
-  // Estados para Carga Histórica OCDS (Hidratación segura)
   const [isOcdsDialogOpen, setIsOcdsDialogOpen] = useState(false)
-  const [ocdsYear, setOcdsYear] = useState("")
-  const [ocdsMonth, setOcdsMonth] = useState("")
+  const [ocdsYear, setOcdsYear] = useState("2026")
+  const [ocdsMonth, setOcdsMonth] = useState("02")
   const [ocdsType, setOcdsType] = useState<'Licitacion' | 'TratoDirecto' | 'Convenio'>('Licitacion')
   const [isOcdsLoading, setIsOcdsLoading] = useState(false)
   
@@ -79,9 +78,8 @@ export default function BidsListPage() {
     if (day === 6) initialDate = subDays(today, 1);
     setSelectedDate(initialDate);
 
-    // Inicializar valores de OCDS de forma segura en el cliente
-    setOcdsYear(today.getFullYear().toString());
-    setOcdsMonth((today.getMonth() + 1).toString().padStart(2, '0'));
+    setOcdsYear("2026");
+    setOcdsMonth("02");
   }, []);
 
   const profileRef = useMemoFirebase(() => user ? doc(db!, "users", user.uid) : null, [db, user])
@@ -243,7 +241,7 @@ export default function BidsListPage() {
               <Dialog open={isOcdsDialogOpen} onOpenChange={setIsOcdsDialogOpen}>
                 <DialogTrigger asChild>
                   <Button size="sm" className="bg-emerald-600 font-black h-10 uppercase italic text-[9px] rounded-xl px-4 text-white">
-                    <History className="h-3.5 w-3.5 mr-2" /> Ingesta OCDS (Masiva)
+                    <HistoryIcon className="h-3.5 w-3.5 mr-2" /> Ingesta OCDS (Masiva)
                   </Button>
                 </DialogTrigger>
                 <DialogContent className="max-w-md">
@@ -415,7 +413,7 @@ export default function BidsListPage() {
   )
 }
 
-function History({className}: {className?: string}) {
+function HistoryIcon({className}: {className?: string}) {
   return (
     <svg
       className={className}

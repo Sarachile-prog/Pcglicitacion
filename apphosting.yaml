@@ -15,4 +15,4 @@ env:
   - variable: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
     value: "studio-4126028826-31b2f.firebaseapp.com"
   - variable: NEXT_PUBLIC_DEPLOY_TOKEN
-    value: "FORCE_REBUILD_2026_02_18_1835"
+    value: "FINAL_STABILITY_FIX_1700"

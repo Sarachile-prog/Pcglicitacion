@@ -7,7 +7,7 @@ import { getFirestore, Firestore } from 'firebase/firestore';
 
 /**
  * PCG LICITACIÓN - ECOSISTEMA DE INTELIGENCIA 2026
- * Inicialización Singleton Definitiva para evitar bloqueos en Publishing.
+ * Punto de entrada central con exportaciones explícitas para evitar errores de compilación.
  */
 
 let app: FirebaseApp;
@@ -15,7 +15,6 @@ let auth: Auth;
 let firestore: Firestore;
 
 if (typeof window !== 'undefined') {
-  // Lógica de cliente: Garantizar instancia única
   if (!getApps().length) {
     app = initializeApp(firebaseConfig);
   } else {
@@ -24,7 +23,6 @@ if (typeof window !== 'undefined') {
   auth = getAuth(app);
   firestore = getFirestore(app);
 } else {
-  // Lógica de servidor (SSR): Inicialización mínima
   if (!getApps().length) {
     app = initializeApp(firebaseConfig);
   } else {
@@ -40,7 +38,17 @@ export function initializeFirebase() {
   return { firebaseApp: app, auth, firestore };
 }
 
-export * from './provider';
-export * from './client-provider';
-export * from './firestore/use-collection';
-export * from './firestore/use-doc';
+// Exportaciones explícitas para evitar errores de "Export not found" en Next.js
+export { 
+  FirebaseProvider, 
+  useFirebase, 
+  useAuth, 
+  useFirestore, 
+  useFirebaseApp, 
+  useMemoFirebase, 
+  useUser 
+} from './provider';
+
+export { FirebaseClientProvider } from './client-provider';
+export { useCollection } from './firestore/use-collection';
+export { useDoc } from './firestore/use-doc';

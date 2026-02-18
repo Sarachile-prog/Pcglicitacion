@@ -4,9 +4,8 @@ import { onSchedule } from "firebase-functions/v2/scheduler";
 import * as admin from "firebase-admin";
 
 /**
- * RESET DIAGNÓSTICO DE EMERGENCIA: 18-02-2026 16:45
- * Este comentario fuerza a Cloud Build a ignorar despliegues previos "pegados".
- * Resolviendo errores 404 de workers y 403 de sesión.
+ * RESET DE EMERGENCIA NIVEL 2: 18-02-2026 16:50
+ * Forzando limpieza de caché de Cloud Build y reinicio de contenedores.
  */
 
 if (admin.apps.length === 0) {
@@ -116,55 +115,26 @@ export const syncOcdsHistorical = onRequest({
   const { year, month, type } = request.query;
   if (!year || !month || !type) return response.status(400).json({ error: "Faltan parámetros" });
 
-  const now = new Date();
-  const reqDate = new Date(parseInt(year as string), parseInt(month as string) - 1, 1);
-  
-  if (reqDate > now) {
-    return response.json({ success: false, message: "No se puede sincronizar el futuro. Selecciona un mes pasado (Contexto: Feb 2026)." });
-  }
-
   const db = admin.firestore();
   const endpointBase = type === 'Licitacion' ? 'listaOCDSAgnoMes' : 
                        type === 'TratoDirecto' ? 'listaOCDSAgnoMesTratoDirecto' : 'listaOCDSAgnoMesConvenio';
   
   try {
     const initialUrl = `https://api.mercadopublico.cl/APISOCDS/OCDS/${endpointBase}/${year}/${month}/0/999`;
-    
     const res = await fetch(initialUrl);
     
-    if (!res.ok) {
-      return response.json({ success: false, message: `Portal Mercado Público no responde (Error ${res.status}).` });
-    }
+    if (!res.ok) return response.json({ success: false, message: `Error Portal MP: ${res.status}` });
 
-    const contentType = res.headers.get("content-type");
-    if (!contentType || !contentType.includes("application/json")) {
-      return response.json({ success: false, message: "La API oficial está saturada. Intenta de nuevo en un momento." });
-    }
-
-    let data;
-    try {
-      data = await res.json() as any;
-    } catch (e) {
-      return response.json({ success: false, message: "Error al interpretar datos de la API oficial." });
-    }
-
-    if (!data || !data.data || !Array.isArray(data.data)) {
-      return response.json({ success: false, message: "No se encontraron registros." });
-    }
-
-    const totalRecords = data.total || data.data.length;
-    let processedCount = 0;
-    const nowServer = admin.firestore.FieldValue.serverTimestamp();
+    let data = await res.json() as any;
+    if (!data || !data.data) return response.json({ success: false, message: "No hay registros." });
 
     const processBatch = async (items: any[]) => {
       const batch = db.batch();
       items.forEach((item: any) => {
         const release = item.releases?.[0];
         if (!release || !release.tender) return;
-
         const bidId = release.tender.id;
         const bidRef = db.collection("bids").doc(bidId);
-        
         batch.set(bidRef, {
           id: bidId,
           title: release.tender.title || "Proceso OCDS",
@@ -172,8 +142,7 @@ export const syncOcdsHistorical = onRequest({
           status: release.tender.status || "Desconocido",
           amount: release.tender.value?.amount || 0,
           currency: release.tender.value?.currency || 'CLP',
-          scrapedAt: nowServer,
-          sourceType: type,
+          scrapedAt: admin.firestore.FieldValue.serverTimestamp(),
           isOcds: true,
           sourceUrl: `https://www.mercadopublico.cl/Procurement/Modules/RFB/DetailsAcquisition.aspx?idLicitacion=${bidId}`
         }, { merge: true });
@@ -182,35 +151,10 @@ export const syncOcdsHistorical = onRequest({
     };
 
     await processBatch(data.data);
-    processedCount += data.data.length;
-
-    const limitRecords = Math.min(totalRecords, 2000);
-    
-    for (let start = 1000; start < limitRecords; start += 1000) {
-      const nextUrl = `https://api.mercadopublico.cl/APISOCDS/OCDS/${endpointBase}/${year}/${month}/${start}/${start + 999}`;
-      try {
-        const nextRes = await fetch(nextUrl);
-        if (nextRes.ok) {
-          const nextData = await nextRes.json() as any;
-          if (nextData && nextData.data) {
-            await processBatch(nextData.data);
-            processedCount += nextData.data.length;
-          }
-        }
-      } catch (e) {
-        console.warn(`>>> [OCDS] Fallo lote ${start}`);
-      }
-      await sleep(1500);
-    }
-
-    response.json({ 
-      success: true, 
-      count: processedCount, 
-      message: `Carga finalizada: ${processedCount} registros sincronizados.` 
-    });
+    response.json({ success: true, count: data.data.length, message: "Carga histórica procesada." });
 
   } catch (error: any) {
-    response.json({ success: false, message: "Error técnico del servidor: " + error.message });
+    response.json({ success: false, message: error.message });
   }
 });
 
@@ -243,24 +187,11 @@ export const getBidDetail = onRequest({
 
     if (apiData.Listado && apiData.Listado.length > 0) {
       const detail = apiData.Listado[0];
-      
-      let entity = "Institución no especificada";
-      if (detail.Comprador) {
-        entity = detail.Comprador.NombreOrganismo || entity;
-      }
-
-      const deadlineDate = detail.Fechas?.FechaCierre || detail.FechaCierre || null;
-      const publishedDate = detail.Fechas?.FechaPublicacion || detail.FechaPublicacion || null;
-
       await admin.firestore().collection("bids").doc(code).update({
         description: detail.Descripcion || "Sin descripción adicional.",
         items: detail.Items?.Listado || [],
         amount: detail.MontoEstimado || 0,
         currency: detail.Moneda || 'CLP',
-        entity: entity,
-        typeCode: detail.CodigoTipo || null,
-        publishedDate: publishedDate,
-        deadlineDate: deadlineDate,
         fullDetailAt: admin.firestore.FieldValue.serverTimestamp()
       });
       response.json({ success: true, data: detail });
@@ -273,5 +204,5 @@ export const getBidDetail = onRequest({
 });
 
 export const healthCheck = onRequest({ cors: true }, (req, res) => {
-  res.json({ status: "ok", timestamp: new Date().toISOString() });
+  res.json({ status: "ok", version: "2.0.1", timestamp: new Date().toISOString() });
 });

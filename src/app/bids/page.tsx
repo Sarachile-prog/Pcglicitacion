@@ -17,15 +17,12 @@ import {
   ChevronRight, 
   ChevronLeft,
   Database,
-  Sparkles,
   Loader2,
   Globe,
   Zap,
   Layers,
-  ShieldCheck,
   CheckCircle2,
   CloudDownload,
-  Server,
   Activity
 } from "lucide-react"
 import Link from "next/link"
@@ -36,7 +33,7 @@ import { Calendar } from "@/components/ui/calendar"
 import { format, subDays, startOfDay, differenceInDays } from "date-fns"
 import { cn } from "@/lib/utils"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 
 const ITEMS_PER_PAGE = 50;
 
@@ -47,17 +44,13 @@ export default function BidsListPage() {
 
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
-  const [sortBy, setSortBy] = useState("scrapedAt")
-  
   const [isSyncing, setIsSyncing] = useState(false)
   const [isEnriching, setIsEnriching] = useState(false)
   const [enrichCount, setEnrichCount] = useState(0)
   const [enrichTotal, setEnrichTotal] = useState(0)
-  
   const [isCalendarOpen, setIsCalendarOpen] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
-
   const [isOcdsDialogOpen, setIsOcdsDialogOpen] = useState(false)
   const [ocdsYear, setOcdsYear] = useState("2026")
   const [ocdsMonth, setOcdsMonth] = useState("02")
@@ -66,13 +59,7 @@ export default function BidsListPage() {
   
   useEffect(() => {
     const today = new Date();
-    const day = today.getDay();
-    let initialDate = today;
-    if (day === 0) initialDate = subDays(today, 2); 
-    if (day === 6) initialDate = subDays(today, 1);
-    setSelectedDate(initialDate);
-    setOcdsYear("2026");
-    setOcdsMonth("02");
+    setSelectedDate(today);
   }, []);
 
   const profileRef = useMemoFirebase(() => user ? doc(db!, "users", user.uid) : null, [db, user])
@@ -98,11 +85,10 @@ export default function BidsListPage() {
     setIsSyncing(true)
     const formattedDate = format(selectedDate, "ddMMyyyy")
     try {
-      toast({ title: "Sincronizando IDs", description: `Consultando portal...` })
       await getBidsByDate(formattedDate)
       toast({ title: "Importación Exitosa" })
     } catch (error: any) {
-      toast({ variant: "destructive", title: "Error de API", description: error.message })
+      toast({ variant: "destructive", title: "Error", description: error.message })
     } finally {
       setIsSyncing(false)
     }
@@ -112,7 +98,6 @@ export default function BidsListPage() {
     if (!isSuperAdmin) return;
     setIsOcdsLoading(true)
     try {
-      toast({ title: "Iniciando OCDS", description: "Esto puede tardar un minuto..." })
       const res = await syncOcdsHistorical(ocdsYear, ocdsMonth, ocdsType)
       if (res.success) {
         toast({ title: "Éxito OCDS", description: res.message })
@@ -121,7 +106,7 @@ export default function BidsListPage() {
         toast({ variant: "destructive", title: "Incompleto", description: res.message })
       }
     } catch (e: any) {
-      toast({ variant: "destructive", title: "Error OCDS", description: e.message })
+      toast({ variant: "destructive", title: "Error", description: e.message })
     } finally {
       setIsOcdsLoading(false)
     }
@@ -176,26 +161,14 @@ export default function BidsListPage() {
     return new Intl.NumberFormat('es-CL', { style: 'currency', currency: currency || 'CLP', maximumFractionDigits: 0 }).format(amount);
   }
 
-  const renderDaysLeftBadge = (deadlineStr?: string) => {
-    if (!deadlineStr) return null;
-    const deadline = new Date(deadlineStr);
-    if (isNaN(deadline.getTime())) return null;
-    const diff = differenceInDays(startOfDay(deadline), startOfDay(new Date()));
-    if (diff < 0) return <Badge variant="outline" className="text-[9px] text-gray-400 font-bold uppercase">Cerrada</Badge>;
-    if (diff === 0) return <Badge className="text-[9px] bg-red-600 text-white font-bold animate-pulse uppercase">Hoy</Badge>;
-    return <Badge variant="secondary" className="text-[9px] bg-accent/10 text-accent font-bold uppercase">{diff} días</Badge>;
-  }
-
   return (
     <div className="space-y-8 animate-in fade-in duration-500 pb-20">
       <div className="flex flex-col gap-4">
-        <Link href="/dashboard"><Button variant="ghost" size="sm" className="text-muted-foreground hover:text-primary -ml-2"><ChevronLeft className="h-4 w-4 mr-1" /> Dashboard</Button></Link>
+        <Link href="/dashboard"><Button variant="ghost" size="sm" className="text-muted-foreground"><ChevronLeft className="h-4 w-4 mr-1" /> Dashboard</Button></Link>
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="space-y-1">
             <h2 className="text-3xl font-extrabold text-primary italic uppercase flex items-center gap-2"><Globe className="h-6 w-6 text-accent" /> Explorador de Mercado</h2>
-            <div className="flex items-center gap-2">
-              <Badge className="bg-emerald-500 text-white text-[10px] font-black uppercase italic tracking-widest animate-pulse px-3">Repo 2026</Badge>
-            </div>
+            <Badge className="bg-emerald-500 text-white text-[10px] font-black uppercase italic">Repo 2026</Badge>
           </div>
           
           {isSuperAdmin && (
@@ -203,13 +176,11 @@ export default function BidsListPage() {
               <Dialog open={isOcdsDialogOpen} onOpenChange={setIsOcdsDialogOpen}>
                 <DialogTrigger asChild>
                   <Button size="sm" className="bg-emerald-600 font-black h-10 uppercase italic text-[9px] rounded-xl px-4 text-white">
-                    <HistoryLocalIcon className="h-3.5 w-3.5 mr-2" /> Ingesta OCDS
+                    <BidsHistoryIcon className="h-3.5 w-3.5 mr-2" /> Ingesta OCDS
                   </Button>
                 </DialogTrigger>
                 <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle className="text-xl font-black uppercase italic">Carga Histórica</DialogTitle>
-                  </DialogHeader>
+                  <DialogHeader><DialogTitle className="text-xl font-black uppercase italic">Carga Histórica</DialogTitle></DialogHeader>
                   <div className="space-y-4 py-4">
                     <div className="grid grid-cols-2 gap-4">
                       <Input value={ocdsYear} onChange={(e) => setOcdsYear(e.target.value)} placeholder="Año" />
@@ -244,7 +215,7 @@ export default function BidsListPage() {
       </div>
 
       {isEnriching && (
-        <Card className="border-accent bg-accent/5 shadow-lg animate-in slide-in-from-top-4">
+        <Card className="border-accent bg-accent/5 shadow-lg">
           <CardContent className="p-6 space-y-4">
             <div className="flex justify-between items-center"><div className="flex items-center gap-2"><Activity className="h-4 w-4 text-accent animate-pulse" /><span className="text-xs font-black uppercase text-accent tracking-widest italic">Enriqueciendo datos técnicos...</span></div><span className="text-xs font-black text-primary italic">{Math.round((enrichCount / (enrichTotal || 1)) * 100)}%</span></div>
             <Progress value={(enrichCount / (enrichTotal || 1)) * 100} className="h-2.5 bg-accent/20" />
@@ -291,7 +262,6 @@ export default function BidsListPage() {
                 <TableRow>
                   <TableHead className="w-[140px] font-black uppercase text-[10px] py-6 px-6">ID / Status</TableHead>
                   <TableHead className="min-w-[300px] font-black uppercase text-[10px] py-6">Detalle Estratégico</TableHead>
-                  <TableHead className="font-black uppercase text-center text-[10px] py-6">Cierre</TableHead>
                   <TableHead className="text-right font-black uppercase text-[10px] py-6 px-6">Monto Est.</TableHead>
                   <TableHead className="w-[60px]"></TableHead>
                 </TableRow>
@@ -315,7 +285,6 @@ export default function BidsListPage() {
                           </p>
                         </Link>
                       </TableCell>
-                      <TableCell className="text-center py-6">{renderDaysLeftBadge(bid.deadlineDate)}</TableCell>
                       <TableCell className={cn("text-right font-black italic py-6 px-6 text-xl tracking-tighter", !isEnriched ? "text-amber-600/30" : "text-primary")}>
                         {formatCurrency(bid.amount, bid.currency)}
                       </TableCell>
@@ -344,7 +313,7 @@ export default function BidsListPage() {
   )
 }
 
-function HistoryLocalIcon({className}: {className?: string}) {
+function BidsHistoryIcon({className}: {className?: string}) {
   return (
     <svg
       className={className}

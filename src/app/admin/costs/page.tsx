@@ -22,14 +22,26 @@ export default function CostsAnalysisPage() {
   const [monthlyAudits, setMonthlyAudits] = useState(200)
   const [massIngestion, setMassIngestion] = useState(1000)
 
-  // Precios estimados (basados en cuotas de Google Cloud / Gemini Flash)
-  const COST_PER_ANALYSIS = 0.005 // $0.005 USD por análisis IA profundo
-  const COST_PER_AUDIT = 0.01 // $0.01 USD por auditoría multimodal (PDFs)
-  const COST_FIRESTORE_WRITE_1K = 0.0018 // $0.0018 USD por 1,000 escrituras
+  // Tasa de cambio referencial (1 USD = 950 CLP aprox)
+  const USD_TO_CLP = 950
+
+  // Precios estimados en USD (basados en cuotas de Google Cloud)
+  const COST_PER_ANALYSIS_USD = 0.005 
+  const COST_PER_AUDIT_USD = 0.01 
+  const COST_FIRESTORE_WRITE_1K_USD = 0.0018 
   
-  const estimatedAiCost = (monthlyBids * COST_PER_ANALYSIS) + (monthlyAudits * COST_PER_AUDIT)
-  const estimatedDbCost = (massIngestion / 1000) * COST_FIRESTORE_WRITE_1K
+  // Conversión a CLP
+  const estimatedAiCost = ((monthlyBids * COST_PER_ANALYSIS_USD) + (monthlyAudits * COST_PER_AUDIT_USD)) * USD_TO_CLP
+  const estimatedDbCost = ((massIngestion / 1000) * COST_FIRESTORE_WRITE_1K_USD) * USD_TO_CLP
   const totalMonthlyCost = estimatedAiCost + estimatedDbCost
+
+  const formatCLP = (amount: number) => {
+    return new Intl.NumberFormat('es-CL', {
+      style: 'currency',
+      currency: 'CLP',
+      maximumFractionDigits: 0
+    }).format(amount)
+  }
 
   return (
     <div className="space-y-8 animate-in fade-in duration-700">
@@ -38,7 +50,7 @@ export default function CostsAnalysisPage() {
           <h2 className="text-3xl font-black tracking-tight text-primary uppercase italic">Análisis de Costos Operativos</h2>
           <p className="text-muted-foreground font-medium italic">Calcula tu margen de beneficio basado en el consumo de recursos IA y Big Data.</p>
         </div>
-        <Badge className="bg-accent text-white px-4 py-1 text-xs font-bold uppercase italic tracking-widest">Proyección Financiera</Badge>
+        <Badge className="bg-accent text-white px-4 py-1 text-xs font-bold uppercase italic tracking-widest">Valores en CLP</Badge>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -64,7 +76,7 @@ export default function CostsAnalysisPage() {
                   className="py-4"
                 />
                 <p className="text-[10px] text-muted-foreground italic font-bold uppercase tracking-widest flex items-center gap-2">
-                  <CloudDownload className="h-3 w-3 text-accent" /> Costo estimado Firestore: <span className="text-primary">${((massIngestion/1000)*COST_FIRESTORE_WRITE_1K).toFixed(4)} USD</span>
+                  <CloudDownload className="h-3 w-3 text-accent" /> Costo estimado Firestore: <span className="text-primary">{formatCLP(estimatedDbCost)}</span>
                 </p>
               </div>
 
@@ -106,7 +118,7 @@ export default function CostsAnalysisPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-4xl font-black text-emerald-600 italic">${estimatedAiCost.toFixed(2)} <span className="text-sm text-emerald-800/50">USD/mes</span></div>
+                <div className="text-4xl font-black text-emerald-600 italic">{formatCLP(estimatedAiCost)} <span className="text-sm text-emerald-800/50">/mes</span></div>
                 <p className="text-[10px] text-emerald-700/70 mt-2 uppercase font-bold tracking-widest">Motor de inteligencia activo</p>
               </CardContent>
             </Card>
@@ -118,7 +130,7 @@ export default function CostsAnalysisPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-4xl font-black text-blue-600 italic">${estimatedDbCost.toFixed(2)} <span className="text-sm text-blue-800/50">USD/mes</span></div>
+                <div className="text-4xl font-black text-blue-600 italic">{formatCLP(estimatedDbCost)} <span className="text-sm text-blue-800/50">/mes</span></div>
                 <p className="text-[10px] text-blue-700/70 mt-2 uppercase font-bold tracking-widest">Escrituras masivas escalables</p>
               </CardContent>
             </Card>
@@ -134,18 +146,18 @@ export default function CostsAnalysisPage() {
               <CardTitle className="text-xl font-black italic uppercase tracking-widest text-accent">Total Operativo</CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
-              <div className="text-6xl font-black text-white italic tracking-tighter">${totalMonthlyCost.toFixed(2)}</div>
+              <div className="text-5xl font-black text-white italic tracking-tighter">{formatCLP(totalMonthlyCost)}</div>
               <p className="text-primary-foreground/70 text-sm leading-relaxed italic font-medium">
-                Este es el costo directo de nube. Ingerir datos es barato; la inteligencia es la inversión principal.
+                Este es el costo directo de nube estimado para el volumen seleccionado.
               </p>
               <div className="pt-6 border-t border-white/10 space-y-4">
                 <div className="flex justify-between items-center text-[10px]">
-                  <span className="opacity-70 font-black uppercase tracking-widest">Inversión por Bid</span>
-                  <span className="font-black text-accent">${(totalMonthlyCost / (monthlyBids || 1)).toFixed(3)}</span>
+                  <span className="opacity-70 font-black uppercase tracking-widest">Costo por Licitación</span>
+                  <span className="font-black text-accent">{formatCLP(totalMonthlyCost / (monthlyBids || 1))}</span>
                 </div>
                 <div className="flex justify-between items-center text-[10px]">
                   <span className="opacity-70 font-black uppercase tracking-widest text-emerald-400">Margen Sugerido (10x)</span>
-                  <span className="font-black text-emerald-400">${(totalMonthlyCost * 10).toFixed(0)}</span>
+                  <span className="font-black text-emerald-400">{formatCLP(totalMonthlyCost * 10)}</span>
                 </div>
               </div>
             </CardContent>
@@ -159,7 +171,7 @@ export default function CostsAnalysisPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <p className="text-[11px] text-muted-foreground leading-relaxed font-bold italic">
-                La ingesta masiva (OCDS) te permite tener millones de registros históricos por solo unos centavos.
+                La ingesta masiva (OCDS) te permite tener millones de registros históricos por un costo de nube mínimo.
               </p>
               <ul className="space-y-3">
                 <li className="text-[10px] flex gap-2">
@@ -168,7 +180,7 @@ export default function CostsAnalysisPage() {
                 </li>
                 <li className="text-[10px] flex gap-2">
                   <div className="h-4 w-4 rounded-lg bg-accent/20 flex items-center justify-center shrink-0 text-accent font-black">2</div>
-                  <span><b>Modelo Freemium</b>: Cobra por el análisis, no por la visualización.</span>
+                  <span><b>Modelo Freemium</b>: Cobra por el análisis profundo, no por la visualización de IDs.</span>
                 </li>
               </ul>
               <Button variant="outline" className="w-full mt-4 border-primary text-primary font-black uppercase italic text-[10px] h-10 rounded-xl">

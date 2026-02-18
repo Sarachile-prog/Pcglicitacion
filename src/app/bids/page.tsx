@@ -30,7 +30,7 @@ import { getBidsByDate, getBidDetail, syncOcdsHistorical } from "@/services/merc
 import { useToast } from "@/hooks/use-toast"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Calendar } from "@/components/ui/calendar"
-import { format, subDays, startOfDay, differenceInDays } from "date-fns"
+import { format } from "date-fns"
 import { cn } from "@/lib/utils"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
@@ -56,10 +56,11 @@ export default function BidsListPage() {
   const [ocdsMonth, setOcdsMonth] = useState("02")
   const [ocdsType, setOcdsType] = useState<'Licitacion' | 'TratoDirecto' | 'Convenio'>('Licitacion')
   const [isOcdsLoading, setIsOcdsLoading] = useState(false)
+  const [mounted, setMounted] = useState(false);
   
   useEffect(() => {
-    const today = new Date();
-    setSelectedDate(today);
+    setMounted(true);
+    setSelectedDate(new Date());
   }, []);
 
   const profileRef = useMemoFirebase(() => user ? doc(db!, "users", user.uid) : null, [db, user])
@@ -96,6 +97,14 @@ export default function BidsListPage() {
 
   const handleOcdsSync = async () => {
     if (!isSuperAdmin) return;
+    
+    // Validación de fecha futura
+    const now = new Date();
+    if (parseInt(ocdsYear) > now.getFullYear() || (parseInt(ocdsYear) === now.getFullYear() && parseInt(ocdsMonth) > (now.getMonth() + 1))) {
+      toast({ variant: "destructive", title: "Fecha Futura", description: "No puedes succionar datos de meses que aún no han ocurrido." });
+      return;
+    }
+
     setIsOcdsLoading(true)
     try {
       const res = await syncOcdsHistorical(ocdsYear, ocdsMonth, ocdsType)
@@ -161,6 +170,8 @@ export default function BidsListPage() {
     return new Intl.NumberFormat('es-CL', { style: 'currency', currency: currency || 'CLP', maximumFractionDigits: 0 }).format(amount);
   }
 
+  if (!mounted) return null;
+
   return (
     <div className="space-y-8 animate-in fade-in duration-500 pb-20">
       <div className="flex flex-col gap-4">
@@ -176,27 +187,39 @@ export default function BidsListPage() {
               <Dialog open={isOcdsDialogOpen} onOpenChange={setIsOcdsDialogOpen}>
                 <DialogTrigger asChild>
                   <Button size="sm" className="bg-emerald-600 font-black h-10 uppercase italic text-[9px] rounded-xl px-4 text-white">
-                    <BidsHistoryIcon className="h-3.5 w-3.5 mr-2" /> Ingesta OCDS
+                    <AppHistoryIcon className="h-3.5 w-3.5 mr-2" /> Ingesta OCDS (Masiva)
                   </Button>
                 </DialogTrigger>
                 <DialogContent>
-                  <DialogHeader><DialogTitle className="text-xl font-black uppercase italic">Carga Histórica</DialogTitle></DialogHeader>
+                  <DialogHeader><DialogTitle className="text-xl font-black uppercase italic">Carga Histórica OCDS</DialogTitle></DialogHeader>
                   <div className="space-y-4 py-4">
                     <div className="grid grid-cols-2 gap-4">
-                      <Input value={ocdsYear} onChange={(e) => setOcdsYear(e.target.value)} placeholder="Año" />
-                      <Input value={ocdsMonth} onChange={(e) => setOcdsMonth(e.target.value)} placeholder="Mes" />
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold uppercase ml-1 opacity-60">Año</label>
+                        <Input value={ocdsYear} onChange={(e) => setOcdsYear(e.target.value)} placeholder="Ej: 2024" />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold uppercase ml-1 opacity-60">Mes</label>
+                        <Input value={ocdsMonth} onChange={(e) => setOcdsMonth(e.target.value)} placeholder="01 a 12" />
+                      </div>
                     </div>
-                    <Select value={ocdsType} onValueChange={(v: any) => setOcdsType(v)}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Licitacion">Licitaciones</SelectItem>
-                        <SelectItem value="TratoDirecto">Tratos Directos</SelectItem>
-                        <SelectItem value="Convenio">Convenio Marco</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <Button onClick={handleOcdsSync} disabled={isOcdsLoading} className="w-full h-12 bg-primary font-black uppercase italic">
-                      {isOcdsLoading ? <Loader2 className="animate-spin mr-2" /> : <CloudDownload className="mr-2" />} Iniciar Succión
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold uppercase ml-1 opacity-60">Tipo de Proceso</label>
+                      <Select value={ocdsType} onValueChange={(v: any) => setOcdsType(v)}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Licitacion" className="font-bold">Licitaciones Públicas</SelectItem>
+                          <SelectItem value="TratoDirecto" className="font-bold">Tratos Directos</SelectItem>
+                          <SelectItem value="Convenio" className="font-bold">Convenio Marco</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <Button onClick={handleOcdsSync} disabled={isOcdsLoading} className="w-full h-12 bg-primary font-black uppercase italic shadow-lg">
+                      {isOcdsLoading ? <Loader2 className="animate-spin mr-2" /> : <CloudDownload className="mr-2" />} Iniciar Succión de Datos
                     </Button>
+                    <p className="text-[9px] text-center text-muted-foreground italic font-medium">
+                      * El motor succionará hasta 3,000 registros por ejecución para asegurar estabilidad.
+                    </p>
                   </div>
                 </DialogContent>
               </Dialog>
@@ -205,9 +228,11 @@ export default function BidsListPage() {
                 <PopoverTrigger asChild><Button variant="outline" className="w-[160px] h-10 border-primary/20 bg-white font-bold text-xs rounded-xl">{selectedDate ? format(selectedDate, "dd/MM/yyyy") : "---"}</Button></PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="end"><Calendar mode="single" selected={selectedDate || undefined} onSelect={(d) => { if(d){ setSelectedDate(d); setIsCalendarOpen(false); } }} disabled={(d) => d > new Date()} initialFocus /></PopoverContent>
               </Popover>
-              <Button size="sm" className="bg-primary font-black h-10 uppercase italic text-[9px] rounded-xl px-4" onClick={handleSync} disabled={isSyncing}><RefreshCw className={cn("h-3 w-3 mr-2", isSyncing && "animate-spin")} /> Ingesta IDs</Button>
-              <Button size="sm" className="bg-accent text-white font-black h-10 uppercase italic text-[9px] rounded-xl px-4" onClick={handleEnrich} disabled={isEnriching}>
-                {isEnriching ? <><Loader2 className="h-3 w-3 mr-2 animate-spin" /> Procesando...</> : <><Database className="h-3 w-3 mr-2" /> Enriquecer</>}
+              <Button size="sm" className="bg-primary font-black h-10 uppercase italic text-[9px] rounded-xl px-4" onClick={handleSync} disabled={isSyncing} title="Sincroniza IDs del día seleccionado">
+                <RefreshCw className={cn("h-3 w-3 mr-2", isSyncing && "animate-spin")} /> Ingesta IDs
+              </Button>
+              <Button size="sm" className="bg-accent text-white font-black h-10 uppercase italic text-[9px] rounded-xl px-4" onClick={handleEnrich} disabled={isEnriching} title="Trae montos e instituciones de los IDs pendientes">
+                {isEnriching ? <><Loader2 className="h-3 w-3 mr-2 animate-spin" /> Procesando...</> : <><Database className="h-3 w-3 mr-2" /> Enriquecer Repo</>}
               </Button>
             </Card>
           )}
@@ -313,7 +338,7 @@ export default function BidsListPage() {
   )
 }
 
-function BidsHistoryIcon({className}: {className?: string}) {
+function AppHistoryIcon({className}: {className?: string}) {
   return (
     <svg
       className={className}

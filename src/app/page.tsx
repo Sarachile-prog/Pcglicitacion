@@ -22,6 +22,7 @@ import {
   Globe,
   LogIn
 } from 'lucide-react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import {Button} from '@/components/ui/button';
 import Image from 'next/image';
@@ -32,6 +33,11 @@ const WHATSAPP_URL = "https://wa.me/56941245316?text=Hola,%20vi%20la%20landing%2
 export default function HomePage() {
   const db = useFirestore();
   const {user} = useUser();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const profileRef = useMemoFirebase(() => {
     if (!db || !user) return null;
@@ -39,7 +45,6 @@ export default function HomePage() {
   }, [db, user]);
 
   const {data: profile} = useDoc(profileRef);
-  const isDemo = user && (!profile || !profile.companyId);
 
   const bidsQuery = useMemoFirebase(() => {
     if (!db) return null;
@@ -49,8 +54,9 @@ export default function HomePage() {
   const {data: bids, isLoading: isBidsLoading} = useCollection(bidsQuery);
 
   const heroImage = PlaceHolderImages.find(img => img.id === 'hero-landing');
-
   const explorationPath = user ? "/bids" : "/login";
+
+  if (!mounted) return null;
 
   return (
     <div className="space-y-12 pb-20 animate-in fade-in duration-1000">

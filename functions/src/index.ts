@@ -185,6 +185,7 @@ export const syncOcdsHistorical = onRequest({
     await processBatch(data.data);
     processedCount += data.data.length;
 
+    // Limitamos a 2000 registros adicionales por seguridad de timeout
     const limitRecords = Math.min(totalRecords, 2000);
     
     for (let start = 1000; start < limitRecords; start += 1000) {
@@ -201,7 +202,7 @@ export const syncOcdsHistorical = onRequest({
       } catch (e) {
         console.warn(`>>> [OCDS] Fallo lote ${start}:`, e);
       }
-      await sleep(1500);
+      await sleep(1500); // Pausa para evitar bloqueo de Mercado Público
     }
 
     response.json({ 

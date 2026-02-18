@@ -78,6 +78,7 @@ export default function BidsListPage() {
     if (day === 6) initialDate = subDays(today, 1);
     setSelectedDate(initialDate);
 
+    // Valores seguros por defecto para evitar errores de hidratación
     setOcdsYear("2026");
     setOcdsMonth("02");
   }, []);

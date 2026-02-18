@@ -3,39 +3,30 @@
 import { firebaseConfig } from '@/firebase/config';
 import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore'
+import { getFirestore } from 'firebase/firestore';
 
 /**
  * PCG LICITACIÓN - ECOSISTEMA DE INTELIGENCIA 2026
- * Inicialización de nivel de módulo para prevenir colisiones en Publishing.
- * Este patrón asegura que initializeApp() se ejecute una sola vez.
+ * Inicialización segura con patrón Singleton.
+ * Evita colisiones de red y errores de despliegue en entornos Next.js.
  */
 
 let app: FirebaseApp;
 
 if (!getApps().length) {
   try {
-    // 1. Intentar inicialización automática (Firebase App Hosting)
-    // Esto es preferible en entornos de producción.
+    // Intentar inicialización para Firebase App Hosting
     app = initializeApp();
   } catch (e) {
-    // 2. Fallback a configuración manual (Desarrollo / Entornos Locales)
-    if (process.env.NODE_ENV === "production") {
-      console.warn('PCG: Fallback a firebaseConfig detectado en producción.');
-    }
+    // Fallback a configuración manual segura
     app = initializeApp(firebaseConfig);
   }
 } else {
-  // 3. Reutilizar la instancia existente si ya fue creada
   app = getApp();
 }
 
 export const firebaseApp = app;
 
-/**
- * Función para obtener los SDKs inicializados.
- * Utilizada por el FirebaseProvider para inyectar servicios en el árbol de React.
- */
 export function initializeFirebase() {
   return getSdks(firebaseApp);
 }

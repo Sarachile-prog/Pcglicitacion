@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useMemo, useEffect } from "react"
@@ -98,10 +97,9 @@ export default function BidsListPage() {
   const handleOcdsSync = async () => {
     if (!isSuperAdmin) return;
     
-    // Validación de fecha futura
     const now = new Date();
     if (parseInt(ocdsYear) > now.getFullYear() || (parseInt(ocdsYear) === now.getFullYear() && parseInt(ocdsMonth) > (now.getMonth() + 1))) {
-      toast({ variant: "destructive", title: "Fecha Futura", description: "No puedes succionar datos de meses que aún no han ocurrido." });
+      toast({ variant: "destructive", title: "Fecha Futura", description: "No puedes seleccionar meses que aún no han ocurrido." });
       return;
     }
 
@@ -196,7 +194,7 @@ export default function BidsListPage() {
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-1">
                         <label className="text-[10px] font-bold uppercase ml-1 opacity-60">Año</label>
-                        <Input value={ocdsYear} onChange={(e) => setOcdsYear(e.target.value)} placeholder="Ej: 2024" />
+                        <Input value={ocdsYear} onChange={(e) => setOcdsYear(e.target.value)} placeholder="Ej: 2026" />
                       </div>
                       <div className="space-y-1">
                         <label className="text-[10px] font-bold uppercase ml-1 opacity-60">Mes</label>
@@ -217,9 +215,6 @@ export default function BidsListPage() {
                     <Button onClick={handleOcdsSync} disabled={isOcdsLoading} className="w-full h-12 bg-primary font-black uppercase italic shadow-lg">
                       {isOcdsLoading ? <Loader2 className="animate-spin mr-2" /> : <CloudDownload className="mr-2" />} Iniciar Succión de Datos
                     </Button>
-                    <p className="text-[9px] text-center text-muted-foreground italic font-medium">
-                      * El motor succionará hasta 3,000 registros por ejecución para asegurar estabilidad.
-                    </p>
                   </div>
                 </DialogContent>
               </Dialog>
@@ -228,10 +223,10 @@ export default function BidsListPage() {
                 <PopoverTrigger asChild><Button variant="outline" className="w-[160px] h-10 border-primary/20 bg-white font-bold text-xs rounded-xl">{selectedDate ? format(selectedDate, "dd/MM/yyyy") : "---"}</Button></PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="end"><Calendar mode="single" selected={selectedDate || undefined} onSelect={(d) => { if(d){ setSelectedDate(d); setIsCalendarOpen(false); } }} disabled={(d) => d > new Date()} initialFocus /></PopoverContent>
               </Popover>
-              <Button size="sm" className="bg-primary font-black h-10 uppercase italic text-[9px] rounded-xl px-4" onClick={handleSync} disabled={isSyncing} title="Sincroniza IDs del día seleccionado">
+              <Button size="sm" className="bg-primary font-black h-10 uppercase italic text-[9px] rounded-xl px-4" onClick={handleSync} disabled={isSyncing}>
                 <RefreshCw className={cn("h-3 w-3 mr-2", isSyncing && "animate-spin")} /> Ingesta IDs
               </Button>
-              <Button size="sm" className="bg-accent text-white font-black h-10 uppercase italic text-[9px] rounded-xl px-4" onClick={handleEnrich} disabled={isEnriching} title="Trae montos e instituciones de los IDs pendientes">
+              <Button size="sm" className="bg-accent text-white font-black h-10 uppercase italic text-[9px] rounded-xl px-4" onClick={handleEnrich} disabled={isEnriching}>
                 {isEnriching ? <><Loader2 className="h-3 w-3 mr-2 animate-spin" /> Procesando...</> : <><Database className="h-3 w-3 mr-2" /> Enriquecer Repo</>}
               </Button>
             </Card>

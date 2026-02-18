@@ -86,6 +86,7 @@ export default function BidsListPage() {
   const stats = useMemo(() => {
     if (!bids) return { total: 0, enriched: 0, pending: 0 };
     const total = bids.length;
+    // Definimos enriquecida si tiene entidad y el nombre NO es el genérico de fallback
     const enriched = bids.filter(b => b.entity && b.entity !== "Institución no especificada").length;
     return { total, enriched, pending: total - enriched };
   }, [bids]);
@@ -101,7 +102,7 @@ export default function BidsListPage() {
         description: `Consultando portal para el ${format(selectedDate, "dd/MM")}...`,
       })
       await getBidsByDate(formattedDate)
-      toast({ title: "Importación Exitosa", description: "Base de datos actualizada." })
+      toast({ title: "Importación Exitosa", description: "Base de datos actualizada con nuevos IDs." })
     } catch (error: any) {
       toast({ variant: "destructive", title: "Error de API", description: error.message })
     } finally {
@@ -110,27 +111,29 @@ export default function BidsListPage() {
   }
 
   const handleEnrich = async () => {
-    if (!pagedBids || pagedBids.length === 0 || !isSuperAdmin) return;
+    if (!bids || bids.length === 0 || !isSuperAdmin) return;
     setIsEnriching(true);
     let count = 0;
     try {
-      const toEnrich = pagedBids.filter(b => !b.entity || b.entity === "Institución no especificada" || !b.amount);
+      // Intentamos enriquecer TODAS las que faltan en el set de datos cargado (hasta 500)
+      const toEnrich = bids.filter(b => !b.entity || b.entity === "Institución no especificada");
+      
       if (toEnrich.length === 0) {
-        toast({ title: "Datos Completos", description: "Todos los procesos visibles ya están enriquecidos." });
+        toast({ title: "Datos Completos", description: "Todo el repositorio visible ya está enriquecido." });
         return;
       }
       
-      toast({ title: "Enriqueciendo Repositorio", description: `Obteniendo detalles para ${toEnrich.length} procesos.` });
+      toast({ title: "Iniciando Enriquecimiento", description: `Procesando ${toEnrich.length} licitaciones...` });
       
       for (const bid of toEnrich) {
         await getBidDetail(bid.id);
         count++;
-        // Pausa táctica para evitar 429 Too Many Requests
-        if (count % 3 === 0) await new Promise(r => setTimeout(r, 1000));
+        // Pausa táctica para evitar 429 Too Many Requests de la API oficial
+        if (count % 3 === 0) await new Promise(r => setTimeout(r, 1500));
       }
-      toast({ title: "Actualización Finalizada", description: `Se han guardado ${count} licitaciones enriquecidas.` });
+      toast({ title: "Proceso Finalizado", description: `Se han enriquecido ${count} licitaciones exitosamente.` });
     } catch (e: any) {
-      toast({ variant: "destructive", title: "Límite API", description: "El portal oficial está saturado. Intenta en unos minutos." });
+      toast({ variant: "destructive", title: "API Saturada", description: "Mercado Público ha limitado las peticiones. Intenta más tarde." });
     } finally {
       setIsEnriching(false);
     }
@@ -231,7 +234,7 @@ export default function BidsListPage() {
                 <PopoverContent className="w-auto p-0" align="end"><Calendar mode="single" selected={selectedDate || undefined} onSelect={(d) => { if(d){ setSelectedDate(d); setIsCalendarOpen(false); } }} disabled={(d) => d > new Date()} initialFocus /></PopoverContent>
               </Popover>
               <Button size="sm" className="bg-primary font-black h-10 uppercase italic text-[9px] rounded-xl px-4" onClick={handleSync} disabled={isSyncing}><RefreshCw className={cn("h-3 w-3 mr-2", isSyncing && "animate-spin")} /> Ingesta IDs</Button>
-              <Button size="sm" className="bg-accent font-black h-10 uppercase italic text-[9px] shadow-lg rounded-xl px-4" onClick={handleEnrich} disabled={isEnriching || isSyncing || !pagedBids.length}>
+              <Button size="sm" className="bg-accent font-black h-10 uppercase italic text-[9px] shadow-lg rounded-xl px-4" onClick={handleEnrich} disabled={isEnriching || isSyncing || !bids?.length}>
                 {isEnriching ? <Loader2 className="h-3 w-3 mr-2 animate-spin" /> : <Database className="h-3 w-3 mr-2" />} Enriquecer Repo
               </Button>
             </Card>

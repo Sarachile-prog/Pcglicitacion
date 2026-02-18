@@ -2,48 +2,45 @@
 
 import { firebaseConfig } from '@/firebase/config';
 import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import { getAuth, Auth } from 'firebase/auth';
+import { getFirestore, Firestore } from 'firebase/firestore';
 
 /**
  * PCG LICITACIÓN - ECOSISTEMA DE INTELIGENCIA 2026
- * Inicialización segura con patrón Singleton.
- * Evita colisiones de red y errores de despliegue en entornos Next.js.
+ * Inicialización Singleton Definitiva para evitar bloqueos en Publishing.
  */
 
 let app: FirebaseApp;
+let auth: Auth;
+let firestore: Firestore;
 
-if (!getApps().length) {
-  try {
-    // Intentar inicialización para Firebase App Hosting
-    app = initializeApp();
-  } catch (e) {
-    // Fallback a configuración manual segura
+if (typeof window !== 'undefined') {
+  // Lógica de cliente: Garantizar instancia única
+  if (!getApps().length) {
     app = initializeApp(firebaseConfig);
+  } else {
+    app = getApp();
   }
+  auth = getAuth(app);
+  firestore = getFirestore(app);
 } else {
-  app = getApp();
+  // Lógica de servidor (SSR): Inicialización mínima
+  if (!getApps().length) {
+    app = initializeApp(firebaseConfig);
+  } else {
+    app = getApp();
+  }
+  auth = getAuth(app);
+  firestore = getFirestore(app);
 }
 
-export const firebaseApp = app;
+export { app as firebaseApp, auth, firestore };
 
 export function initializeFirebase() {
-  return getSdks(firebaseApp);
-}
-
-export function getSdks(instance: FirebaseApp) {
-  return {
-    firebaseApp: instance,
-    auth: getAuth(instance),
-    firestore: getFirestore(instance)
-  };
+  return { firebaseApp: app, auth, firestore };
 }
 
 export * from './provider';
 export * from './client-provider';
 export * from './firestore/use-collection';
 export * from './firestore/use-doc';
-export * from './non-blocking-updates';
-export * from './non-blocking-login';
-export * from './errors';
-export * from './error-emitter';

@@ -1,6 +1,7 @@
 'use server';
 /**
  * @fileOverview Servicio para interactuar con la API de Mercado Público y API OCDS.
+ * Ajustado para funciones de 2ª Generación (Cloud Run).
  */
 
 export interface MercadoPublicoItem {
@@ -37,13 +38,15 @@ export interface MercadoPublicoBid {
   };
 }
 
-const BASE_URL = 'https://us-central1-studio-4126028826-31b2f.cloudfunctions.net';
+// URL base detectada desde el despliegue de 2ª generación
+const BASE_DOMAIN = 'https://uusj753vka-uc.a.run.app';
 
 /**
  * Llama a la función de ingesta masiva (Sincronización por Fecha - API Ticket).
  */
 export async function getBidsByDate(date: string): Promise<{ success: boolean; count: number; message: string }> {
-  const url = `${BASE_URL}/getBidsByDate?date=${date}`;
+  // Las funciones de 2ª gen tienen subdominios específicos o rutas mapeadas
+  const url = `https://getbidsbydate-uusj753vka-uc.a.run.app?date=${date}`;
 
   try {
     const response = await fetch(url, { 
@@ -53,15 +56,11 @@ export async function getBidsByDate(date: string): Promise<{ success: boolean; c
     
     const contentType = response.headers.get("content-type");
     if (!response.ok || !contentType || !contentType.includes("application/json")) {
-      throw new Error("El servidor de funciones no está listo o devolvió un error inesperado.");
+      throw new Error("El servidor de funciones no está listo. Por favor espera a que el despliegue termine.");
     }
     
     const result = await response.json();
-    
-    if (result.success === false) {
-      throw new Error(result.message || "Error en la sincronización");
-    }
-    
+    if (result.success === false) throw new Error(result.message || "Error en la sincronización");
     return result;
   } catch (error: any) {
     console.error(`[Service] Error en sincronización: ${error.message}`);
@@ -73,14 +72,10 @@ export async function getBidsByDate(date: string): Promise<{ success: boolean; c
  * Obtiene el detalle profundo consultando por código externo y actualiza Firestore.
  */
 export async function getBidDetail(code: string): Promise<MercadoPublicoBid | null> {
-  const url = `${BASE_URL}/getBidDetail?code=${code}`;
+  const url = `https://getbiddetail-uusj753vka-uc.a.run.app?code=${code}`;
 
   try {
-    const response = await fetch(url, { 
-      cache: 'no-store',
-      headers: { 'Accept': 'application/json' }
-    });
-    
+    const response = await fetch(url, { cache: 'no-store' });
     if (!response.ok) return null;
     const result = await response.json();
     return result.data || null;
@@ -94,22 +89,15 @@ export async function getBidDetail(code: string): Promise<MercadoPublicoBid | nu
  * Dispara la ingesta masiva histórica usando el estándar OCDS.
  */
 export async function syncOcdsHistorical(year: string, month: string, type: 'Licitacion' | 'TratoDirecto' | 'Convenio'): Promise<{ success: boolean; count: number; message: string }> {
-  const url = `${BASE_URL}/syncOcdsHistorical?year=${year}&month=${month}&type=${type}`;
+  const url = `https://syncocdshistorical-uusj753vka-uc.a.run.app?year=${year}&month=${month}&type=${type}`;
 
   try {
-    const response = await fetch(url, { 
-      cache: 'no-store',
-      headers: { 'Accept': 'application/json' }
-    });
-    
+    const response = await fetch(url, { cache: 'no-store' });
     const contentType = response.headers.get("content-type");
     if (!response.ok || !contentType || !contentType.includes("application/json")) {
-      throw new Error("El servidor de funciones devolvió una respuesta no válida (HTML). Por favor espera un momento a que se complete el despliegue y reintenta.");
+      throw new Error("Respuesta no válida del servidor. Reintenta en un momento.");
     }
-    
     const result = await response.json();
-    if (result.success === false) throw new Error(result.message || result.error || "Error en carga OCDS");
-    
     return result;
   } catch (error: any) {
     console.error(`[OCDS] Error: ${error.message}`);

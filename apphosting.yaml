@@ -2,9 +2,8 @@
 # https://firebase.google.com/docs/app-hosting/configure
 
 runConfig:
-  # Increase this value if you'd like to automatically spin up
-  # more instances in response to increased traffic.
-  maxInstances: 1
+  maxInstances: 2
+  memory: 1Gi
 
 env:
   - variable: NEXT_PUBLIC_FIREBASE_PROJECT_ID
@@ -15,3 +14,5 @@ env:
     value: "AIzaSyD2fJXnTHH7kvVjIhSeUb4HcmHYuGhbxOI"
   - variable: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
     value: "studio-4126028826-31b2f.firebaseapp.com"
+  - variable: NEXT_PUBLIC_DEPLOY_TOKEN
+    value: "FORCE_REBUILD_2026_02_18_1835"

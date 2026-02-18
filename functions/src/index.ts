@@ -4,7 +4,7 @@ import { onSchedule } from "firebase-functions/v2/scheduler";
 import * as admin from "firebase-admin";
 
 /**
- * EMERGENCY RE-DEPLOY POKE: 18-02-2026 16:20
+ * EMERGENCY RE-DEPLOY POKE: 18-02-2026 16:30
  * Resolviendo bloqueo de publicación y errores de sesión 403.
  * Forzando limpieza de caché de compilación en GCP.
  */

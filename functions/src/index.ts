@@ -4,8 +4,8 @@ import { onSchedule } from "firebase-functions/v2/scheduler";
 import * as admin from "firebase-admin";
 
 /**
- * RESET ESTRATÉGICO FINAL: 18-02-2026 20:05
- * Este cambio fuerza la invalidación de la caché de Cloud Build para desatascar el estado 'Publishing'.
+ * RESET ESTRATÉGICO TOTAL: 18-02-2026 20:35
+ * Limpieza de inicialización y despliegue limpio tras re-sincronización de cliente.
  */
 
 if (admin.apps.length === 0) {

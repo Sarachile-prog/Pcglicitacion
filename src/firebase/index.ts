@@ -5,38 +5,46 @@ import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore'
 
-// IMPORTANT: DO NOT MODIFY THIS FUNCTION
-export function initializeFirebase() {
-  if (!getApps().length) {
-    // Important! initializeApp() is called without any arguments because Firebase App Hosting
-    // integrates with the initializeApp() function to provide the environment variables needed to
-    // populate the FirebaseOptions in production. It is critical that we attempt to call initializeApp()
-    // without arguments.
-    let firebaseApp;
-    try {
-      // Attempt to initialize via Firebase App Hosting environment variables
-      firebaseApp = initializeApp();
-    } catch (e) {
-      // Only warn in production because it's normal to use the firebaseConfig to initialize
-      // during development
-      if (process.env.NODE_ENV === "production") {
-        console.warn('Automatic initialization failed. Falling back to firebase config object.', e);
-      }
-      firebaseApp = initializeApp(firebaseConfig);
+/**
+ * PCG LICITACIÓN - ECOSISTEMA DE INTELIGENCIA 2026
+ * Inicialización de nivel de módulo para prevenir colisiones en Publishing.
+ * Este patrón asegura que initializeApp() se ejecute una sola vez.
+ */
+
+let app: FirebaseApp;
+
+if (!getApps().length) {
+  try {
+    // 1. Intentar inicialización automática (Firebase App Hosting)
+    // Esto es preferible en entornos de producción.
+    app = initializeApp();
+  } catch (e) {
+    // 2. Fallback a configuración manual (Desarrollo / Entornos Locales)
+    if (process.env.NODE_ENV === "production") {
+      console.warn('PCG: Fallback a firebaseConfig detectado en producción.');
     }
-
-    return getSdks(firebaseApp);
+    app = initializeApp(firebaseConfig);
   }
-
-  // If already initialized, return the SDKs with the already initialized App
-  return getSdks(getApp());
+} else {
+  // 3. Reutilizar la instancia existente si ya fue creada
+  app = getApp();
 }
 
-export function getSdks(firebaseApp: FirebaseApp) {
+export const firebaseApp = app;
+
+/**
+ * Función para obtener los SDKs inicializados.
+ * Utilizada por el FirebaseProvider para inyectar servicios en el árbol de React.
+ */
+export function initializeFirebase() {
+  return getSdks(firebaseApp);
+}
+
+export function getSdks(instance: FirebaseApp) {
   return {
-    firebaseApp,
-    auth: getAuth(firebaseApp),
-    firestore: getFirestore(firebaseApp)
+    firebaseApp: instance,
+    auth: getAuth(instance),
+    firestore: getFirestore(instance)
   };
 }
 

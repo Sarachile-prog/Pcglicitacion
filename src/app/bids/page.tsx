@@ -116,7 +116,6 @@ export default function BidsListPage() {
   const handleOcdsSync = async () => {
     if (!isSuperAdmin) return;
     
-    // Validar fecha futura en el cliente
     const now = new Date();
     const reqDate = new Date(parseInt(ocdsYear), parseInt(ocdsMonth) - 1, 1);
     if (reqDate > now) {
@@ -128,8 +127,12 @@ export default function BidsListPage() {
     try {
       toast({ title: "Iniciando Carga Histórica", description: "Esto puede tardar un minuto..." })
       const res = await syncOcdsHistorical(ocdsYear, ocdsMonth, ocdsType)
-      toast({ title: "Éxito OCDS", description: res.message })
-      setIsOcdsDialogOpen(false)
+      if (res.success) {
+        toast({ title: "Éxito OCDS", description: res.message })
+        setIsOcdsDialogOpen(false)
+      } else {
+        toast({ variant: "destructive", title: "OCDS Incompleto", description: res.message })
+      }
     } catch (e: any) {
       toast({ variant: "destructive", title: "Error OCDS", description: e.message })
     } finally {
@@ -255,7 +258,7 @@ export default function BidsListPage() {
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-1">
                         <label className="text-[10px] font-black uppercase">Año</label>
-                        <Input value={ocdsYear} onChange={(e) => setOcdsYear(e.target.value)} placeholder="2024" />
+                        <Input value={ocdsYear} onChange={(e) => setOcdsYear(e.target.value)} placeholder="2026" />
                       </div>
                       <div className="space-y-1">
                         <label className="text-[10px] font-black uppercase">Mes (01-12)</label>
@@ -297,8 +300,8 @@ export default function BidsListPage() {
       {isSuperAdmin && isEnriching && (
         <Card className="border-accent bg-accent/5 shadow-lg animate-in slide-in-from-top-4">
           <CardContent className="p-6 space-y-4">
-            <div className="flex justify-between items-center"><div className="flex items-center gap-2"><Activity className="h-4 w-4 text-accent animate-pulse" /><span className="text-xs font-black uppercase text-accent tracking-widest italic">Enriqueciendo datos técnicos...</span></div><span className="text-xs font-black text-primary italic">{Math.round((enrichCount / enrichTotal) * 100)}%</span></div>
-            <Progress value={(enrichCount / enrichTotal) * 100} className="h-2.5 bg-accent/20" />
+            <div className="flex justify-between items-center"><div className="flex items-center gap-2"><Activity className="h-4 w-4 text-accent animate-pulse" /><span className="text-xs font-black uppercase text-accent tracking-widest italic">Enriqueciendo datos técnicos...</span></div><span className="text-xs font-black text-primary italic">{Math.round((enrichCount / (enrichTotal || 1)) * 100)}%</span></div>
+            <Progress value={(enrichCount / (enrichTotal || 1)) * 100} className="h-2.5 bg-accent/20" />
           </CardContent>
         </Card>
       )}

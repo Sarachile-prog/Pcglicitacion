@@ -100,9 +100,6 @@ export const getBidsByDate = onRequest({
   }
 });
 
-/**
- * Ingesta Masiva Estándar OCDS.
- */
 export const syncOcdsHistorical = onRequest({
   cors: true,
   region: "us-central1",
@@ -113,7 +110,6 @@ export const syncOcdsHistorical = onRequest({
   const { year, month, type } = request.query;
   if (!year || !month || !type) return response.status(400).json({ error: "Faltan parámetros" });
 
-  // Validación preventiva de fecha futura
   const now = new Date();
   const reqDate = new Date(parseInt(year), parseInt(month) - 1, 1);
   if (reqDate > now) {
@@ -131,18 +127,23 @@ export const syncOcdsHistorical = onRequest({
     const res = await fetch(initialUrl);
     
     if (!res.ok) {
-      return response.json({ success: false, message: "El portal oficial no tiene datos para este periodo (Error " + res.status + ")" });
+      return response.json({ success: false, message: `El portal oficial no respondió correctamente (Error ${res.status}). Intenta con otro mes.` });
     }
 
-    // Blindaje contra respuestas no-JSON
     const contentType = res.headers.get("content-type");
     if (!contentType || !contentType.includes("application/json")) {
-      return response.json({ success: false, message: "La API oficial devolvió un error de servidor. Intenta con otro mes." });
+      return response.json({ success: false, message: "La API oficial devolvió un error de servidor (HTML). Es posible que el servicio OCDS de Mercado Público esté caído temporalmente." });
     }
 
-    const data = await res.json() as any;
-    if (!data.data || !Array.isArray(data.data)) {
-      return response.json({ success: false, message: "No hay registros para " + month + "/" + year });
+    let data;
+    try {
+      data = await res.json() as any;
+    } catch (e) {
+      return response.json({ success: false, message: "Error al interpretar la respuesta de la API oficial." });
+    }
+
+    if (!data || !data.data || !Array.isArray(data.data)) {
+      return response.json({ success: false, message: "No se encontraron registros para el periodo " + month + "/" + year });
     }
 
     const totalRecords = data.total || data.data.length;
@@ -182,16 +183,20 @@ export const syncOcdsHistorical = onRequest({
     
     for (let start = 1001; start < limitRecords; start += 1000) {
       const nextUrl = `https://api.mercadopublico.cl/APISOCDS/OCDS/${endpointBase}/${year}/${month}/${start}/${start + 1000}`;
-      const nextRes = await fetch(nextUrl);
-      if (nextRes.ok) {
-        const nextContentType = nextRes.headers.get("content-type");
-        if (nextContentType && nextContentType.includes("application/json")) {
-          const nextData = await nextRes.json() as any;
-          if (nextData.data) {
-            await processBatch(nextData.data);
-            processedCount += nextData.data.length;
+      try {
+        const nextRes = await fetch(nextUrl);
+        if (nextRes.ok) {
+          const nextContentType = nextRes.headers.get("content-type");
+          if (nextContentType && nextContentType.includes("application/json")) {
+            const nextData = await nextRes.json() as any;
+            if (nextData && nextData.data) {
+              await processBatch(nextData.data);
+              processedCount += nextData.data.length;
+            }
           }
         }
+      } catch (e) {
+        console.warn(`>>> [OCDS] Fallo lote ${start}:`, e);
       }
       await sleep(1000);
     }
@@ -199,12 +204,12 @@ export const syncOcdsHistorical = onRequest({
     response.json({ 
       success: true, 
       count: processedCount, 
-      message: `Carga finalizada: ${processedCount} registros sincronizados.` 
+      message: `Carga finalizada exitosamente: ${processedCount} registros sincronizados.` 
     });
 
   } catch (error: any) {
     console.error(">>> [OCDS_CRASH]:", error.message);
-    response.json({ success: false, message: "Error crítico: " + error.message });
+    response.json({ success: false, message: "Error crítico del servidor: " + error.message });
   }
 });
 

@@ -101,28 +101,38 @@ export const getBidsByDate = onRequest({
 });
 
 /**
- * NUEVO: Ingesta Masiva Estándar OCDS (Histórica).
- * Procesa un mes completo en un solo lote para el SuperAdmin.
+ * Ingesta Masiva Estándar OCDS.
+ * Mejorada con manejo de errores de red para evitar retornos HTML.
  */
 export const syncOcdsHistorical = onRequest({
   cors: true,
   region: "us-central1",
   invoker: "public",
   timeoutSeconds: 300,
-  memory: "512MiB"
+  memory: "256MiB"
 }, async (request: any, response: any) => {
   const { year, month, type } = request.query;
-  if (!year || !month || !type) return response.status(400).json({ error: "Faltan parámetros masivos" });
+  if (!year || !month || !type) return response.status(400).json({ error: "Faltan parámetros" });
 
   const db = admin.firestore();
   const endpointBase = type === 'Licitacion' ? 'listaOCDSAgnoMes' : 
                        type === 'TratoDirecto' ? 'listaOCDSAgnoMesTratoDirecto' : 'listaOCDSAgnoMesConvenio';
   
-  // Consultamos el primer lote de 1000 para obtener el total
   const initialUrl = `https://api.mercadopublico.cl/APISOCDS/OCDS/${endpointBase}/${year}/${month}/0/1000`;
   
   try {
     const res = await fetch(initialUrl);
+    
+    // Si la API oficial devuelve un error (HTML), lanzamos error controlado
+    if (!res.ok) {
+      return response.status(200).json({ success: false, message: "El portal de Mercado Público no respondió correctamente (Error " + res.status + ")." });
+    }
+
+    const contentType = res.headers.get("content-type");
+    if (!contentType || !contentType.includes("application/json")) {
+      return response.status(200).json({ success: false, message: "El portal devolvió un formato no válido. Reintenta en unos minutos." });
+    }
+
     const data = await res.json() as any;
     
     if (!data.data || !Array.isArray(data.data)) {
@@ -133,11 +143,9 @@ export const syncOcdsHistorical = onRequest({
     let processedCount = 0;
     const nowServer = admin.firestore.FieldValue.serverTimestamp();
 
-    // Función interna para procesar una lista de OCDS Releases
     const processBatch = async (items: any[]) => {
       const batch = db.batch();
       items.forEach((item: any) => {
-        // En OCDS ChileCompra, la información útil viene en releases[0]
         const release = item.releases?.[0];
         if (!release || !release.tender) return;
 
@@ -160,34 +168,37 @@ export const syncOcdsHistorical = onRequest({
       await batch.commit();
     };
 
-    // Procesamos el primer lote
     await processBatch(data.data);
     processedCount += data.data.length;
 
-    // Debido al timeout de 5 min, procesamos solo hasta 5000 registros en una sola llamada
-    // para evitar que la función se caiga. El admin puede llamar varias veces si es necesario.
-    const limit = Math.min(totalRecords, 5000);
+    // Procesamos un máximo razonable para evitar exceder el timeout en el entorno de estudio
+    const limit = Math.min(totalRecords, 3000);
     
     for (let start = 1001; start < limit; start += 1000) {
       const nextUrl = `https://api.mercadopublico.cl/APISOCDS/OCDS/${endpointBase}/${year}/${month}/${start}/${start + 1000}`;
-      const nextRes = await fetch(nextUrl);
-      const nextData = await nextRes.json() as any;
-      if (nextData.data) {
-        await processBatch(nextData.data);
-        processedCount += nextData.data.length;
-      }
-      await sleep(1000); // Respeto a la API
+      try {
+        const nextRes = await fetch(nextUrl);
+        if (nextRes.ok) {
+          const nextData = await nextRes.json() as any;
+          if (nextData.data) {
+            await processBatch(nextData.data);
+            processedCount += nextData.data.length;
+          }
+        }
+      } catch (innerE) { console.error("Error en lote intermedio:", innerE); }
+      await sleep(1000);
     }
 
     response.json({ 
       success: true, 
       count: processedCount, 
       totalAvailable: totalRecords,
-      message: `Ingesta masiva finalizada: ${processedCount} registros cargados.` 
+      message: `Carga finalizada: ${processedCount} registros sincronizados.` 
     });
 
   } catch (error: any) {
-    response.status(500).json({ error: error.message });
+    console.error(">>> [OCDS_CRASH]:", error.message);
+    response.status(200).json({ success: false, error: "Error interno del motor: " + error.message });
   }
 });
 

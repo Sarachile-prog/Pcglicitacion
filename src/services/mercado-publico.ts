@@ -2,7 +2,6 @@
 'use server';
 /**
  * @fileOverview Servicio para interactuar con la API de Mercado Público y API OCDS.
- * Mapeado según el diccionario de datos oficial de ChileCompra y estándar OCDS.
  */
 
 export interface MercadoPublicoItem {
@@ -53,11 +52,12 @@ export async function getBidsByDate(date: string): Promise<{ success: boolean; c
       headers: { 'Accept': 'application/json' }
     });
     
-    const result = await response.json();
-    
-    if (!response.ok) {
-      throw new Error(result.error || result.message || "Error de conexión con el servidor");
+    const contentType = response.headers.get("content-type");
+    if (!response.ok || !contentType || !contentType.includes("application/json")) {
+      throw new Error("El servidor de funciones no está listo o devolvió un error inesperado.");
     }
+    
+    const result = await response.json();
     
     if (result.success === false) {
       throw new Error(result.message || "Error en la sincronización");
@@ -92,8 +92,7 @@ export async function getBidDetail(code: string): Promise<MercadoPublicoBid | nu
 }
 
 /**
- * NUEVO: Dispara la ingesta masiva histórica usando el estándar OCDS.
- * Permite cargar miles de registros de un mes específico.
+ * Dispara la ingesta masiva histórica usando el estándar OCDS.
  */
 export async function syncOcdsHistorical(year: string, month: string, type: 'Licitacion' | 'TratoDirecto' | 'Convenio'): Promise<{ success: boolean; count: number; message: string }> {
   const url = `${BASE_URL}/syncOcdsHistorical?year=${year}&month=${month}&type=${type}`;
@@ -104,8 +103,14 @@ export async function syncOcdsHistorical(year: string, month: string, type: 'Lic
       headers: { 'Accept': 'application/json' }
     });
     
+    const contentType = response.headers.get("content-type");
+    if (!response.ok || !contentType || !contentType.includes("application/json")) {
+      throw new Error("El servidor de funciones devolvió una respuesta no válida (HTML). Por favor espera un momento a que se complete el despliegue y reintenta.");
+    }
+    
     const result = await response.json();
-    if (!response.ok) throw new Error(result.error || "Error en carga OCDS");
+    if (result.success === false) throw new Error(result.message || result.error || "Error en carga OCDS");
+    
     return result;
   } catch (error: any) {
     console.error(`[OCDS] Error: ${error.message}`);

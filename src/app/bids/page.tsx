@@ -64,10 +64,10 @@ export default function BidsListPage() {
   const [currentPage, setCurrentPage] = useState(1)
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
 
-  // Estados para Carga Histórica OCDS
+  // Estados para Carga Histórica OCDS (Hidratación segura)
   const [isOcdsDialogOpen, setIsOcdsDialogOpen] = useState(false)
-  const [ocdsYear, setOcdsYear] = useState(new Date().getFullYear().toString())
-  const [ocdsMonth, setOcdsMonth] = useState((new Date().getMonth() + 1).toString().padStart(2, '0'))
+  const [ocdsYear, setOcdsYear] = useState("")
+  const [ocdsMonth, setOcdsMonth] = useState("")
   const [ocdsType, setOcdsType] = useState<'Licitacion' | 'TratoDirecto' | 'Convenio'>('Licitacion')
   const [isOcdsLoading, setIsOcdsLoading] = useState(false)
   
@@ -78,6 +78,10 @@ export default function BidsListPage() {
     if (day === 0) initialDate = subDays(today, 2); 
     if (day === 6) initialDate = subDays(today, 1);
     setSelectedDate(initialDate);
+
+    // Inicializar valores de OCDS de forma segura en el cliente
+    setOcdsYear(today.getFullYear().toString());
+    setOcdsMonth((today.getMonth() + 1).toString().padStart(2, '0'));
   }, []);
 
   const profileRef = useMemoFirebase(() => user ? doc(db!, "users", user.uid) : null, [db, user])
@@ -114,15 +118,8 @@ export default function BidsListPage() {
   }
 
   const handleOcdsSync = async () => {
-    if (!isSuperAdmin) return;
+    if (!isSuperAdmin || !ocdsYear || !ocdsMonth) return;
     
-    const now = new Date();
-    const reqDate = new Date(parseInt(ocdsYear), parseInt(ocdsMonth) - 1, 1);
-    if (reqDate > now) {
-      toast({ variant: "destructive", title: "Fecha No Válida", description: "No puedes sincronizar meses futuros. Elige el mes actual o uno pasado." });
-      return;
-    }
-
     setIsOcdsLoading(true)
     try {
       toast({ title: "Iniciando Carga Histórica", description: "Esto puede tardar un minuto..." })
@@ -393,7 +390,7 @@ export default function BidsListPage() {
                       <TableCell className={cn("text-right font-black italic py-6 px-6 text-xl tracking-tighter", !isEnriched ? "text-amber-600/30" : "text-primary")}>
                         {formatCurrency(bid.amount, bid.currency)}
                       </TableCell>
-                      <TableCell className="py-6 pr-6"><Link href={`/bids/${bid.id}`}><div className="h-10 w-10 rounded-full bg-primary/5 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-white transition-all"><ChevronRight className="h-5 w-5" /></div></Link></TableCell>
+                      <TableCell className="py-6 pr-6"><Link href={`/bids/${bid.id}`}><div className="h-10 w-10 rounded-full bg-primary/5 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-white transition-all shadow-sm"><ChevronRight className="h-5 w-5" /></div></Link></TableCell>
                     </TableRow>
                   )
                 })}

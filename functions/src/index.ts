@@ -3,6 +3,11 @@ import { onRequest } from "firebase-functions/v2/https";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import * as admin from "firebase-admin";
 
+/**
+ * RE-DEPLOY POKE: 18-02-2026 16:15
+ * Forzando actualización de servidores para limpiar colas de publicación.
+ */
+
 if (admin.apps.length === 0) {
   admin.initializeApp();
 }
@@ -111,9 +116,11 @@ export const syncOcdsHistorical = onRequest({
   if (!year || !month || !type) return response.status(400).json({ error: "Faltan parámetros" });
 
   const now = new Date();
-  const reqDate = new Date(parseInt(year), parseInt(month) - 1, 1);
+  const reqDate = new Date(parseInt(year as string), parseInt(month as string) - 1, 1);
+  
+  // Validación de seguridad Feb 2026
   if (reqDate > now) {
-    return response.json({ success: false, message: "No se puede sincronizar el futuro. Selecciona un mes pasado." });
+    return response.json({ success: false, message: "No se puede sincronizar el futuro. Selecciona un mes pasado (Contexto: Feb 2026)." });
   }
 
   const db = admin.firestore();
@@ -121,25 +128,26 @@ export const syncOcdsHistorical = onRequest({
                        type === 'TratoDirecto' ? 'listaOCDSAgnoMesTratoDirecto' : 'listaOCDSAgnoMesConvenio';
   
   try {
-    const initialUrl = `https://api.mercadopublico.cl/APISOCDS/OCDS/${endpointBase}/${year}/${month}/0/1000`;
+    // Rango base de 1000 registros para evitar sobrecarga
+    const initialUrl = `https://api.mercadopublico.cl/APISOCDS/OCDS/${endpointBase}/${year}/${month}/0/999`;
     console.log(`>>> [OCDS] Consultando: ${initialUrl}`);
     
     const res = await fetch(initialUrl);
     
     if (!res.ok) {
-      return response.json({ success: false, message: `El portal oficial no respondió correctamente (Error ${res.status}). Intenta con otro mes.` });
+      return response.json({ success: false, message: `Portal Mercado Público no responde (Error ${res.status}). Reintenta en 1 minuto.` });
     }
 
     const contentType = res.headers.get("content-type");
     if (!contentType || !contentType.includes("application/json")) {
-      return response.json({ success: false, message: "La API oficial devolvió un error de servidor (HTML). Es posible que el servicio OCDS de Mercado Público esté caído temporalmente." });
+      return response.json({ success: false, message: "La API oficial está saturada. Por favor espera un momento y vuelve a intentar." });
     }
 
     let data;
     try {
       data = await res.json() as any;
     } catch (e) {
-      return response.json({ success: false, message: "Error al interpretar la respuesta de la API oficial." });
+      return response.json({ success: false, message: "Error al interpretar datos de la API oficial." });
     }
 
     if (!data || !data.data || !Array.isArray(data.data)) {
@@ -178,38 +186,35 @@ export const syncOcdsHistorical = onRequest({
     await processBatch(data.data);
     processedCount += data.data.length;
 
-    // Límite táctico de 3 lotes para no exceder timeout
-    const limitRecords = Math.min(totalRecords, 3000);
+    // Límite táctico de lotes para no exceder el timeout de la función de Google
+    const limitRecords = Math.min(totalRecords, 2000);
     
-    for (let start = 1001; start < limitRecords; start += 1000) {
-      const nextUrl = `https://api.mercadopublico.cl/APISOCDS/OCDS/${endpointBase}/${year}/${month}/${start}/${start + 1000}`;
+    for (let start = 1000; start < limitRecords; start += 1000) {
+      const nextUrl = `https://api.mercadopublico.cl/APISOCDS/OCDS/${endpointBase}/${year}/${month}/${start}/${start + 999}`;
       try {
         const nextRes = await fetch(nextUrl);
         if (nextRes.ok) {
-          const nextContentType = nextRes.headers.get("content-type");
-          if (nextContentType && nextContentType.includes("application/json")) {
-            const nextData = await nextRes.json() as any;
-            if (nextData && nextData.data) {
-              await processBatch(nextData.data);
-              processedCount += nextData.data.length;
-            }
+          const nextData = await nextRes.json() as any;
+          if (nextData && nextData.data) {
+            await processBatch(nextData.data);
+            processedCount += nextData.data.length;
           }
         }
       } catch (e) {
         console.warn(`>>> [OCDS] Fallo lote ${start}:`, e);
       }
-      await sleep(1000);
+      await sleep(1500); // Delay preventivo para evitar bloqueo por IP
     }
 
     response.json({ 
       success: true, 
       count: processedCount, 
-      message: `Carga finalizada exitosamente: ${processedCount} registros sincronizados.` 
+      message: `Carga finalizada: ${processedCount} registros sincronizados exitosamente.` 
     });
 
   } catch (error: any) {
     console.error(">>> [OCDS_CRASH]:", error.message);
-    response.json({ success: false, message: "Error crítico del servidor: " + error.message });
+    response.json({ success: false, message: "Error técnico del servidor: " + error.message });
   }
 });
 

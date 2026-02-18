@@ -4,9 +4,9 @@ import { onSchedule } from "firebase-functions/v2/scheduler";
 import * as admin from "firebase-admin";
 
 /**
- * EMERGENCY RE-DEPLOY POKE: 18-02-2026 16:30
- * Resolviendo bloqueo de publicación y errores de sesión 403.
- * Forzando limpieza de caché de compilación en GCP.
+ * RESET DIAGNÓSTICO DE EMERGENCIA: 18-02-2026 16:45
+ * Este comentario fuerza a Cloud Build a ignorar despliegues previos "pegados".
+ * Resolviendo errores 404 de workers y 403 de sesión.
  */
 
 if (admin.apps.length === 0) {
@@ -129,17 +129,16 @@ export const syncOcdsHistorical = onRequest({
   
   try {
     const initialUrl = `https://api.mercadopublico.cl/APISOCDS/OCDS/${endpointBase}/${year}/${month}/0/999`;
-    console.log(`>>> [OCDS] Consultando: ${initialUrl}`);
     
     const res = await fetch(initialUrl);
     
     if (!res.ok) {
-      return response.json({ success: false, message: `Portal Mercado Público no responde (Error ${res.status}). Reintenta en 1 minuto.` });
+      return response.json({ success: false, message: `Portal Mercado Público no responde (Error ${res.status}).` });
     }
 
     const contentType = res.headers.get("content-type");
     if (!contentType || !contentType.includes("application/json")) {
-      return response.json({ success: false, message: "La API oficial está saturada. Por favor espera un momento y vuelve a intentar." });
+      return response.json({ success: false, message: "La API oficial está saturada. Intenta de nuevo en un momento." });
     }
 
     let data;
@@ -150,7 +149,7 @@ export const syncOcdsHistorical = onRequest({
     }
 
     if (!data || !data.data || !Array.isArray(data.data)) {
-      return response.json({ success: false, message: "No se encontraron registros para el periodo " + month + "/" + year });
+      return response.json({ success: false, message: "No se encontraron registros." });
     }
 
     const totalRecords = data.total || data.data.length;
@@ -185,7 +184,6 @@ export const syncOcdsHistorical = onRequest({
     await processBatch(data.data);
     processedCount += data.data.length;
 
-    // Limitamos a 2000 registros adicionales por seguridad de timeout
     const limitRecords = Math.min(totalRecords, 2000);
     
     for (let start = 1000; start < limitRecords; start += 1000) {
@@ -200,19 +198,18 @@ export const syncOcdsHistorical = onRequest({
           }
         }
       } catch (e) {
-        console.warn(`>>> [OCDS] Fallo lote ${start}:`, e);
+        console.warn(`>>> [OCDS] Fallo lote ${start}`);
       }
-      await sleep(1500); // Pausa para evitar bloqueo de Mercado Público
+      await sleep(1500);
     }
 
     response.json({ 
       success: true, 
       count: processedCount, 
-      message: `Carga finalizada: ${processedCount} registros sincronizados exitosamente.` 
+      message: `Carga finalizada: ${processedCount} registros sincronizados.` 
     });
 
   } catch (error: any) {
-    console.error(">>> [OCDS_CRASH]:", error.message);
     response.json({ success: false, message: "Error técnico del servidor: " + error.message });
   }
 });

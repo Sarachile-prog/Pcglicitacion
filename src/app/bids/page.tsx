@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useMemo, useEffect } from "react"
@@ -114,6 +115,15 @@ export default function BidsListPage() {
 
   const handleOcdsSync = async () => {
     if (!isSuperAdmin) return;
+    
+    // Validar fecha futura en el cliente
+    const now = new Date();
+    const reqDate = new Date(parseInt(ocdsYear), parseInt(ocdsMonth) - 1, 1);
+    if (reqDate > now) {
+      toast({ variant: "destructive", title: "Fecha No Válida", description: "No puedes sincronizar meses futuros. Elige el mes actual o uno pasado." });
+      return;
+    }
+
     setIsOcdsLoading(true)
     try {
       toast({ title: "Iniciando Carga Histórica", description: "Esto puede tardar un minuto..." })
@@ -230,7 +240,6 @@ export default function BidsListPage() {
                 <span className="text-[10px] font-black uppercase text-primary italic">Admin</span>
               </div>
               
-              {/* DIÁLOGO OCDS CARGA MASIVA */}
               <Dialog open={isOcdsDialogOpen} onOpenChange={setIsOcdsDialogOpen}>
                 <DialogTrigger asChild>
                   <Button size="sm" className="bg-emerald-600 font-black h-10 uppercase italic text-[9px] rounded-xl px-4 text-white">

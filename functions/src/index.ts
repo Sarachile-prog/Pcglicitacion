@@ -102,7 +102,6 @@ export const getBidsByDate = onRequest({
 
 /**
  * Ingesta Masiva Estándar OCDS.
- * Permite al SuperAdmin cargar miles de registros históricos sin usar ticket.
  */
 export const syncOcdsHistorical = onRequest({
   cors: true,
@@ -114,17 +113,31 @@ export const syncOcdsHistorical = onRequest({
   const { year, month, type } = request.query;
   if (!year || !month || !type) return response.status(400).json({ error: "Faltan parámetros" });
 
+  // Validación preventiva de fecha futura
+  const now = new Date();
+  const reqDate = new Date(parseInt(year), parseInt(month) - 1, 1);
+  if (reqDate > now) {
+    return response.json({ success: false, message: "No se puede sincronizar el futuro. Selecciona un mes pasado." });
+  }
+
   const db = admin.firestore();
   const endpointBase = type === 'Licitacion' ? 'listaOCDSAgnoMes' : 
                        type === 'TratoDirecto' ? 'listaOCDSAgnoMesTratoDirecto' : 'listaOCDSAgnoMesConvenio';
   
   try {
-    // Consultamos el lote inicial (0 a 1000)
     const initialUrl = `https://api.mercadopublico.cl/APISOCDS/OCDS/${endpointBase}/${year}/${month}/0/1000`;
+    console.log(`>>> [OCDS] Consultando: ${initialUrl}`);
+    
     const res = await fetch(initialUrl);
     
     if (!res.ok) {
-      return response.json({ success: false, message: "El portal oficial no respondió (Error " + res.status + ")" });
+      return response.json({ success: false, message: "El portal oficial no tiene datos para este periodo (Error " + res.status + ")" });
+    }
+
+    // Blindaje contra respuestas no-JSON
+    const contentType = res.headers.get("content-type");
+    if (!contentType || !contentType.includes("application/json")) {
+      return response.json({ success: false, message: "La API oficial devolvió un error de servidor. Intenta con otro mes." });
     }
 
     const data = await res.json() as any;
@@ -161,21 +174,23 @@ export const syncOcdsHistorical = onRequest({
       await batch.commit();
     };
 
-    // Procesamos primer lote
     await processBatch(data.data);
     processedCount += data.data.length;
 
-    // Límite táctico de 3 lotes (3,000 registros) para no exceder timeout
-    const limit = Math.min(totalRecords, 3000);
+    // Límite táctico de 3 lotes para no exceder timeout
+    const limitRecords = Math.min(totalRecords, 3000);
     
-    for (let start = 1001; start < limit; start += 1000) {
+    for (let start = 1001; start < limitRecords; start += 1000) {
       const nextUrl = `https://api.mercadopublico.cl/APISOCDS/OCDS/${endpointBase}/${year}/${month}/${start}/${start + 1000}`;
       const nextRes = await fetch(nextUrl);
       if (nextRes.ok) {
-        const nextData = await nextRes.json() as any;
-        if (nextData.data) {
-          await processBatch(nextData.data);
-          processedCount += nextData.data.length;
+        const nextContentType = nextRes.headers.get("content-type");
+        if (nextContentType && nextContentType.includes("application/json")) {
+          const nextData = await nextRes.json() as any;
+          if (nextData.data) {
+            await processBatch(nextData.data);
+            processedCount += nextData.data.length;
+          }
         }
       }
       await sleep(1000);
@@ -188,7 +203,8 @@ export const syncOcdsHistorical = onRequest({
     });
 
   } catch (error: any) {
-    response.json({ success: false, error: error.message });
+    console.error(">>> [OCDS_CRASH]:", error.message);
+    response.json({ success: false, message: "Error crítico: " + error.message });
   }
 });
 

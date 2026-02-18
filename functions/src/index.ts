@@ -102,7 +102,7 @@ export const getBidsByDate = onRequest({
 
 /**
  * Ingesta Masiva Estándar OCDS.
- * Mejorada con manejo de errores de red para evitar retornos HTML.
+ * Permite al SuperAdmin cargar miles de registros históricos sin usar ticket.
  */
 export const syncOcdsHistorical = onRequest({
   cors: true,
@@ -118,19 +118,19 @@ export const syncOcdsHistorical = onRequest({
   const endpointBase = type === 'Licitacion' ? 'listaOCDSAgnoMes' : 
                        type === 'TratoDirecto' ? 'listaOCDSAgnoMesTratoDirecto' : 'listaOCDSAgnoMesConvenio';
   
+  // Consultamos el lote inicial (0 a 1000)
   const initialUrl = `https://api.mercadopublico.cl/APISOCDS/OCDS/${endpointBase}/${year}/${month}/0/1000`;
   
   try {
     const res = await fetch(initialUrl);
     
-    // Si la API oficial devuelve un error (HTML), lanzamos error controlado
-    if (!res.ok) {
-      return response.status(200).json({ success: false, message: "El portal de Mercado Público no respondió correctamente (Error " + res.status + ")." });
-    }
-
+    // Si la API oficial devuelve un error (HTML o 404), manejamos con elegancia
     const contentType = res.headers.get("content-type");
-    if (!contentType || !contentType.includes("application/json")) {
-      return response.status(200).json({ success: false, message: "El portal devolvió un formato no válido. Reintenta en unos minutos." });
+    if (!res.ok || !contentType || !contentType.includes("application/json")) {
+      return response.status(200).json({ 
+        success: false, 
+        message: "El portal de Mercado Público no respondió correctamente (Error " + res.status + "). Reintenta en unos minutos." 
+      });
     }
 
     const data = await res.json() as any;
@@ -143,6 +143,7 @@ export const syncOcdsHistorical = onRequest({
     let processedCount = 0;
     const nowServer = admin.firestore.FieldValue.serverTimestamp();
 
+    // Procesador de lotes internos
     const processBatch = async (items: any[]) => {
       const batch = db.batch();
       items.forEach((item: any) => {
@@ -168,10 +169,11 @@ export const syncOcdsHistorical = onRequest({
       await batch.commit();
     };
 
+    // Procesamos el primer lote
     await processBatch(data.data);
     processedCount += data.data.length;
 
-    // Procesamos un máximo razonable para evitar exceder el timeout en el entorno de estudio
+    // Procesamos un máximo razonable para evitar exceder el timeout del entorno
     const limit = Math.min(totalRecords, 3000);
     
     for (let start = 1001; start < limit; start += 1000) {
@@ -186,14 +188,14 @@ export const syncOcdsHistorical = onRequest({
           }
         }
       } catch (innerE) { console.error("Error en lote intermedio:", innerE); }
-      await sleep(1000);
+      await sleep(1000); // Pausa táctica
     }
 
     response.json({ 
       success: true, 
       count: processedCount, 
       totalAvailable: totalRecords,
-      message: `Carga finalizada: ${processedCount} registros sincronizados.` 
+      message: `Carga finalizada: ${processedCount} registros sincronizados exitosamente.` 
     });
 
   } catch (error: any) {

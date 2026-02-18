@@ -35,7 +35,7 @@ import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { signOut } from "firebase/auth"
 import { useToast } from "@/hooks/use-toast"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 
 export default function DashboardPage() {
@@ -45,6 +45,11 @@ export default function DashboardPage() {
   const { toast } = useToast()
   const router = useRouter()
   const [isRequesting, setIsRequesting] = useState(false)
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   const profileRef = useMemoFirebase(() => {
     if (!db || !user) return null
@@ -107,7 +112,7 @@ export default function DashboardPage() {
 
   const totalAmount = bids?.reduce((acc, bid) => acc + (Number(bid.amount) || 0), 0) || 0
 
-  if (isUserLoading || isProfileLoading) {
+  if (!mounted || isUserLoading || isProfileLoading) {
     return (
       <div className="flex flex-col items-center justify-center py-20 gap-4">
         <Loader2 className="h-10 w-10 animate-spin text-primary" />
@@ -131,7 +136,6 @@ export default function DashboardPage() {
               </div>
             </CardHeader>
             <CardContent className="p-8 space-y-8">
-              {/* INDICADOR DE FRESCO DE DATOS PARA USUARIOS DEMO */}
               <div className="p-4 bg-emerald-50 border-2 border-emerald-100 rounded-2xl flex items-center gap-4">
                 <div className="h-10 w-10 rounded-xl bg-emerald-100 flex items-center justify-center shrink-0 text-emerald-600">
                   <CheckCircle2 className="h-5 w-5" />
@@ -263,7 +267,6 @@ export default function DashboardPage() {
         </Link>
       </div>
 
-      {/* PANEL DE TRANSPARENCIA DE DATOS (FRESHNESS INDICATOR) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card className="bg-blue-50 border-blue-200 shadow-sm">
           <CardContent className="p-4 flex items-center gap-4">

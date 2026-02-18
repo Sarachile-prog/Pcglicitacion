@@ -14,5 +14,7 @@ env:
     value: "AIzaSyD2fJXnTHH7kvVjIhSeUb4HcmHYuGhbxOI"
   - variable: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
     value: "studio-4126028826-31b2f.firebaseapp.com"
+  - variable: GEMINI_API_KEY
+    value: "AIzaSyD2fJXnTHH7kvVjIhSeUb4HcmHYuGhbxOI" # Asegura que la IA tenga acceso en el servidor
   - variable: NEXT_PUBLIC_DEPLOY_TOKEN
-    value: "FINAL_STABILITY_FIX_1700"
+    value: "STABILITY_AUDIT_2026_V1"

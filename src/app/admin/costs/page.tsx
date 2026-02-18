@@ -1,7 +1,7 @@
 
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
@@ -18,9 +18,14 @@ import {
 import { Slider } from "@/components/ui/slider"
 
 export default function CostsAnalysisPage() {
+  const [mounted, setMounted] = useState(false)
   const [monthlyBids, setMonthlyBids] = useState(500)
   const [monthlyAudits, setMonthlyAudits] = useState(200)
   const [massIngestion, setMassIngestion] = useState(1000)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   // Tasa de cambio referencial (1 USD = 950 CLP aprox)
   const USD_TO_CLP = 950
@@ -36,11 +41,17 @@ export default function CostsAnalysisPage() {
   const totalMonthlyCost = estimatedAiCost + estimatedDbCost
 
   const formatCLP = (amount: number) => {
+    if (!mounted) return "$ -"
     return new Intl.NumberFormat('es-CL', {
       style: 'currency',
       currency: 'CLP',
       maximumFractionDigits: 0
     }).format(amount)
+  }
+
+  // Prevenir desajuste de hidratación para el slider y contadores
+  const safeLocaleString = (num: number) => {
+    return mounted ? num.toLocaleString() : num.toString()
   }
 
   return (
@@ -66,7 +77,9 @@ export default function CostsAnalysisPage() {
               <div className="space-y-6">
                 <div className="flex justify-between items-center">
                   <Label className="font-black uppercase italic text-sm text-primary">Ingesta Masiva (Registros Big Data)</Label>
-                  <Badge variant="secondary" className="text-lg px-4 font-black">{massIngestion.toLocaleString()}</Badge>
+                  <Badge variant="secondary" className="text-lg px-4 font-black">
+                    {safeLocaleString(massIngestion)}
+                  </Badge>
                 </div>
                 <Slider 
                   value={[massIngestion]} 

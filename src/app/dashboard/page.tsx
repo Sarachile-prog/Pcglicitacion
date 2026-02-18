@@ -131,6 +131,19 @@ export default function DashboardPage() {
               </div>
             </CardHeader>
             <CardContent className="p-8 space-y-8">
+              {/* INDICADOR DE FRESCO DE DATOS PARA USUARIOS DEMO */}
+              <div className="p-4 bg-emerald-50 border-2 border-emerald-100 rounded-2xl flex items-center gap-4">
+                <div className="h-10 w-10 rounded-xl bg-emerald-100 flex items-center justify-center shrink-0 text-emerald-600">
+                  <CheckCircle2 className="h-5 w-5" />
+                </div>
+                <div>
+                  <p className="text-xs font-bold text-emerald-900 uppercase italic tracking-tight">Sistema Sincronizado</p>
+                  <p className="text-[9px] text-emerald-700/80 uppercase font-black">
+                    Viendo licitaciones oficiales de hoy ({new Date().toLocaleDateString('es-CL')}).
+                  </p>
+                </div>
+              </div>
+
               <div className="space-y-6">
                 <div className="p-6 bg-muted/30 rounded-2xl border-2 border-dashed space-y-2">
                   <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Empresa Registrada</p>
@@ -250,6 +263,7 @@ export default function DashboardPage() {
         </Link>
       </div>
 
+      {/* PANEL DE TRANSPARENCIA DE DATOS (FRESHNESS INDICATOR) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card className="bg-blue-50 border-blue-200 shadow-sm">
           <CardContent className="p-4 flex items-center gap-4">

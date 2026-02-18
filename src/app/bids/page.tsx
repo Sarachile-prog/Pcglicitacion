@@ -213,7 +213,10 @@ export default function BidsListPage() {
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="space-y-1">
             <h2 className="text-3xl font-extrabold text-primary italic uppercase flex items-center gap-2"><Globe className="h-6 w-6 text-accent" /> Explorador de Mercado</h2>
-            <p className="text-muted-foreground font-medium italic">Repositorio Global PCG: Los datos enriquecidos son compartidos por toda la red.</p>
+            <div className="flex items-center gap-2">
+              <Badge className="bg-emerald-500 text-white text-[10px] font-black uppercase italic tracking-widest animate-pulse px-3">Repositorio al día</Badge>
+              <p className="text-muted-foreground font-medium italic text-xs">Viendo licitaciones compartidas PCG sincronizadas para hoy.</p>
+            </div>
           </div>
           
           {/* CONTROL DE INFRAESTRUCTURA (SOLO SUPERADMIN) */}

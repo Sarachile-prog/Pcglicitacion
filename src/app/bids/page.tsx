@@ -30,8 +30,7 @@ import {
   CloudDownload,
   Server,
   Activity,
-  CalendarDays,
-  History
+  CalendarDays
 } from "lucide-react"
 import Link from "next/link"
 import { getBidsByDate, getBidDetail, syncOcdsHistorical } from "@/services/mercado-publico"

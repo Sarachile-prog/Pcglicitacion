@@ -5,6 +5,11 @@ import { FirebaseClientProvider } from '@/firebase/client-provider';
 import { Toaster } from '@/components/ui/toaster';
 import { ClientLayout } from '@/components/layout/client-layout';
 
+/**
+ * PCG LICITACIÓN - Ecosistema de Inteligencia 2026
+ * Forzando re-construcción global para resolver estado de publicación.
+ */
+
 export const metadata: Metadata = {
   title: 'PCGLICITACIÓN - Inteligencia de Mercado Público',
   description: 'Portal inteligente de licitaciones y asesoría estratégica con IA para Mercado Público Chile.',

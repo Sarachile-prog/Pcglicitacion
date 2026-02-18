@@ -4,8 +4,8 @@ import { onSchedule } from "firebase-functions/v2/scheduler";
 import * as admin from "firebase-admin";
 
 /**
- * RESET ESTRATÉGICO FINAL: 18-02-2026 19:55
- * Forzando limpieza de caché de Cloud Build y optimización de memoria.
+ * RESET ESTRATÉGICO FINAL: 18-02-2026 20:05
+ * Este cambio fuerza la invalidación de la caché de Cloud Build para desatascar el estado 'Publishing'.
  */
 
 if (admin.apps.length === 0) {
@@ -151,12 +151,7 @@ export const syncOcdsHistorical = onRequest({
       await batch.commit();
     };
 
-    // Procesamos el primer lote de 1000
     await processBatch(data.data);
-    
-    // Opcional: Podríamos iterar sobre más offsets si fuera necesario, pero por seguridad de timeout 
-    // nos quedamos con los primeros 1000 registros por llamado.
-    
     response.json({ success: true, count: data.data.length, message: `Se han succionado ${data.data.length} registros del periodo ${month}/${year}.` });
 
   } catch (error: any) {

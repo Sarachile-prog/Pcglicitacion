@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Progress } from "@/components/ui/progress"
 import { 
   Search, 
   Building2, 
@@ -27,7 +28,8 @@ import {
   ArrowUpDown,
   X,
   CloudDownload,
-  Server
+  Server,
+  Activity
 } from "lucide-react"
 import Link from "next/link"
 import { getBidsByDate, getBidDetail } from "@/services/mercado-publico"
@@ -50,6 +52,9 @@ export default function BidsListPage() {
   
   const [isSyncing, setIsSyncing] = useState(false)
   const [isEnriching, setIsEnriching] = useState(false)
+  const [enrichCount, setEnrichCount] = useState(0)
+  const [enrichTotal, setEnrichTotal] = useState(0)
+  
   const [isCalendarOpen, setIsCalendarOpen] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
   
@@ -112,30 +117,58 @@ export default function BidsListPage() {
 
   const handleEnrich = async () => {
     if (!bids || bids.length === 0 || !isSuperAdmin) return;
+    
+    // Filtramos las que realmente necesitan enriquecimiento
+    const toEnrich = bids.filter(b => !b.entity || b.entity === "Institución no especificada");
+    
+    if (toEnrich.length === 0) {
+      toast({ title: "Datos Completos", description: "Todo el repositorio visible ya está enriquecido." });
+      return;
+    }
+
     setIsEnriching(true);
-    let count = 0;
+    setEnrichTotal(toEnrich.length);
+    setEnrichCount(0);
+    
+    let successCount = 0;
+    
     try {
-      // Intentamos enriquecer TODAS las que faltan en el set de datos cargado (hasta 500)
-      const toEnrich = bids.filter(b => !b.entity || b.entity === "Institución no especificada");
-      
-      if (toEnrich.length === 0) {
-        toast({ title: "Datos Completos", description: "Todo el repositorio visible ya está enriquecido." });
-        return;
-      }
-      
-      toast({ title: "Iniciando Enriquecimiento", description: `Procesando ${toEnrich.length} licitaciones...` });
+      toast({ 
+        title: "Iniciando Enriquecimiento", 
+        description: `Procesando ${toEnrich.length} licitaciones de forma segura...` 
+      });
       
       for (const bid of toEnrich) {
-        await getBidDetail(bid.id);
-        count++;
-        // Pausa táctica para evitar 429 Too Many Requests de la API oficial
-        if (count % 3 === 0) await new Promise(r => setTimeout(r, 1500));
+        try {
+          await getBidDetail(bid.id);
+          successCount++;
+          setEnrichCount(prev => prev + 1);
+          
+          // Pausa táctica para evitar 429 Too Many Requests de la API oficial (Mercado Público es sensible)
+          // Procesamos de 2 en 2 con pausa
+          if (successCount % 2 === 0) {
+            await new Promise(r => setTimeout(r, 1200));
+          }
+        } catch (innerError) {
+          console.error(`Error enriqueciendo ${bid.id}:`, innerError);
+          // Continuamos con la siguiente a pesar del error individual
+        }
       }
-      toast({ title: "Proceso Finalizado", description: `Se han enriquecido ${count} licitaciones exitosamente.` });
+      
+      toast({ 
+        title: "Proceso Finalizado", 
+        description: `Se han enriquecido ${successCount} registros exitosamente.` 
+      });
     } catch (e: any) {
-      toast({ variant: "destructive", title: "API Saturada", description: "Mercado Público ha limitado las peticiones. Intenta más tarde." });
+      toast({ 
+        variant: "destructive", 
+        title: "Interrupción del Proceso", 
+        description: "Se ha detectado una saturación en la API oficial. Intenta retomar más tarde." 
+      });
     } finally {
       setIsEnriching(false);
+      setEnrichCount(0);
+      setEnrichTotal(0);
     }
   }
 
@@ -233,14 +266,46 @@ export default function BidsListPage() {
                 <PopoverTrigger asChild><Button variant="outline" className="w-[160px] h-10 border-primary/20 bg-white font-bold text-xs rounded-xl">{selectedDate ? format(selectedDate, "dd/MM/yyyy") : "---"}</Button></PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="end"><Calendar mode="single" selected={selectedDate || undefined} onSelect={(d) => { if(d){ setSelectedDate(d); setIsCalendarOpen(false); } }} disabled={(d) => d > new Date()} initialFocus /></PopoverContent>
               </Popover>
-              <Button size="sm" className="bg-primary font-black h-10 uppercase italic text-[9px] rounded-xl px-4" onClick={handleSync} disabled={isSyncing}><RefreshCw className={cn("h-3 w-3 mr-2", isSyncing && "animate-spin")} /> Ingesta IDs</Button>
-              <Button size="sm" className="bg-accent font-black h-10 uppercase italic text-[9px] shadow-lg rounded-xl px-4" onClick={handleEnrich} disabled={isEnriching || isSyncing || !bids?.length}>
-                {isEnriching ? <Loader2 className="h-3 w-3 mr-2 animate-spin" /> : <Database className="h-3 w-3 mr-2" />} Enriquecer Repo
+              <Button size="sm" className="bg-primary font-black h-10 uppercase italic text-[9px] rounded-xl px-4" onClick={handleSync} disabled={isSyncing || isEnriching}><RefreshCw className={cn("h-3 w-3 mr-2", isSyncing && "animate-spin")} /> Ingesta IDs</Button>
+              <Button 
+                size="sm" 
+                className={cn(
+                  "font-black h-10 uppercase italic text-[9px] shadow-lg rounded-xl px-4 transition-all",
+                  isEnriching ? "bg-emerald-600 text-white" : "bg-accent text-white"
+                )} 
+                onClick={handleEnrich} 
+                disabled={isEnriching || isSyncing || !bids?.length}
+              >
+                {isEnriching ? (
+                  <><Loader2 className="h-3 w-3 mr-2 animate-spin" /> {enrichCount}/{enrichTotal} Procesando...</>
+                ) : (
+                  <><Database className="h-3 w-3 mr-2" /> Enriquecer Repo</>
+                )}
               </Button>
             </Card>
           )}
         </div>
       </div>
+
+      {/* MONITOR DE PROGRESO DE ENRIQUECIMIENTO (SOLO SUPERADMIN CUANDO ESTÁ ACTIVO) */}
+      {isSuperAdmin && isEnriching && (
+        <Card className="border-accent bg-accent/5 shadow-lg animate-in slide-in-from-top-4">
+          <CardContent className="p-6 space-y-4">
+            <div className="flex justify-between items-center">
+              <div className="flex items-center gap-2">
+                <Activity className="h-4 w-4 text-accent animate-pulse" />
+                <span className="text-xs font-black uppercase text-accent tracking-widest italic">Descargando detalles técnicos de Mercado Público...</span>
+              </div>
+              <span className="text-xs font-black text-primary italic">{Math.round((enrichCount / enrichTotal) * 100)}%</span>
+            </div>
+            <Progress value={(enrichCount / enrichTotal) * 100} className="h-2.5 bg-accent/20" />
+            <div className="flex justify-between items-center text-[10px] font-bold text-muted-foreground uppercase italic">
+              <span>Procesando lote: {enrichCount} de {enrichTotal}</span>
+              <span className="flex items-center gap-1"><RefreshCw className="h-2 w-2 animate-spin" /> No cierres esta ventana</span>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* PANEL DE MAGNITUD OPERATIVA */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

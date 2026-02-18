@@ -109,7 +109,7 @@ export const syncOcdsHistorical = onRequest({
   region: "us-central1",
   invoker: "public",
   timeoutSeconds: 300,
-  memory: "256MiB"
+  memory: "512MiB"
 }, async (request: any, response: any) => {
   const { year, month, type } = request.query;
   if (!year || !month || !type) return response.status(400).json({ error: "Faltan parámetros" });
@@ -118,32 +118,24 @@ export const syncOcdsHistorical = onRequest({
   const endpointBase = type === 'Licitacion' ? 'listaOCDSAgnoMes' : 
                        type === 'TratoDirecto' ? 'listaOCDSAgnoMesTratoDirecto' : 'listaOCDSAgnoMesConvenio';
   
-  // Consultamos el lote inicial (0 a 1000)
-  const initialUrl = `https://api.mercadopublico.cl/APISOCDS/OCDS/${endpointBase}/${year}/${month}/0/1000`;
-  
   try {
+    // Consultamos el lote inicial (0 a 1000)
+    const initialUrl = `https://api.mercadopublico.cl/APISOCDS/OCDS/${endpointBase}/${year}/${month}/0/1000`;
     const res = await fetch(initialUrl);
     
-    // Si la API oficial devuelve un error (HTML o 404), manejamos con elegancia
-    const contentType = res.headers.get("content-type");
-    if (!res.ok || !contentType || !contentType.includes("application/json")) {
-      return response.status(200).json({ 
-        success: false, 
-        message: "El portal de Mercado Público no respondió correctamente (Error " + res.status + "). Reintenta en unos minutos." 
-      });
+    if (!res.ok) {
+      return response.json({ success: false, message: "El portal oficial no respondió (Error " + res.status + ")" });
     }
 
     const data = await res.json() as any;
-    
     if (!data.data || !Array.isArray(data.data)) {
-      return response.json({ success: false, message: "No se encontraron registros para este periodo." });
+      return response.json({ success: false, message: "No hay registros para " + month + "/" + year });
     }
 
     const totalRecords = data.total || data.data.length;
     let processedCount = 0;
     const nowServer = admin.firestore.FieldValue.serverTimestamp();
 
-    // Procesador de lotes internos
     const processBatch = async (items: any[]) => {
       const batch = db.batch();
       items.forEach((item: any) => {
@@ -169,38 +161,34 @@ export const syncOcdsHistorical = onRequest({
       await batch.commit();
     };
 
-    // Procesamos el primer lote
+    // Procesamos primer lote
     await processBatch(data.data);
     processedCount += data.data.length;
 
-    // Procesamos un máximo razonable para evitar exceder el timeout del entorno
+    // Límite táctico de 3 lotes (3,000 registros) para no exceder timeout
     const limit = Math.min(totalRecords, 3000);
     
     for (let start = 1001; start < limit; start += 1000) {
       const nextUrl = `https://api.mercadopublico.cl/APISOCDS/OCDS/${endpointBase}/${year}/${month}/${start}/${start + 1000}`;
-      try {
-        const nextRes = await fetch(nextUrl);
-        if (nextRes.ok) {
-          const nextData = await nextRes.json() as any;
-          if (nextData.data) {
-            await processBatch(nextData.data);
-            processedCount += nextData.data.length;
-          }
+      const nextRes = await fetch(nextUrl);
+      if (nextRes.ok) {
+        const nextData = await nextRes.json() as any;
+        if (nextData.data) {
+          await processBatch(nextData.data);
+          processedCount += nextData.data.length;
         }
-      } catch (innerE) { console.error("Error en lote intermedio:", innerE); }
-      await sleep(1000); // Pausa táctica
+      }
+      await sleep(1000);
     }
 
     response.json({ 
       success: true, 
       count: processedCount, 
-      totalAvailable: totalRecords,
-      message: `Carga finalizada: ${processedCount} registros sincronizados exitosamente.` 
+      message: `Carga finalizada: ${processedCount} registros sincronizados.` 
     });
 
   } catch (error: any) {
-    console.error(">>> [OCDS_CRASH]:", error.message);
-    response.status(200).json({ success: false, error: "Error interno del motor: " + error.message });
+    response.json({ success: false, error: error.message });
   }
 });
 

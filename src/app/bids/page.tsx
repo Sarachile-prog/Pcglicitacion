@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useMemo, useEffect } from "react"
@@ -69,7 +68,7 @@ export default function BidsListPage() {
   const [isOcdsDialogOpen, setIsOcdsDialogOpen] = useState(false)
   const [ocdsYear, setOcdsYear] = useState(new Date().getFullYear().toString())
   const [ocdsMonth, setOcdsMonth] = useState((new Date().getMonth() + 1).toString().padStart(2, '0'))
-  const [ocdsType, setOcdsType] = useState<'Licitacion' | 'TratoDirecto'>('Licitacion')
+  const [ocdsType, setOcdsType] = useState<'Licitacion' | 'TratoDirecto' | 'Convenio'>('Licitacion')
   const [isOcdsLoading, setIsOcdsLoading] = useState(false)
   
   useEffect(() => {
@@ -262,6 +261,7 @@ export default function BidsListPage() {
                         <SelectContent>
                           <SelectItem value="Licitacion" className="font-bold">Licitaciones Públicas</SelectItem>
                           <SelectItem value="TratoDirecto" className="font-bold">Tratos Directos</SelectItem>
+                          <SelectItem value="Convenio" className="font-bold">Convenio Marco</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -357,6 +357,7 @@ export default function BidsListPage() {
                 {pagedBids.map((bid) => {
                   const isEnriched = bid.entity && bid.entity !== "Institución no especificada";
                   const isTratoDirecto = bid.sourceType === 'TratoDirecto' || bid.id.includes('TD');
+                  const isConvenio = bid.sourceType === 'Convenio' || bid.id.includes('CM');
                   return (
                     <TableRow key={bid.id} className="group hover:bg-primary/5 transition-colors cursor-pointer border-b last:border-0">
                       <TableCell className="font-mono text-xs font-bold text-primary py-6 px-6">
@@ -364,6 +365,7 @@ export default function BidsListPage() {
                           <span className="bg-primary/5 px-2 py-1 rounded-lg border border-primary/10 inline-block w-fit">{bid.id}</span>
                           <div className="flex flex-wrap gap-1">
                             {isTratoDirecto && <Badge className="bg-amber-500 text-white text-[7px] font-black">TRATO DIRECTO</Badge>}
+                            {isConvenio && <Badge className="bg-indigo-500 text-white text-[7px] font-black">CONVENIO MARCO</Badge>}
                             <Badge variant="secondary" className="text-[8px] h-4 px-1.5 font-black uppercase leading-none">{bid.status}</Badge>
                           </div>
                         </Link>
@@ -403,4 +405,25 @@ export default function BidsListPage() {
       )}
     </div>
   )
+}
+
+function History({className}: {className?: string}) {
+  return (
+    <svg
+      className={className}
+      xmlns="http://www.w3.org/2000/svg"
+      width="24"
+      height="24"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+      <path d="M3 3v5h5" />
+      <path d="M12 7v5l4 2" />
+    </svg>
+  );
 }

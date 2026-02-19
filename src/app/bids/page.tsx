@@ -26,7 +26,8 @@ import {
   Server,
   AlertCircle,
   SearchCode,
-  Tag
+  Tag,
+  Info
 } from "lucide-react"
 import Link from "next/link"
 import { getBidsByDate, getBidDetail, syncOcdsHistorical } from "@/services/mercado-publico"
@@ -76,7 +77,6 @@ export default function BidsListPage() {
   const [mounted, setMounted] = useState(false);
   const [globalDbCount, setGlobalDbCount] = useState<number | null>(null);
   
-  // Estados para búsqueda automática global
   const [isGlobalSearching, setIsGlobalSearching] = useState(false);
   const [globalSearchResult, setGlobalSearchResult] = useState<any>(null);
 
@@ -111,7 +111,6 @@ export default function BidsListPage() {
 
   const { data: bids, isLoading: isDbLoading } = useCollection(bidsQuery)
 
-  // LOGICA DE BÚSQUEDA LOCAL
   const filteredBids = useMemo(() => {
     let results = bids ? [...bids] : [];
     if (searchTerm) {
@@ -126,8 +125,6 @@ export default function BidsListPage() {
     return results
   }, [bids, searchTerm, statusFilter])
 
-  // AUTOMATIZACIÓN DE BÚSQUEDA GLOBAL
-  // Si la búsqueda local no devuelve nada y el término parece un ID, buscamos en toda la DB
   useEffect(() => {
     const timer = setTimeout(async () => {
       if (!db || !searchTerm.trim() || filteredBids.length > 0) {
@@ -135,8 +132,6 @@ export default function BidsListPage() {
         return;
       }
 
-      // Solo disparamos búsqueda global si el término tiene formato de ID (letras, números, guiones)
-      // y no hay resultados en la capa local.
       if (searchTerm.length > 5) {
         setIsGlobalSearching(true);
         try {
@@ -153,7 +148,7 @@ export default function BidsListPage() {
           setIsGlobalSearching(false);
         }
       }
-    }, 600); // Debounce de 600ms para no saturar Firestore mientras escribe
+    }, 600);
 
     return () => clearTimeout(timer);
   }, [searchTerm, filteredBids.length, db]);
@@ -338,6 +333,13 @@ export default function BidsListPage() {
         </Card>
       </div>
 
+      <div className="p-4 bg-amber-50 border-2 border-amber-100 rounded-2xl flex items-center gap-4">
+        <Info className="h-6 w-6 text-amber-600 shrink-0" />
+        <p className="text-xs font-bold text-amber-900 uppercase italic">
+          Nota del Sistema: El "Enriquecimiento" consume tu ticket oficial de Mercado Público (Data), NO consume créditos de IA. Úsalo libremente para completar la ficha técnica.
+        </p>
+      </div>
+
       <Card className="border-none shadow-2xl rounded-[2.5rem] overflow-hidden">
         <CardContent className="p-8 space-y-6 bg-muted/5">
           <div className="flex flex-col lg:flex-row gap-4 items-end">
@@ -374,7 +376,6 @@ export default function BidsListPage() {
         </CardContent>
       </Card>
 
-      {/* RESULTADO DE BÚSQUEDA GLOBAL AUTOMÁTICA */}
       {globalSearchResult && (
         <Card className="border-4 border-accent bg-accent/5 rounded-3xl overflow-hidden animate-in zoom-in-95 shadow-2xl">
           <CardHeader className="bg-accent py-3 px-6">

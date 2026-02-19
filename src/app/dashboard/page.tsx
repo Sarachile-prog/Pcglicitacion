@@ -32,7 +32,7 @@ import {
   RefreshCw,
   Clock,
   ShieldAlert
-} from "lucide-react"
+} from "lucide-center"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -41,22 +41,10 @@ import { useToast } from "@/hooks/use-toast"
 import { useState, useEffect, useMemo } from "react"
 import { useRouter } from "next/navigation"
 
-// FUNCIÓN MAESTRA DE PERSISTENCIA
-const isBidEnriched = (bid: any) => {
-  if (!bid.entity) return false;
-  const pendingStrings = ["Pendiente Enriquecimiento", "Institución no especificada", "Pendiente Datos...", "Pendiente", "NO ESPECIFICADA"];
-  const hasValidEntity = !pendingStrings.some(ps => bid.entity.toUpperCase().includes(ps.toUpperCase()));
-  const hasDeepDetail = !!bid.fullDetailAt;
-  return hasValidEntity || hasDeepDetail;
-}
-
 export default function DashboardPage() {
   const db = useFirestore()
-  const auth = useAuth()
   const { user, isUserLoading } = useUser()
   const { toast } = useToast()
-  const router = useRouter()
-  const [isRequesting, setIsRequesting] = useState(false)
   const [mounted, setMounted] = useState(false)
   const [globalCount, setGlobalCount] = useState<number | null>(null)
   const [breakdown, setBreakdown] = useState<{ licitacion: number, convenio: number, trato: number } | null>(null)
@@ -80,6 +68,8 @@ export default function DashboardPage() {
     setIsRefreshingCount(true);
     try {
       const coll = collection(db, "bids");
+      
+      // Usamos consultas individuales para asegurar que Firestore cuente exactamente lo que queremos
       const [sTotal, sL, sC, sT] = await Promise.all([
         getCountFromServer(coll),
         getCountFromServer(query(coll, where("type", "==", "Licitación"))),
@@ -93,8 +83,10 @@ export default function DashboardPage() {
         convenio: sC.data().count,
         trato: sT.data().count
       });
+      toast({ title: "Repositorio Escaneado" });
     } catch (e) {
       console.error("Error fetching breakdown:", e);
+      toast({ variant: "destructive", title: "Error en escaneo" });
     } finally {
       setIsRefreshingCount(false);
     }
@@ -187,13 +179,13 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {isSuperAdmin && breakdown && breakdown.convenio === 0 && breakdown.trato === 0 && (
-        <Card className="bg-red-50 border-2 border-red-100 p-6 rounded-3xl animate-bounce">
+      {isSuperAdmin && breakdown && (breakdown.convenio === 0 && breakdown.trato === 0) && (
+        <Card className="bg-red-50 border-2 border-red-100 p-6 rounded-3xl animate-pulse">
           <CardContent className="p-0 flex items-center gap-4 text-red-800">
             <ShieldAlert className="h-10 w-10 shrink-0" />
             <div>
-              <p className="font-black uppercase italic text-sm">Alerta de Integridad de Datos</p>
-              <p className="text-xs italic font-bold">El escaneo detectó 0 convenios y tratos. Probablemente no has desplegado las Cloud Functions o las etiquetas no coinciden. Ejecuta 'firebase deploy --only functions' y reintenta la ingesta.</p>
+              <p className="font-black uppercase italic text-sm">Alerta de Sincronización</p>
+              <p className="text-xs italic font-bold">El sistema indica que tienes registros pero las etiquetas no coinciden. Esto ocurre porque la Ingesta Diaria sobreescribió los tipos. <b>Solución:</b> Ejecuta 'firebase deploy --only functions' y luego repite una Ingesta Masiva OCDS.</p>
             </div>
           </CardContent>
         </Card>
@@ -257,7 +249,7 @@ export default function DashboardPage() {
                </p>
                <div className="p-5 bg-white/10 rounded-2xl border border-white/20 backdrop-blur-sm space-y-2">
                  <p className="text-[10px] uppercase font-black text-accent tracking-widest flex items-center gap-2"><Target className="h-3 w-3" /> Recomendación PCG</p>
-                 <p className="text-xs font-bold leading-tight">Revisa el panel de costos para optimizar el uso de Gemini 2.5.</p>
+                 <p className="text-xs font-bold leading-tight">Si los números de Convenio no suben, asegúrate de haber desplegado las funciones de 5ª generación.</p>
                </div>
              </CardContent>
           </Card>

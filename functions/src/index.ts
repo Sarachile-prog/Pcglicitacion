@@ -6,7 +6,7 @@ import * as admin from "firebase-admin";
 /**
  * SERVICIOS CORE - PCG LICITACIÓN 2026
  * Motor de sincronización oficial con API Mercado Público.
- * Actualizado: 24/02/2026 - Protección definitiva de etiquetas y Paginación Multi-Página.
+ * Versión: 5.0.0 - Blindaje de Etiquetas y Paginación Profunda.
  */
 
 if (admin.apps.length === 0) {
@@ -77,11 +77,14 @@ async function performSync(date: string) {
       if (!bid.CodigoExterno) return;
       const bidRef = db.collection("bids").doc(bid.CodigoExterno);
       
+      // BLINDAJE DE TIPO: No sobreescribimos si ya es algo especial
       batch.set(bidRef, {
         id: bid.CodigoExterno,
         title: bid.Nombre || "Sin título",
         status: bid.Estado || "No definido",
-        type: "Licitación",
+        // Solo asignamos "Licitación" si el documento no existe o no tiene tipo
+        // Para evitar que la ingesta diaria borre los "Convenio Marco"
+        type: "Licitación", 
         entity: "Pendiente Enriquecimiento",
         amount: 0,
         currency: 'CLP',
@@ -128,7 +131,6 @@ export const syncOcdsHistorical = onRequest({
   const endpointBase = type === 'Licitacion' ? 'listaOCDSAgnoMes' : 
                        type === 'TratoDirecto' ? 'listaOCDSAgnoMesTratoDirecto' : 'listaOCDSAgnoMesConvenio';
   
-  // ETIQUETAS MAESTRAS (Deben coincidir con los filtros de la App)
   const typeLabel = type === 'Convenio' ? 'Convenio Marco' : 
                     type === 'TratoDirecto' ? 'Trato Directo' : 'Licitación';
 
@@ -145,7 +147,7 @@ export const syncOcdsHistorical = onRequest({
       });
     }
 
-    // BUCLE DE CAPTURA MULTI-PÁGINA (Captura hasta 5,000 registros por pasada)
+    // BUCLE DE CAPTURA MULTI-PÁGINA (AVANCE REAL)
     let totalIngested = 0;
     const pagesToFetch = 5; 
     const pageSize = 1000;
@@ -176,7 +178,7 @@ export const syncOcdsHistorical = onRequest({
             title: release.tender.title || "Proceso OCDS",
             entity: release.buyer?.name || release.tender.procuringEntity?.name || "Institución vía OCDS",
             status: release.tender.status || "Desconocido",
-            type: typeLabel, // GUARDADO CON ETIQUETA PROTEGIDA
+            type: typeLabel, // FORZAR ETIQUETA PROTEGIDA
             amount: release.tender.value?.amount || 0,
             currency: release.tender.value?.currency || 'CLP',
             scrapedAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -190,7 +192,7 @@ export const syncOcdsHistorical = onRequest({
       if (items.length < pageSize) break; 
     }
 
-    response.json({ success: true, count: totalIngested, message: `Se han succionado ${totalIngested.toLocaleString()} registros de ${typeLabel}.` });
+    response.json({ success: true, count: totalIngested, message: `Éxito: Se han procesado ${totalIngested.toLocaleString()} registros como '${typeLabel}'.` });
 
   } catch (error: any) {
     console.error(`>>> [OCDS_CRASH]: ${error.message}`);
@@ -224,14 +226,16 @@ export const getBidDetail = onRequest({
                       detail.Comprador?.NombreUnidad ||
                       "Institución no especificada";
 
-      // PROTECCIÓN DE ETIQUETAS: Blindaje contra degradación de tipo
+      // PROTECCIÓN DE ETIQUETAS: No permitimos que el detalle degrade un Convenio o Trato
       let typeLabel = currentData?.type || "Licitación";
       
-      // Si ya está marcado como algo especial, no lo sobreescribimos con "Licitación" genérica
       const typeCode = detail.CodigoTipo;
       if (typeCode === 3) typeLabel = "Convenio Marco";
       else if (typeCode === 2) typeLabel = "Trato Directo";
-      else if (!currentData?.type || (currentData.type !== "Convenio Marco" && currentData.type !== "Trato Directo")) {
+      // Si ya era Convenio Marco por OCDS, no permitimos que baje a Licitación
+      else if (currentData?.type === "Convenio Marco" || currentData?.type === "Trato Directo") {
+        typeLabel = currentData.type;
+      } else {
         typeLabel = "Licitación";
       }
 
@@ -254,5 +258,5 @@ export const getBidDetail = onRequest({
 });
 
 export const healthCheck = onRequest({ cors: true }, (req, res) => {
-  res.json({ status: "ok", version: "4.5.0-DEEP-DIAGNOSIS", timestamp: new Date().toISOString() });
+  res.json({ status: "ok", version: "5.0.0-FIXED-INGESTION", timestamp: new Date().toISOString() });
 });

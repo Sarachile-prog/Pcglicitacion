@@ -85,7 +85,7 @@ async function performSync(date) {
                 id: bid.CodigoExterno,
                 title: bid.Nombre || "Sin título",
                 status: bid.Estado || "No definido",
-                type: "Licitacion",
+                type: "Licitación",
                 entity: "Pendiente Enriquecimiento",
                 amount: 0,
                 currency: 'CLP',
@@ -123,7 +123,7 @@ exports.syncOcdsHistorical = (0, https_1.onRequest)({
     timeoutSeconds: 300,
     memory: "1GiB"
 }, async (request, response) => {
-    const { year, month, type } = request.query;
+    const { year, month, type, countOnly } = request.query;
     if (!year || !month || !type)
         return response.status(400).json({ error: "Faltan parámetros" });
     const db = admin.firestore();
@@ -132,39 +132,59 @@ exports.syncOcdsHistorical = (0, https_1.onRequest)({
     const typeLabel = type === 'Convenio' ? 'Convenio Marco' :
         type === 'TratoDirecto' ? 'Trato Directo' : 'Licitación';
     try {
-        const initialUrl = `https://api.mercadopublico.cl/APISOCDS/OCDS/${endpointBase}/${year}/${month}/0/999`;
-        const res = await fetch(initialUrl);
-        if (!res.ok)
-            return response.status(200).json({ success: false, message: `Error Portal Mercado Público: ${res.status}.` });
-        let data = await res.json();
-        if (!data || !data.data || data.data.length === 0)
-            return response.json({ success: false, message: "No hay registros disponibles." });
-        const items = data.data;
-        for (let i = 0; i < items.length; i += 450) {
-            const batch = db.batch();
-            const chunk = items.slice(i, i + 450);
-            chunk.forEach((item) => {
-                const release = item.releases?.[0];
-                if (!release || !release.tender)
-                    return;
-                const bidId = release.tender.id;
-                const bidRef = db.collection("bids").doc(bidId);
-                batch.set(bidRef, {
-                    id: bidId,
-                    title: release.tender.title || "Proceso OCDS",
-                    entity: release.buyer?.name || release.tender.procuringEntity?.name || "Institución vía OCDS",
-                    status: release.tender.status || "Desconocido",
-                    type: typeLabel,
-                    amount: release.tender.value?.amount || 0,
-                    currency: release.tender.value?.currency || 'CLP',
-                    scrapedAt: admin.firestore.FieldValue.serverTimestamp(),
-                    isOcds: true,
-                    sourceUrl: `https://www.mercadopublico.cl/Procurement/Modules/RFB/DetailsAcquisition.aspx?idLicitacion=${bidId}`
-                }, { merge: true });
+        if (countOnly === 'true') {
+            const checkUrl = `https://api.mercadopublico.cl/APISOCDS/OCDS/${endpointBase}/${year}/${month}/0/10`;
+            const checkRes = await fetch(checkUrl);
+            const checkData = await checkRes.json();
+            const realTotal = checkData.total || (checkData.pagination && checkData.pagination.total) || (checkData.data ? checkData.data.length : 0);
+            return response.json({
+                success: true,
+                count: realTotal,
+                message: `Hay ${realTotal.toLocaleString()} procesos en el mercado.`
             });
-            await batch.commit();
         }
-        response.json({ success: true, count: items.length, message: `Se han succionado ${items.length} registros.` });
+        let totalIngested = 0;
+        const pagesToFetch = 5;
+        const pageSize = 1000;
+        for (let page = 0; page < pagesToFetch; page++) {
+            const offset = page * pageSize;
+            const url = `https://api.mercadopublico.cl/APISOCDS/OCDS/${endpointBase}/${year}/${month}/${offset}/${pageSize}`;
+            const res = await fetch(url);
+            if (!res.ok)
+                break;
+            const data = await res.json();
+            const items = data.data || [];
+            if (items.length === 0)
+                break;
+            for (let i = 0; i < items.length; i += 450) {
+                const batch = db.batch();
+                const chunk = items.slice(i, i + 450);
+                chunk.forEach((item) => {
+                    const release = item.releases?.[0];
+                    if (!release || !release.tender)
+                        return;
+                    const bidId = release.tender.id;
+                    const bidRef = db.collection("bids").doc(bidId);
+                    batch.set(bidRef, {
+                        id: bidId,
+                        title: release.tender.title || "Proceso OCDS",
+                        entity: release.buyer?.name || release.tender.procuringEntity?.name || "Institución vía OCDS",
+                        status: release.tender.status || "Desconocido",
+                        type: typeLabel,
+                        amount: release.tender.value?.amount || 0,
+                        currency: release.tender.value?.currency || 'CLP',
+                        scrapedAt: admin.firestore.FieldValue.serverTimestamp(),
+                        isOcds: true,
+                        sourceUrl: `https://www.mercadopublico.cl/Procurement/Modules/RFB/DetailsAcquisition.aspx?idLicitacion=${bidId}`
+                    }, { merge: true });
+                });
+                await batch.commit();
+            }
+            totalIngested += items.length;
+            if (items.length < pageSize)
+                break;
+        }
+        response.json({ success: true, count: totalIngested, message: `Se han succionado ${totalIngested.toLocaleString()} registros de ${typeLabel}.` });
     }
     catch (error) {
         console.error(`>>> [OCDS_CRASH]: ${error.message}`);
@@ -186,19 +206,25 @@ exports.getBidDetail = (0, https_1.onRequest)({
         const apiData = (await apiResponse.json());
         if (apiData.Listado && apiData.Listado.length > 0) {
             const detail = apiData.Listado[0];
+            const bidRef = admin.firestore().collection("bids").doc(code);
+            const currentDoc = await bidRef.get();
+            const currentData = currentDoc.data();
             const orgName = detail.Comprador?.NombreOrganismo ||
                 detail.NombreInstitucion ||
                 detail.OrganismoComprador?.Nombre ||
                 detail.Responsable?.NombreInstitucion ||
                 detail.Comprador?.NombreUnidad ||
                 "Institución no especificada";
+            let typeLabel = currentData?.type || "Licitación";
             const typeCode = detail.CodigoTipo;
-            let typeLabel = "Licitación";
             if (typeCode === 3)
                 typeLabel = "Convenio Marco";
-            if (typeCode === 2)
+            else if (typeCode === 2)
                 typeLabel = "Trato Directo";
-            await admin.firestore().collection("bids").doc(code).update({
+            else if (!currentData?.type || (currentData.type !== "Convenio Marco" && currentData.type !== "Trato Directo")) {
+                typeLabel = "Licitación";
+            }
+            await bidRef.update({
                 entity: orgName,
                 type: typeLabel,
                 description: detail.Descripcion || "Sin descripción adicional.",
@@ -218,6 +244,6 @@ exports.getBidDetail = (0, https_1.onRequest)({
     }
 });
 exports.healthCheck = (0, https_1.onRequest)({ cors: true }, (req, res) => {
-    res.json({ status: "ok", version: "3.5.0-AGRESSIVE-CAPTURE", timestamp: new Date().toISOString() });
+    res.json({ status: "ok", version: "4.5.0-DEEP-DIAGNOSIS", timestamp: new Date().toISOString() });
 });
 //# sourceMappingURL=index.js.map

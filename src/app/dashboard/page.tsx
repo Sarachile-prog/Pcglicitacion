@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useCollection, useMemoFirebase, useFirestore, useUser, useDoc, useAuth } from "@/firebase"
@@ -37,16 +38,24 @@ import { useToast } from "@/hooks/use-toast"
 import { useState, useEffect, useMemo } from "react"
 import { useRouter } from "next/navigation"
 
-// Función maestra de validación unificada para todo el Dashboard
+// FUNCIÓN MAESTRA DE PERSISTENCIA: Define qué es un registro enriquecido
 const isBidEnriched = (bid: any) => {
+  // Un registro es enriquecido si tiene una institución válida que NO sea de marcador de posición
   if (!bid.entity) return false;
+  
   const pendingStrings = [
     "Pendiente Enriquecimiento", 
     "Institución no especificada", 
     "Pendiente Datos...", 
     "Pendiente"
   ];
-  return !pendingStrings.some(ps => bid.entity.includes(ps));
+  
+  const hasValidEntity = !pendingStrings.some(ps => bid.entity.includes(ps));
+  
+  // También es enriquecido si ya tiene un timestamp de detalle profundo
+  const hasDeepDetail = !!bid.fullDetailAt;
+  
+  return hasValidEntity || hasDeepDetail;
 }
 
 export default function DashboardPage() {

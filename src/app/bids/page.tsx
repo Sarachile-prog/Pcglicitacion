@@ -40,6 +40,20 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 
 const ITEMS_PER_PAGE = 50;
 
+// FUNCIÓN MAESTRA DE PERSISTENCIA: Asegura que el conteo de enriquecidos sea consistente
+const isBidEnriched = (bid: any) => {
+  if (!bid.entity) return false;
+  const pendingStrings = [
+    "Pendiente Enriquecimiento", 
+    "Institución no especificada", 
+    "Pendiente Datos...", 
+    "Pendiente"
+  ];
+  const hasValidEntity = !pendingStrings.some(ps => bid.entity.includes(ps));
+  const hasDeepDetail = !!bid.fullDetailAt;
+  return hasValidEntity || hasDeepDetail;
+}
+
 export default function BidsListPage() {
   const db = useFirestore()
   const { user } = useUser()
@@ -70,12 +84,6 @@ export default function BidsListPage() {
     setMounted(true);
     setSelectedDate(new Date());
   }, []);
-
-  const isBidEnriched = (bid: any) => {
-    if (!bid.entity) return false;
-    const pendingStrings = ["Pendiente Enriquecimiento", "Institución no especificada", "Pendiente Datos...", "Pendiente"];
-    return !pendingStrings.some(ps => bid.entity.includes(ps));
-  }
 
   useEffect(() => {
     if (db && mounted) {
@@ -304,7 +312,7 @@ export default function BidsListPage() {
           <CardContent className="p-8 flex items-center gap-6">
             <div className="h-16 w-16 rounded-3xl bg-emerald-50 flex items-center justify-center shrink-0"><CheckCircle2 className="h-8 w-8 text-emerald-600" /></div>
             <div>
-              <p className="text-[10px] font-black text-muted-foreground uppercase mb-1">Enriquecidos (Global)</p>
+              <p className="text-[10px] font-black text-muted-foreground uppercase mb-1">Enriquecidos (Vista)</p>
               <h3 className="text-4xl font-black text-emerald-600 italic tracking-tighter">{stats.enriched}</h3>
             </div>
           </CardContent>

@@ -3,7 +3,7 @@
 
 import { useState, useMemo, useEffect } from "react"
 import { useCollection, useMemoFirebase, useFirestore, useUser, useDoc } from "@/firebase"
-import { collection, query, orderBy, limit, doc, getCountFromServer } from "firebase/firestore"
+import { collection, query, orderBy, limit, doc, getCountFromServer, getDoc } from "firebase/firestore"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -24,7 +24,9 @@ import {
   CheckCircle2,
   CloudDownload,
   Activity,
-  Server
+  Server,
+  AlertCircle,
+  SearchCode
 } from "lucide-react"
 import Link from "next/link"
 import { getBidsByDate, getBidDetail, syncOcdsHistorical } from "@/services/mercado-publico"
@@ -60,25 +62,21 @@ export default function BidsListPage() {
   const [mounted, setMounted] = useState(false);
   const [globalDbCount, setGlobalDbCount] = useState<number | null>(null);
   
+  // Estado para búsqueda global por ID
+  const [isGlobalSearching, setIsGlobalSearching] = useState(false);
+  const [globalSearchResult, setGlobalSearchResult] = useState<any>(null);
+
   useEffect(() => {
     setMounted(true);
     setSelectedDate(new Date());
   }, []);
 
-  // Función de validación de enriquecimiento centralizada
   const isBidEnriched = (bid: any) => {
     if (!bid.entity) return false;
-    const pendingStrings = [
-      "Pendiente Enriquecimiento", 
-      "Institución no especificada", 
-      "Pendiente Datos...",
-      "Pendiente"
-    ];
-    // Un registro está enriquecido si tiene una institución que no sea un placeholder de "pendiente"
+    const pendingStrings = ["Pendiente Enriquecimiento", "Institución no especificada", "Pendiente Datos...", "Pendiente"];
     return !pendingStrings.some(ps => bid.entity.includes(ps));
   }
 
-  // Obtener conteo global real de la base de datos
   useEffect(() => {
     if (db && mounted) {
       const fetchGlobalCount = async () => {
@@ -109,12 +107,31 @@ export default function BidsListPage() {
     if (!bids) return { totalInView: 0, enriched: 0, pending: 0 };
     const totalInView = bids.length;
     const enriched = bids.filter(isBidEnriched).length;
-    return { 
-      totalInView, 
-      enriched, 
-      pending: totalInView - enriched 
-    };
+    return { totalInView, enriched, pending: totalInView - enriched };
   }, [bids]);
+
+  const handleGlobalIdSearch = async () => {
+    if (!db || !searchTerm.trim()) return;
+    
+    setIsGlobalSearching(true);
+    setGlobalSearchResult(null);
+    
+    try {
+      const bidId = searchTerm.trim();
+      const bidSnap = await getDoc(doc(db, "bids", bidId));
+      
+      if (bidSnap.exists()) {
+        setGlobalSearchResult({ ...bidSnap.data(), id: bidSnap.id });
+        toast({ title: "Registro Encontrado", description: "El proceso existe en el repositorio histórico." });
+      } else {
+        toast({ variant: "destructive", title: "No Encontrado", description: "El ID no existe en nuestra base de datos." });
+      }
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Error de Búsqueda", description: e.message });
+    } finally {
+      setIsGlobalSearching(false);
+    }
+  }
 
   const handleSync = async () => {
     if (!selectedDate || !isSuperAdmin) return;
@@ -132,13 +149,11 @@ export default function BidsListPage() {
 
   const handleOcdsSync = async () => {
     if (!isSuperAdmin) return;
-    
     const now = new Date();
     if (parseInt(ocdsYear) > now.getFullYear() || (parseInt(ocdsYear) === now.getFullYear() && parseInt(ocdsMonth) > (now.getMonth() + 1))) {
       toast({ variant: "destructive", title: "Fecha Futura", description: "No puedes seleccionar meses que aún no han ocurrido." });
       return;
     }
-
     setIsOcdsLoading(true)
     try {
       const res = await syncOcdsHistorical(ocdsYear, ocdsMonth, ocdsType)
@@ -158,16 +173,13 @@ export default function BidsListPage() {
   const handleEnrich = async () => {
     if (!bids || bids.length === 0 || !isSuperAdmin) return;
     const toEnrich = bids.filter(b => !isBidEnriched(b));
-    
     if (toEnrich.length === 0) {
       toast({ title: "Datos Completos", description: "Todos los registros en vista ya cuentan con información enriquecida." });
       return;
     }
-    
     setIsEnriching(true);
     setEnrichTotal(toEnrich.length);
     setEnrichCount(0);
-    
     try {
       for (const bid of toEnrich) {
         await getBidDetail(bid.id);
@@ -176,7 +188,7 @@ export default function BidsListPage() {
       }
       toast({ title: "Enriquecido Finalizado" });
     } catch (e: any) {
-      toast({ variant: "destructive", title: "Saturación API", description: "Se ha alcanzado el límite de llamadas. Reintenta en 1 hora." });
+      toast({ variant: "destructive", title: "Saturación API", description: "Límite alcanzado. Reintenta en 1 hora." });
     } finally {
       setIsEnriching(false);
     }
@@ -273,15 +285,6 @@ export default function BidsListPage() {
         </div>
       </div>
 
-      {isEnriching && (
-        <Card className="border-accent bg-accent/5 shadow-lg">
-          <CardContent className="p-6 space-y-4">
-            <div className="flex justify-between items-center"><div className="flex items-center gap-2"><Activity className="h-4 w-4 text-accent animate-pulse" /><span className="text-xs font-black uppercase text-accent tracking-widest italic">Capturando datos de instituciones y montos...</span></div><span className="text-xs font-black text-primary italic">{Math.round((enrichCount / (enrichTotal || 1)) * 100)}%</span></div>
-            <Progress value={(enrichCount / (enrichTotal || 1)) * 100} className="h-2.5 bg-accent/20" />
-          </CardContent>
-        </Card>
-      )}
-
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card className="bg-white border-none shadow-xl rounded-[2rem] overflow-hidden relative">
           <div className="absolute top-0 right-0 p-4 opacity-5"><Server className="h-16 w-16" /></div>
@@ -301,7 +304,7 @@ export default function BidsListPage() {
           <CardContent className="p-8 flex items-center gap-6">
             <div className="h-16 w-16 rounded-3xl bg-emerald-50 flex items-center justify-center shrink-0"><CheckCircle2 className="h-8 w-8 text-emerald-600" /></div>
             <div>
-              <p className="text-[10px] font-black text-muted-foreground uppercase mb-1">Enriquecidos (En Vista)</p>
+              <p className="text-[10px] font-black text-muted-foreground uppercase mb-1">Enriquecidos (Global)</p>
               <h3 className="text-4xl font-black text-emerald-600 italic tracking-tighter">{stats.enriched}</h3>
             </div>
           </CardContent>
@@ -312,7 +315,7 @@ export default function BidsListPage() {
           <CardContent className="p-8 flex items-center gap-6">
             <div className="h-16 w-16 rounded-3xl bg-amber-50 flex items-center justify-center shrink-0"><CloudDownload className="h-8 w-8 text-amber-600" /></div>
             <div>
-              <p className="text-[10px] font-black text-muted-foreground uppercase mb-1">Pendientes (En Vista)</p>
+              <p className="text-[10px] font-black text-muted-foreground uppercase mb-1">Pendientes (Vista)</p>
               <h3 className="text-4xl font-black text-amber-600 italic tracking-tighter">{stats.pending}</h3>
             </div>
           </CardContent>
@@ -325,7 +328,16 @@ export default function BidsListPage() {
             <div className="flex-1 w-full">
               <div className="relative">
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground opacity-40" />
-                <Input placeholder="ID, Título o Institución..." className="pl-12 h-14 bg-white border-2 border-primary/5 rounded-2xl shadow-sm font-bold italic" value={searchTerm} onChange={(e) => {setSearchTerm(e.target.value); setCurrentPage(1);}} />
+                <Input 
+                  placeholder="Buscar por ID, Título o Institución..." 
+                  className="pl-12 h-14 bg-white border-2 border-primary/5 rounded-2xl shadow-sm font-bold italic" 
+                  value={searchTerm} 
+                  onChange={(e) => {
+                    setSearchTerm(e.target.value); 
+                    setCurrentPage(1);
+                    setGlobalSearchResult(null);
+                  }} 
+                />
               </div>
             </div>
             <div className="w-full lg:w-48">
@@ -341,6 +353,41 @@ export default function BidsListPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* RESULTADO DE BÚSQUEDA GLOBAL (SI EXISTE) */}
+      {globalSearchResult && (
+        <Card className="border-2 border-accent bg-accent/5 rounded-3xl overflow-hidden animate-in zoom-in-95">
+          <CardHeader className="bg-accent/10 py-3 px-6 border-b border-accent/20">
+            <CardTitle className="text-xs font-black uppercase text-accent flex items-center gap-2">
+              <SearchCode className="h-4 w-4" /> Registro Encontrado vía Búsqueda Global
+            </CardTitle>
+          </CardHeader>
+          <Table>
+            <TableBody>
+              <TableRow className="bg-white hover:bg-white">
+                <TableCell className="font-mono text-xs font-bold text-primary py-6 px-6 w-[140px]">
+                  <Link href={`/bids/${globalSearchResult.id}`} className="flex flex-col gap-2">
+                    <span className="bg-accent/10 text-accent px-2 py-1 rounded-lg border border-accent/20 inline-block w-fit">{globalSearchResult.id}</span>
+                    <Badge variant="secondary" className="text-[8px] h-4 px-1.5 font-black uppercase leading-none">{globalSearchResult.status}</Badge>
+                  </Link>
+                </TableCell>
+                <TableCell className="py-6">
+                  <Link href={`/bids/${globalSearchResult.id}`} className="space-y-2 block">
+                    <p className="font-black text-lg uppercase italic text-primary leading-tight">{globalSearchResult.title}</p>
+                    <p className="text-[10px] flex items-center gap-1.5 uppercase font-bold text-muted-foreground">
+                      <Building2 className="h-3.5 w-3.5" /> {isBidEnriched(globalSearchResult) ? globalSearchResult.entity : "Pendiente Datos..."}
+                    </p>
+                  </Link>
+                </TableCell>
+                <TableCell className="text-right font-black italic py-6 px-6 text-xl tracking-tighter">
+                  {formatCurrency(globalSearchResult.amount, globalSearchResult.currency)}
+                </TableCell>
+                <TableCell className="py-6 pr-6"><Link href={`/bids/${globalSearchResult.id}`}><div className="h-10 w-10 rounded-full bg-accent flex items-center justify-center text-white shadow-sm"><ChevronRight className="h-5 w-5" /></div></Link></TableCell>
+              </TableRow>
+            </TableBody>
+          </Table>
+        </Card>
+      )}
 
       {isDbLoading ? (
         <div className="flex flex-col items-center justify-center py-32 gap-6"><Loader2 className="h-16 w-16 text-primary animate-spin opacity-20" /><p className="text-muted-foreground font-black uppercase text-xs tracking-[0.3em] italic">Escaneando Repositorio Global PCG...</p></div>
@@ -386,7 +433,7 @@ export default function BidsListPage() {
             </Table>
           </Card>
           <div className="flex justify-between items-center px-4 bg-white/50 p-4 rounded-3xl border">
-            <p className="text-[10px] font-black text-muted-foreground uppercase italic">Página {currentPage} de {totalPages} • Mostrando {stats.totalInView} registros</p>
+            <p className="text-[10px] font-black text-muted-foreground uppercase italic">Página {currentPage} de {totalPages} • Mostrando {stats.totalInView} registros recientes</p>
             <div className="flex gap-3">
               <Button variant="outline" size="sm" onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))} disabled={currentPage === 1} className="h-10 w-10 p-0 rounded-xl"><ChevronLeft className="h-5 w-5" /></Button>
               <Button variant="outline" size="sm" onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))} disabled={currentPage === totalPages} className="h-10 w-10 p-0 rounded-xl"><ChevronRight className="h-5 w-5" /></Button>
@@ -395,8 +442,24 @@ export default function BidsListPage() {
         </div>
       ) : (
         <Card className="bg-primary/5 border-dashed border-4 border-primary/10 py-32 text-center space-y-6 rounded-[4rem]">
-          <Globe className="h-12 w-12 text-primary/20 mx-auto" /><h3 className="text-3xl font-black text-primary italic uppercase">Sin coincidencias</h3>
-          <Button variant="outline" onClick={() => { setSearchTerm(""); setStatusFilter("all"); }} className="font-black uppercase italic h-14 px-10 border-primary text-primary rounded-2xl">Reiniciar Explorador</Button>
+          <div className="space-y-4">
+            <Globe className="h-12 w-12 text-primary/20 mx-auto" />
+            <h3 className="text-3xl font-black text-primary italic uppercase">Sin resultados en vista</h3>
+            <p className="text-muted-foreground italic font-medium max-w-sm mx-auto">
+              Si estás buscando un ID específico, prueba la búsqueda profunda en todo el repositorio histórico.
+            </p>
+          </div>
+          <div className="flex flex-col sm:flex-row justify-center gap-4">
+            <Button 
+              className="bg-accent font-black uppercase italic h-14 px-10 rounded-2xl shadow-lg gap-2"
+              onClick={handleGlobalIdSearch}
+              disabled={isGlobalSearching || !searchTerm}
+            >
+              {isGlobalSearching ? <Loader2 className="animate-spin" /> : <SearchCode className="h-5 w-5" />}
+              Búsqueda Global por ID
+            </Button>
+            <Button variant="outline" onClick={() => { setSearchTerm(""); setStatusFilter("all"); setGlobalSearchResult(null); }} className="font-black uppercase italic h-14 px-10 border-primary text-primary rounded-2xl">Reiniciar Explorador</Button>
+          </div>
         </Card>
       )}
     </div>

@@ -28,7 +28,9 @@ import {
   CalendarClock,
   Layers,
   BarChart3,
-  FileWarning
+  FileWarning,
+  RefreshCw,
+  Clock
 } from "lucide-react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
@@ -65,6 +67,7 @@ export default function DashboardPage() {
   const [isRequesting, setIsRequesting] = useState(false)
   const [mounted, setMounted] = useState(false)
   const [globalCount, setGlobalCount] = useState<number | null>(null)
+  const [isRefreshingCount, setIsRefreshingCount] = useState(false)
 
   useEffect(() => {
     setMounted(true)
@@ -82,16 +85,21 @@ export default function DashboardPage() {
   const demoUsage = profile?.demoUsageCount || 0
   const hasRequestedPlan = profile?.planRequested || false
 
+  const fetchCount = async () => {
+    if (!db) return;
+    setIsRefreshingCount(true);
+    try {
+      const snapshot = await getCountFromServer(collection(db, "bids"));
+      setGlobalCount(snapshot.data().count);
+    } catch (e) {
+      console.error("Error fetching global count:", e);
+    } finally {
+      setIsRefreshingCount(false);
+    }
+  }
+
   useEffect(() => {
     if (db && isSuperAdmin && mounted) {
-      const fetchCount = async () => {
-        try {
-          const snapshot = await getCountFromServer(collection(db, "bids"));
-          setGlobalCount(snapshot.data().count);
-        } catch (e) {
-          console.error("Error fetching global count:", e);
-        }
-      }
       fetchCount();
     }
   }, [db, isSuperAdmin, mounted]);
@@ -256,11 +264,18 @@ export default function DashboardPage() {
             {isSuperAdmin ? "Supervisando la integridad del repositorio y el flujo de datos." : "Visión estratégica compartida de todas las licitaciones de tu empresa."}
           </p>
         </div>
-        <Link href="/bids">
-          <Button className="bg-accent hover:bg-accent/90 gap-2 font-black shadow-lg uppercase italic h-12 px-6">
-            <Zap className="h-4 w-4" /> Buscar Licitaciones
-          </Button>
-        </Link>
+        <div className="flex gap-2">
+          {isSuperAdmin && (
+            <Button variant="outline" onClick={fetchCount} disabled={isRefreshingCount} className="border-primary text-primary font-black uppercase italic h-12 px-4 shadow-sm">
+              <RefreshCw className={cn("h-4 w-4 mr-2", isRefreshingCount && "animate-spin")} /> Refrescar Conteo
+            </Button>
+          )}
+          <Link href="/bids">
+            <Button className="bg-accent hover:bg-accent/90 gap-2 font-black shadow-lg uppercase italic h-12 px-6">
+              <Zap className="h-4 w-4" /> Buscar Licitaciones
+            </Button>
+          </Link>
+        </div>
       </div>
 
       {isSuperAdmin && adminStats && (
@@ -268,9 +283,17 @@ export default function DashboardPage() {
           <Card className="lg:col-span-8 border-none shadow-2xl rounded-[2.5rem] bg-white overflow-hidden relative border-4 border-primary/5">
             <div className="absolute top-0 right-0 p-8 opacity-[0.03] pointer-events-none"><Database className="h-64 w-64" /></div>
             <CardHeader className="bg-primary/5 border-b px-8 py-6">
-              <CardTitle className="text-sm font-black uppercase tracking-[0.2em] flex items-center gap-2 text-primary">
-                <Activity className="h-4 w-4 text-accent" /> Salud del Repositorio de Datos
-              </CardTitle>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm font-black uppercase tracking-[0.2em] flex items-center gap-2 text-primary">
+                  <Activity className="h-4 w-4 text-accent" /> Salud del Repositorio de Datos
+                </CardTitle>
+                <div className="flex items-center gap-2">
+                  {isRefreshingCount && <Loader2 className="h-3 w-3 animate-spin text-accent" />}
+                  <p className="text-[8px] font-black text-muted-foreground uppercase flex items-center gap-1">
+                    <Clock className="h-2 w-2" /> Live Snapshot
+                  </p>
+                </div>
+              </div>
             </CardHeader>
             <CardContent className="p-8">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-10">

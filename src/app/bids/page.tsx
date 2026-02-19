@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useMemo, useEffect } from "react"
@@ -28,7 +29,8 @@ import {
   Tag,
   Info,
   BarChart3,
-  CalendarDays
+  CalendarDays,
+  Clock
 } from "lucide-react"
 import Link from "next/link"
 import { getBidsByDate, getBidDetail, syncOcdsHistorical } from "@/services/mercado-publico"
@@ -79,9 +81,24 @@ export default function BidsListPage() {
   const [marketVolume, setMarketVolume] = useState<number | null>(null)
   const [mounted, setMounted] = useState(false);
   const [globalDbCount, setGlobalDbCount] = useState<number | null>(null);
+  const [isRefreshingCount, setIsRefreshingCount] = useState(false);
   
   const [isGlobalSearching, setIsGlobalSearching] = useState(false);
   const [globalSearchResult, setGlobalSearchResult] = useState<any>(null);
+
+  const fetchGlobalCount = async () => {
+    if (!db) return;
+    setIsRefreshingCount(true);
+    try {
+      const coll = collection(db, "bids");
+      const snapshot = await getCountFromServer(coll);
+      setGlobalDbCount(snapshot.data().count);
+    } catch (e) {
+      console.error("Error fetching global count:", e);
+    } finally {
+      setIsRefreshingCount(false);
+    }
+  }
 
   useEffect(() => {
     setMounted(true);
@@ -90,18 +107,9 @@ export default function BidsListPage() {
 
   useEffect(() => {
     if (db && mounted) {
-      const fetchGlobalCount = async () => {
-        try {
-          const coll = collection(db, "bids");
-          const snapshot = await getCountFromServer(coll);
-          setGlobalDbCount(snapshot.data().count);
-        } catch (e) {
-          console.error("Error fetching global count:", e);
-        }
-      }
       fetchGlobalCount();
     }
-  }, [db, mounted, isSyncing, isOcdsLoading]);
+  }, [db, mounted]);
 
   const profileRef = useMemoFirebase(() => user ? doc(db!, "users", user.uid) : null, [db, user])
   const { data: profile } = useDoc(profileRef)
@@ -170,6 +178,8 @@ export default function BidsListPage() {
     try {
       await getBidsByDate(formattedDate)
       toast({ title: "Importación Exitosa" })
+      // Refresco diferido para dar tiempo a Firestore
+      setTimeout(fetchGlobalCount, 2000);
     } catch (error: any) {
       toast({ variant: "destructive", title: "Error", description: error.message })
     } finally {
@@ -186,6 +196,7 @@ export default function BidsListPage() {
         toast({ title: "Éxito OCDS", description: res.message })
         setIsOcdsDialogOpen(false)
         setMarketVolume(null)
+        setTimeout(fetchGlobalCount, 2500);
       } else {
         toast({ variant: "destructive", title: "Incompleto", description: res.message })
       }
@@ -351,15 +362,25 @@ export default function BidsListPage() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card className="bg-white border-none shadow-xl rounded-[2rem] overflow-hidden relative">
-          <div className="absolute top-0 right-0 p-4 opacity-5"><Server className="h-16 w-16" /></div>
+        <Card className="bg-white border-none shadow-xl rounded-[2rem] overflow-hidden relative group">
+          <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity"><Server className="h-16 w-16" /></div>
           <CardContent className="p-8 flex items-center gap-6">
-            <div className="h-16 w-16 rounded-3xl bg-primary/5 flex items-center justify-center shrink-0"><Layers className="h-8 w-8 text-primary" /></div>
-            <div>
-              <p className="text-[10px] font-black text-muted-foreground uppercase mb-1">Total en Base de Datos</p>
+            <div className="h-16 w-16 rounded-3xl bg-primary/5 flex items-center justify-center shrink-0">
+              <Layers className="h-8 w-8 text-primary" />
+            </div>
+            <div className="flex-1">
+              <div className="flex items-center justify-between mb-1">
+                <p className="text-[10px] font-black text-muted-foreground uppercase">Total en Base de Datos</p>
+                <button onClick={fetchGlobalCount} disabled={isRefreshingCount} className="p-1 hover:bg-primary/5 rounded-lg transition-colors">
+                  <RefreshCw className={cn("h-3 w-3 text-primary", isRefreshingCount && "animate-spin")} />
+                </button>
+              </div>
               <h3 className="text-4xl font-black text-primary italic tracking-tighter">
                 {globalDbCount !== null ? globalDbCount.toLocaleString() : "---"}
               </h3>
+              <p className="text-[8px] font-bold text-muted-foreground mt-1 uppercase flex items-center gap-1">
+                <Clock className="h-2 w-2" /> Actualizado ahora
+              </p>
             </div>
           </CardContent>
         </Card>

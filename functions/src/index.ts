@@ -5,6 +5,7 @@ import * as admin from "firebase-admin";
 /**
  * SERVICIOS CORE - PCG LICITACIÓN 2026
  * Motor de sincronización oficial con API Mercado Público.
+ * Actualizado: 18/02/2026 - Soporte para Batches Masivos (>500 docs).
  */
 
 if (admin.apps.length === 0) {
@@ -65,24 +66,28 @@ async function performSync(date: string) {
   }
 
   const bidsList = apiData.Listado || [];
-  const batch = db.batch();
-  const nowServer = admin.firestore.FieldValue.serverTimestamp();
+  
+  // Chunking bids list to avoid Firestore 500 limits
+  for (let i = 0; i < bidsList.length; i += 450) {
+    const batch = db.batch();
+    const chunk = bidsList.slice(i, i + 450);
+    const nowServer = admin.firestore.FieldValue.serverTimestamp();
 
-  bidsList.forEach((bid: any) => {
-    if (!bid.CodigoExterno) return;
-    
-    const bidRef = db.collection("bids").doc(bid.CodigoExterno);
-    batch.set(bidRef, {
-      id: bid.CodigoExterno,
-      title: bid.Nombre || "Sin título",
-      status: bid.Estado || "No definido",
-      scrapedAt: nowServer,
-      sourceUrl: `https://www.mercadopublico.cl/Procurement/Modules/RFB/DetailsAcquisition.aspx?idLicitacion=${bid.CodigoExterno}`
-    }, { merge: true });
-  });
+    chunk.forEach((bid: any) => {
+      if (!bid.CodigoExterno) return;
+      const bidRef = db.collection("bids").doc(bid.CodigoExterno);
+      batch.set(bidRef, {
+        id: bid.CodigoExterno,
+        title: bid.Nombre || "Sin título",
+        status: bid.Estado || "No definido",
+        scrapedAt: nowServer,
+        sourceUrl: `https://www.mercadopublico.cl/Procurement/Modules/RFB/DetailsAcquisition.aspx?idLicitacion=${bid.CodigoExterno}`
+      }, { merge: true });
+    });
+    await batch.commit();
+  }
 
-  batch.set(cacheRef, { lastSync: nowServer, count: bidsList.length, status: 'success' });
-  await batch.commit();
+  await cacheRef.set({ lastSync: admin.firestore.FieldValue.serverTimestamp(), count: bidsList.length, status: 'success' });
 
   return { success: true, count: bidsList.length, message: "Sincronización exitosa." };
 }
@@ -122,33 +127,39 @@ export const syncOcdsHistorical = onRequest({
     const initialUrl = `https://api.mercadopublico.cl/APISOCDS/OCDS/${endpointBase}/${year}/${month}/0/999`;
     
     const res = await fetch(initialUrl);
-    if (!res.ok) return response.status(200).json({ success: false, message: `Error Portal Mercado Público: ${res.status}. Es posible que los datos no estén disponibles aún.` });
+    if (!res.ok) return response.status(200).json({ success: false, message: `Error Portal Mercado Público: ${res.status}. Es posible que los datos de ese mes no estén disponibles aún.` });
 
     let data = await res.json() as any;
     if (!data || !data.data || data.data.length === 0) return response.json({ success: false, message: "No hay registros disponibles para el periodo seleccionado." });
 
     const items = data.data;
-    const batch = db.batch();
     
-    items.forEach((item: any) => {
-      const release = item.releases?.[0];
-      if (!release || !release.tender) return;
-      const bidId = release.tender.id;
-      const bidRef = db.collection("bids").doc(bidId);
-      batch.set(bidRef, {
-        id: bidId,
-        title: release.tender.title || "Proceso OCDS",
-        entity: release.buyer?.name || "Institución vía OCDS",
-        status: release.tender.status || "Desconocido",
-        amount: release.tender.value?.amount || 0,
-        currency: release.tender.value?.currency || 'CLP',
-        scrapedAt: admin.firestore.FieldValue.serverTimestamp(),
-        isOcds: true,
-        sourceUrl: `https://www.mercadopublico.cl/Procurement/Modules/RFB/DetailsAcquisition.aspx?idLicitacion=${bidId}`
-      }, { merge: true });
-    });
+    // CRÍTICO: Procesar en bloques de 450 para no superar el límite de 500 de Firestore
+    for (let i = 0; i < items.length; i += 450) {
+      const batch = db.batch();
+      const chunk = items.slice(i, i + 450);
+      
+      chunk.forEach((item: any) => {
+        const release = item.releases?.[0];
+        if (!release || !release.tender) return;
+        const bidId = release.tender.id;
+        const bidRef = db.collection("bids").doc(bidId);
+        batch.set(bidRef, {
+          id: bidId,
+          title: release.tender.title || "Proceso OCDS",
+          entity: release.buyer?.name || "Institución vía OCDS",
+          status: release.tender.status || "Desconocido",
+          amount: release.tender.value?.amount || 0,
+          currency: release.tender.value?.currency || 'CLP',
+          scrapedAt: admin.firestore.FieldValue.serverTimestamp(),
+          isOcds: true,
+          sourceUrl: `https://www.mercadopublico.cl/Procurement/Modules/RFB/DetailsAcquisition.aspx?idLicitacion=${bidId}`
+        }, { merge: true });
+      });
 
-    await batch.commit();
+      await batch.commit();
+    }
+
     response.json({ success: true, count: items.length, message: `Se han succionado ${items.length} registros del periodo ${month}/${year}.` });
 
   } catch (error: any) {
@@ -203,5 +214,5 @@ export const getBidDetail = onRequest({
 });
 
 export const healthCheck = onRequest({ cors: true }, (req, res) => {
-  res.json({ status: "ok", version: "3.0.0", timestamp: new Date().toISOString() });
+  res.json({ status: "ok", version: "3.1.0-BATCH-FIX", timestamp: new Date().toISOString() });
 });

@@ -74,22 +74,25 @@ async function performSync(date) {
         throw new Error(apiData.Mensaje || "Error desconocido en la API de Mercado Público");
     }
     const bidsList = apiData.Listado || [];
-    const batch = db.batch();
-    const nowServer = admin.firestore.FieldValue.serverTimestamp();
-    bidsList.forEach((bid) => {
-        if (!bid.CodigoExterno)
-            return;
-        const bidRef = db.collection("bids").doc(bid.CodigoExterno);
-        batch.set(bidRef, {
-            id: bid.CodigoExterno,
-            title: bid.Nombre || "Sin título",
-            status: bid.Estado || "No definido",
-            scrapedAt: nowServer,
-            sourceUrl: `https://www.mercadopublico.cl/Procurement/Modules/RFB/DetailsAcquisition.aspx?idLicitacion=${bid.CodigoExterno}`
-        }, { merge: true });
-    });
-    batch.set(cacheRef, { lastSync: nowServer, count: bidsList.length, status: 'success' });
-    await batch.commit();
+    for (let i = 0; i < bidsList.length; i += 450) {
+        const batch = db.batch();
+        const chunk = bidsList.slice(i, i + 450);
+        const nowServer = admin.firestore.FieldValue.serverTimestamp();
+        chunk.forEach((bid) => {
+            if (!bid.CodigoExterno)
+                return;
+            const bidRef = db.collection("bids").doc(bid.CodigoExterno);
+            batch.set(bidRef, {
+                id: bid.CodigoExterno,
+                title: bid.Nombre || "Sin título",
+                status: bid.Estado || "No definido",
+                scrapedAt: nowServer,
+                sourceUrl: `https://www.mercadopublico.cl/Procurement/Modules/RFB/DetailsAcquisition.aspx?idLicitacion=${bid.CodigoExterno}`
+            }, { merge: true });
+        });
+        await batch.commit();
+    }
+    await cacheRef.set({ lastSync: admin.firestore.FieldValue.serverTimestamp(), count: bidsList.length, status: 'success' });
     return { success: true, count: bidsList.length, message: "Sincronización exitosa." };
 }
 exports.getBidsByDate = (0, https_1.onRequest)({
@@ -132,9 +135,11 @@ exports.syncOcdsHistorical = (0, https_1.onRequest)({
         let data = await res.json();
         if (!data || !data.data || data.data.length === 0)
             return response.json({ success: false, message: "No hay registros disponibles para el periodo seleccionado." });
-        const processBatch = async (items) => {
+        const items = data.data;
+        for (let i = 0; i < items.length; i += 450) {
             const batch = db.batch();
-            items.forEach((item) => {
+            const chunk = items.slice(i, i + 450);
+            chunk.forEach((item) => {
                 const release = item.releases?.[0];
                 if (!release || !release.tender)
                     return;
@@ -153,9 +158,8 @@ exports.syncOcdsHistorical = (0, https_1.onRequest)({
                 }, { merge: true });
             });
             await batch.commit();
-        };
-        await processBatch(data.data);
-        response.json({ success: true, count: data.data.length, message: `Se han succionado ${data.data.length} registros del periodo ${month}/${year}.` });
+        }
+        response.json({ success: true, count: items.length, message: `Se han succionado ${items.length} registros del periodo ${month}/${year}.` });
     }
     catch (error) {
         console.error(`>>> [OCDS_CRASH] Error Fatal: ${error.message}`);
@@ -209,6 +213,6 @@ exports.getBidDetail = (0, https_1.onRequest)({
     }
 });
 exports.healthCheck = (0, https_1.onRequest)({ cors: true }, (req, res) => {
-    res.json({ status: "ok", version: "2.5.0-RESET", timestamp: new Date().toISOString() });
+    res.json({ status: "ok", version: "3.1.0-BATCH-FIX", timestamp: new Date().toISOString() });
 });
 //# sourceMappingURL=index.js.map

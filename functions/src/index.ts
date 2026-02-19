@@ -6,7 +6,7 @@ import * as admin from "firebase-admin";
 /**
  * SERVICIOS CORE - PCG LICITACIÓN 2026
  * Motor de sincronización oficial con API Mercado Público.
- * Versión: 5.0.0 - Blindaje de Etiquetas y Paginación Profunda.
+ * Versión: 6.0.0 - Blindaje Total de Etiquetas y Limpieza de IDs OCDS.
  */
 
 if (admin.apps.length === 0) {
@@ -29,6 +29,10 @@ async function getActiveTicket(): Promise<{ ticket: string, source: string }> {
   return { ticket: DEFAULT_TICKET, source: 'default' };
 }
 
+/**
+ * INGESTA DIARIA (Sincronización por Fecha)
+ * Se ha modificado para NO sobreescribir el tipo si ya existe uno especializado.
+ */
 async function performSync(date: string) {
   const db = admin.firestore();
   const { ticket: TICKET } = await getActiveTicket();
@@ -77,20 +81,17 @@ async function performSync(date: string) {
       if (!bid.CodigoExterno) return;
       const bidRef = db.collection("bids").doc(bid.CodigoExterno);
       
-      // BLINDAJE DE TIPO: No sobreescribimos si ya es algo especial
-      batch.set(bidRef, {
+      // BLINDAJE DE TIPO: No enviamos 'type' en la ingesta diaria si el documento ya existe
+      // para evitar borrar 'Convenio Marco' o 'Trato Directo'.
+      const payload: any = {
         id: bid.CodigoExterno,
         title: bid.Nombre || "Sin título",
         status: bid.Estado || "No definido",
-        // Solo asignamos "Licitación" si el documento no existe o no tiene tipo
-        // Para evitar que la ingesta diaria borre los "Convenio Marco"
-        type: "Licitación", 
-        entity: "Pendiente Enriquecimiento",
-        amount: 0,
-        currency: 'CLP',
         scrapedAt: nowServer,
         sourceUrl: `https://www.mercadopublico.cl/Procurement/Modules/RFB/DetailsAcquisition.aspx?idLicitacion=${bid.CodigoExterno}`
-      }, { merge: true });
+      };
+
+      batch.set(bidRef, payload, { merge: true });
     });
     await batch.commit();
   }
@@ -117,6 +118,10 @@ export const getBidsByDate = onRequest({
   }
 });
 
+/**
+ * INGESTA HISTÓRICA OCDS
+ * Se ha añadido limpieza de ID para evitar duplicados con prefijos 'ocds-'.
+ */
 export const syncOcdsHistorical = onRequest({
   cors: true,
   region: "us-central1",
@@ -147,7 +152,6 @@ export const syncOcdsHistorical = onRequest({
       });
     }
 
-    // BUCLE DE CAPTURA MULTI-PÁGINA (AVANCE REAL)
     let totalIngested = 0;
     const pagesToFetch = 5; 
     const pageSize = 1000;
@@ -160,7 +164,7 @@ export const syncOcdsHistorical = onRequest({
       if (!res.ok) break;
 
       const data = await res.json() as any;
-      const items = data.data || [];
+      const items = data.data || data.Listado || [];
       if (items.length === 0) break;
 
       for (let i = 0; i < items.length; i += 450) {
@@ -170,7 +174,16 @@ export const syncOcdsHistorical = onRequest({
         chunk.forEach((item: any) => {
           const release = item.releases?.[0];
           if (!release || !release.tender) return;
-          const bidId = release.tender.id;
+          
+          let bidId = release.tender.id;
+          // LIMPIEZA DE ID: ocds-70d2nz-1234-56-LP24 -> 1234-56-LP24
+          if (bidId.startsWith('ocds-')) {
+            const parts = bidId.split('-');
+            if (parts.length > 2) {
+              bidId = parts.slice(2).join('-');
+            }
+          }
+
           const bidRef = db.collection("bids").doc(bidId);
           
           batch.set(bidRef, {
@@ -178,7 +191,7 @@ export const syncOcdsHistorical = onRequest({
             title: release.tender.title || "Proceso OCDS",
             entity: release.buyer?.name || release.tender.procuringEntity?.name || "Institución vía OCDS",
             status: release.tender.status || "Desconocido",
-            type: typeLabel, // FORZAR ETIQUETA PROTEGIDA
+            type: typeLabel, 
             amount: release.tender.value?.amount || 0,
             currency: release.tender.value?.currency || 'CLP',
             scrapedAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -226,13 +239,11 @@ export const getBidDetail = onRequest({
                       detail.Comprador?.NombreUnidad ||
                       "Institución no especificada";
 
-      // PROTECCIÓN DE ETIQUETAS: No permitimos que el detalle degrade un Convenio o Trato
       let typeLabel = currentData?.type || "Licitación";
       
       const typeCode = detail.CodigoTipo;
       if (typeCode === 3) typeLabel = "Convenio Marco";
       else if (typeCode === 2) typeLabel = "Trato Directo";
-      // Si ya era Convenio Marco por OCDS, no permitimos que baje a Licitación
       else if (currentData?.type === "Convenio Marco" || currentData?.type === "Trato Directo") {
         typeLabel = currentData.type;
       } else {
@@ -258,5 +269,5 @@ export const getBidDetail = onRequest({
 });
 
 export const healthCheck = onRequest({ cors: true }, (req, res) => {
-  res.json({ status: "ok", version: "5.0.0-FIXED-INGESTION", timestamp: new Date().toISOString() });
+  res.json({ status: "ok", version: "6.0.0-FIXED-IDs", timestamp: new Date().toISOString() });
 });

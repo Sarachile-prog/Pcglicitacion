@@ -1,13 +1,11 @@
 
 "use client"
 
-import { useCollection, useMemoFirebase, useFirestore, useUser, useDoc, useAuth } from "@/firebase"
-import { collection, query, orderBy, limit, doc, updateDoc, getCountFromServer, where } from "firebase/firestore"
+import { useCollection, useMemoFirebase, useFirestore, useUser, useDoc } from "@/firebase"
+import { collection, query, orderBy, doc, getCountFromServer, where } from "firebase/firestore"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { 
-  Briefcase, 
-  DollarSign, 
   ChevronRight, 
   Building2,
   Zap,
@@ -15,31 +13,17 @@ import {
   Target,
   Bookmark,
   Loader2,
-  TrendingUp,
-  Database,
-  ShieldCheck,
-  Users,
-  LogOut,
-  Search,
-  BrainCircuit,
-  CheckCircle2,
-  AlertCircle,
-  Activity,
-  CalendarClock,
   Layers,
-  BarChart3,
-  FileWarning,
   RefreshCw,
   Clock,
-  ShieldAlert
+  ShieldAlert,
+  AlertCircle
 } from "lucide-react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
-import { signOut } from "firebase/auth"
 import { useToast } from "@/hooks/use-toast"
-import { useState, useEffect, useMemo } from "react"
-import { useRouter } from "next/navigation"
+import { useState, useEffect } from "react"
 
 export default function DashboardPage() {
   const db = useFirestore()
@@ -47,7 +31,7 @@ export default function DashboardPage() {
   const { toast } = useToast()
   const [mounted, setMounted] = useState(false)
   const [globalCount, setGlobalCount] = useState<number | null>(null)
-  const [breakdown, setBreakdown] = useState<{ licitacion: number, convenio: number, trato: number } | null>(null)
+  const [breakdown, setBreakdown] = useState<{ licitacion: number, convenio: number, trato: number, orphan: number } | null>(null)
   const [isRefreshingCount, setIsRefreshingCount] = useState(false)
 
   useEffect(() => {
@@ -69,7 +53,6 @@ export default function DashboardPage() {
     try {
       const coll = collection(db, "bids");
       
-      // Usamos consultas individuales para asegurar que Firestore cuente exactamente lo que queremos
       const [sTotal, sL, sC, sT] = await Promise.all([
         getCountFromServer(coll),
         getCountFromServer(query(coll, where("type", "==", "Licitación"))),
@@ -77,16 +60,20 @@ export default function DashboardPage() {
         getCountFromServer(query(coll, where("type", "==", "Trato Directo")))
       ]);
       
-      setGlobalCount(sTotal.data().count);
+      const total = sTotal.data().count;
+      const categorized = sL.data().count + sC.data().count + sT.data().count;
+
+      setGlobalCount(total);
       setBreakdown({
         licitacion: sL.data().count,
         convenio: sC.data().count,
-        trato: sT.data().count
+        trato: sT.data().count,
+        orphan: total - categorized
       });
-      toast({ title: "Repositorio Escaneado" });
+      toast({ title: "Auditoría de Datos Completa" });
     } catch (e) {
       console.error("Error fetching breakdown:", e);
-      toast({ variant: "destructive", title: "Error en escaneo" });
+      toast({ variant: "destructive", title: "Error en escaneo profundo" });
     } finally {
       setIsRefreshingCount(false);
     }
@@ -166,26 +153,26 @@ export default function DashboardPage() {
               <p className="text-[8px] font-bold text-muted-foreground uppercase">Registros Detectados</p>
             </CardContent>
           </Card>
-          <Card className="border-none shadow-xl bg-white overflow-hidden rounded-3xl border-l-4 border-l-emerald-500">
+          <Card className={cn("border-none shadow-xl overflow-hidden rounded-3xl border-l-4", breakdown.orphan > 0 ? "bg-amber-50 border-l-amber-500" : "bg-white border-l-emerald-500")}>
             <CardContent className="p-6 space-y-2">
               <div className="flex items-center justify-between text-muted-foreground">
-                <p className="text-[10px] font-black uppercase tracking-widest">Licitaciones</p>
-                <Badge variant="outline" className="text-[8px] font-black border-emerald-200 text-emerald-600">PÚBLICAS</Badge>
+                <p className="text-[10px] font-black uppercase tracking-widest">Sin Categoría</p>
+                <AlertCircle className={cn("h-4 w-4", breakdown.orphan > 0 ? "text-amber-600 animate-pulse" : "text-emerald-600")} />
               </div>
-              <h3 className="text-4xl font-black text-primary italic">{breakdown.licitacion.toLocaleString()}</h3>
-              <p className="text-[8px] font-bold text-muted-foreground uppercase">Registros Detectados</p>
+              <h3 className={cn("text-4xl font-black italic", breakdown.orphan > 0 ? "text-amber-700" : "text-primary")}>{breakdown.orphan.toLocaleString()}</h3>
+              <p className="text-[8px] font-bold text-muted-foreground uppercase">Pendientes de Etiqueta</p>
             </CardContent>
           </Card>
         </div>
       )}
 
-      {isSuperAdmin && breakdown && (breakdown.convenio === 0 && breakdown.trato === 0) && (
-        <Card className="bg-red-50 border-2 border-red-100 p-6 rounded-3xl animate-pulse">
-          <CardContent className="p-0 flex items-center gap-4 text-red-800">
+      {isSuperAdmin && breakdown && breakdown.orphan > 0 && (
+        <Card className="bg-amber-50 border-2 border-amber-100 p-6 rounded-3xl">
+          <CardContent className="p-0 flex items-center gap-4 text-amber-800">
             <ShieldAlert className="h-10 w-10 shrink-0" />
             <div>
-              <p className="font-black uppercase italic text-sm">Alerta de Sincronización</p>
-              <p className="text-xs italic font-bold">El sistema indica que tienes registros pero las etiquetas no coinciden. Esto ocurre porque la Ingesta Diaria sobreescribió los tipos. <b>Solución:</b> Ejecuta 'firebase deploy --only functions' y luego repite una Ingesta Masiva OCDS.</p>
+              <p className="font-black uppercase italic text-sm">Registros Huérfanos Detectados</p>
+              <p className="text-xs italic font-bold">Tienes {breakdown.orphan.toLocaleString()} procesos sin tipo definido. Esto ocurre porque la Ingesta Diaria sobreescribió las etiquetas. <b>Solución:</b> Ejecuta una 'Ingesta Masiva OCDS' del mes correspondiente para restaurar las categorías.</p>
             </div>
           </CardContent>
         </Card>
@@ -249,7 +236,7 @@ export default function DashboardPage() {
                </p>
                <div className="p-5 bg-white/10 rounded-2xl border border-white/20 backdrop-blur-sm space-y-2">
                  <p className="text-[10px] uppercase font-black text-accent tracking-widest flex items-center gap-2"><Target className="h-3 w-3" /> Recomendación PCG</p>
-                 <p className="text-xs font-bold leading-tight">Si los números de Convenio no suben, asegúrate de haber desplegado las funciones de 5ª generación.</p>
+                 <p className="text-xs font-bold leading-tight">Si las etiquetas de Convenio no suben, asegúrate de haber ejecutado 'firebase deploy --only functions' para activar el blindaje de IDs.</p>
                </div>
              </CardContent>
           </Card>

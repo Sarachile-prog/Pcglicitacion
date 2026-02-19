@@ -21,6 +21,18 @@ Ejecuta `git status` o mira el log con `git log -1`.
 
 - **ÉXITO:** Si en el log ves `(HEAD -> main, origin/main)`, tus cambios ya están en la nube.
 
+## Despliegue de Cloud Functions (MOTOR DE DATOS)
+
+Si has realizado cambios en el motor de sincronización o captura agresiva (`functions/src/index.ts`), debes desplegar las funciones manualmente para que los cambios surtan efecto en la nube:
+
+1. **Asegúrate de estar en la raíz del proyecto.**
+2. **Ejecuta el comando:**
+   ```bash
+   firebase deploy --only functions
+   ```
+
+*Nota: El sistema ejecutará automáticamente el build de TypeScript antes de subir el código a los servidores de Google Cloud.*
+
 ## Solución de Errores de Git (Autenticación)
 
 Si al hacer `git push` recibes el error **"Missing or invalid credentials"** o **"Authentication failed"**, sigue estos pasos:

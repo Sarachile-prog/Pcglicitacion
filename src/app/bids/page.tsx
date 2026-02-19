@@ -30,7 +30,8 @@ import {
   Info,
   BarChart3,
   CalendarDays,
-  Clock
+  Clock,
+  Filter
 } from "lucide-react"
 import Link from "next/link"
 import { getBidsByDate, getBidDetail, syncOcdsHistorical } from "@/services/mercado-publico"
@@ -65,6 +66,7 @@ export default function BidsListPage() {
 
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
+  const [typeFilter, setTypeFilter] = useState("all")
   const [isSyncing, setIsSyncing] = useState(false)
   const [isEnriching, setIsEnriching] = useState(false)
   const [enrichCount, setEnrichCount] = useState(0)
@@ -133,8 +135,9 @@ export default function BidsListPage() {
       )
     }
     if (statusFilter !== "all") results = results.filter(bid => bid.status === statusFilter)
+    if (typeFilter !== "all") results = results.filter(bid => bid.type === typeFilter)
     return results
-  }, [bids, searchTerm, statusFilter])
+  }, [bids, searchTerm, statusFilter, typeFilter])
 
   useEffect(() => {
     const timer = setTimeout(async () => {
@@ -178,7 +181,6 @@ export default function BidsListPage() {
     try {
       await getBidsByDate(formattedDate)
       toast({ title: "Importación Exitosa" })
-      // Refresco diferido para dar tiempo a Firestore
       setTimeout(fetchGlobalCount, 2000);
     } catch (error: any) {
       toast({ variant: "destructive", title: "Error", description: error.message })
@@ -330,10 +332,6 @@ export default function BidsListPage() {
                             <span className="text-3xl font-black italic">{marketVolume.toLocaleString()}</span>
                           </div>
                           <p className="text-[10px] font-black uppercase text-emerald-700/70">Procesos detectados en el portal oficial</p>
-                          <p className="text-[9px] font-bold text-muted-foreground leading-tight px-4">
-                            Sugerencia: Cada succión captura hasta 1,000 registros. 
-                            {marketVolume > 1000 ? ` Necesitarás aproximadamente ${Math.ceil(marketVolume / 1000)} pasadas para este mes.` : " Con una sola succión cubrirás todo el mes."}
-                          </p>
                         </div>
                       )}
                     </div>
@@ -408,13 +406,6 @@ export default function BidsListPage() {
         </Card>
       </div>
 
-      <div className="p-4 bg-amber-50 border-2 border-amber-100 rounded-2xl flex items-center gap-4">
-        <Info className="h-6 w-6 text-amber-600 shrink-0" />
-        <p className="text-xs font-bold text-amber-900 uppercase italic">
-          Nota del Sistema: El "Enriquecimiento" consume tu ticket oficial de Mercado Público (Data), NO consume créditos de IA. Úsalo libremente para completar la ficha técnica.
-        </p>
-      </div>
-
       <Card className="border-none shadow-2xl rounded-[2.5rem] overflow-hidden">
         <CardContent className="p-8 space-y-6 bg-muted/5">
           <div className="flex flex-col lg:flex-row gap-4 items-end">
@@ -436,6 +427,19 @@ export default function BidsListPage() {
                   }} 
                 />
               </div>
+            </div>
+            <div className="w-full lg:w-48">
+              <Select value={typeFilter} onValueChange={(v) => {setTypeFilter(v); setCurrentPage(1);}}>
+                <SelectTrigger className="h-14 bg-white border-2 rounded-2xl font-black text-xs uppercase italic">
+                  <SelectValue placeholder="Tipo" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos los Tipos</SelectItem>
+                  <SelectItem value="Licitación">Licitaciones</SelectItem>
+                  <SelectItem value="Trato Directo">Tratos Directos</SelectItem>
+                  <SelectItem value="Convenio Marco">Convenio Marco</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             <div className="w-full lg:w-48">
               <Select value={statusFilter} onValueChange={(v) => {setStatusFilter(v); setCurrentPage(1);}}>
@@ -525,7 +529,10 @@ export default function BidsListPage() {
                               <Building2 className="h-3.5 w-3.5" /> {!enriched ? "Pendiente Datos..." : bid.entity}
                             </p>
                             {bid.type && (
-                              <Badge variant="outline" className="text-[8px] font-black uppercase h-4 px-1.5 border-primary/20 text-muted-foreground bg-white shadow-sm">
+                              <Badge variant="outline" className={cn(
+                                "text-[8px] font-black uppercase h-4 px-1.5 shadow-sm bg-white",
+                                bid.type === 'Convenio Marco' ? "border-indigo-500 text-indigo-600" : "border-primary/20 text-muted-foreground"
+                              )}>
                                 {bid.type}
                               </Badge>
                             )}
@@ -560,7 +567,7 @@ export default function BidsListPage() {
             {isGlobalSearching && <Loader2 className="h-8 w-8 animate-spin mx-auto text-accent" />}
           </div>
           <div className="flex flex-col sm:flex-row justify-center gap-4">
-            <Button variant="outline" onClick={() => { setSearchTerm(""); setStatusFilter("all"); setGlobalSearchResult(null); }} className="font-black uppercase italic h-14 px-10 border-primary text-primary rounded-2xl">Reiniciar Explorador</Button>
+            <Button variant="outline" onClick={() => { setSearchTerm(""); setStatusFilter("all"); setTypeFilter("all"); setGlobalSearchResult(null); }} className="font-black uppercase italic h-14 px-10 border-primary text-primary rounded-2xl">Reiniciar Explorador</Button>
           </div>
         </Card>
       )}

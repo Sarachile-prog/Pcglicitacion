@@ -5,7 +5,7 @@ import * as admin from "firebase-admin";
 /**
  * SERVICIOS CORE - PCG LICITACIÓN 2026
  * Motor de sincronización oficial con API Mercado Público.
- * Actualizado: 21/02/2026 - Corrección de etiquetas y conteo OCDS.
+ * Actualizado: 22/02/2026 - Protección de etiquetas y robustez OCDS.
  */
 
 if (admin.apps.length === 0) {
@@ -80,7 +80,7 @@ async function performSync(date: string) {
         id: bid.CodigoExterno,
         title: bid.Nombre || "Sin título",
         status: bid.Estado || "No definido",
-        type: "Licitación", // Corregido: unificado con acento
+        type: "Licitación",
         entity: "Pendiente Enriquecimiento",
         amount: 0,
         currency: 'CLP',
@@ -202,7 +202,10 @@ export const getBidDetail = onRequest({
 
     if (apiData.Listado && apiData.Listado.length > 0) {
       const detail = apiData.Listado[0];
-      
+      const bidRef = admin.firestore().collection("bids").doc(code);
+      const currentDoc = await bidRef.get();
+      const currentData = currentDoc.data();
+
       const orgName = detail.Comprador?.NombreOrganismo || 
                       detail.NombreInstitucion || 
                       detail.OrganismoComprador?.Nombre ||
@@ -210,12 +213,15 @@ export const getBidDetail = onRequest({
                       detail.Comprador?.NombreUnidad ||
                       "Institución no especificada";
 
+      // PROTECCIÓN DE ETIQUETA: Si ya es Convenio Marco vía OCDS, no lo bajamos a Licitación
+      let typeLabel = currentData?.type || "Licitación";
       const typeCode = detail.CodigoTipo;
-      let typeLabel = "Licitación";
+      
       if (typeCode === 3) typeLabel = "Convenio Marco";
-      if (typeCode === 2) typeLabel = "Trato Directo";
+      else if (typeCode === 2) typeLabel = "Trato Directo";
+      else if (!currentData?.type || currentData.type === "Licitación") typeLabel = "Licitación";
 
-      await admin.firestore().collection("bids").doc(code).update({
+      await bidRef.update({
         entity: orgName,
         type: typeLabel,
         description: detail.Descripcion || "Sin descripción adicional.",
@@ -234,5 +240,5 @@ export const getBidDetail = onRequest({
 });
 
 export const healthCheck = onRequest({ cors: true }, (req, res) => {
-  res.json({ status: "ok", version: "3.8.0-LABEL-FIX", timestamp: new Date().toISOString() });
+  res.json({ status: "ok", version: "3.9.0-LABEL-PROTECTION", timestamp: new Date().toISOString() });
 });

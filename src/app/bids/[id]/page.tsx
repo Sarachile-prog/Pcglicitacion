@@ -26,7 +26,11 @@ import {
   BrainCircuit,
   MessageCircle,
   Package,
-  Info
+  Info,
+  FileUp,
+  FileCheck,
+  Trash2,
+  Plus
 } from "lucide-react"
 import Link from "next/link"
 import { useToast } from "@/hooks/use-toast"
@@ -44,9 +48,12 @@ export default function BidDetailPage() {
   const [loadingAI, setLoadingAI] = useState(false)
   const [isRefreshingDetail, setIsRefreshingDetail] = useState(false)
   const [manualText, setManualText] = useState("")
+  const [pdfDataUri, setPdfDataUri] = useState<string | null>(null)
+  const [pdfFileName, setPdfFileName] = useState<string | null>(null)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [activeTab, setActiveTab] = useState<string>("description")
   const hasAttemptedFetch = useRef(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const bidRef = useMemoFirebase(() => db && bidId ? doc(db, "bids", bidId) : null, [db, bidId])
   const { data: bid, isLoading: isDocLoading } = useDoc(bidRef)
@@ -92,15 +99,45 @@ export default function BidDetailPage() {
     }
   }
 
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    
+    if (file.type !== 'application/pdf') {
+      toast({ variant: "destructive", title: "Formato Incorrecto", description: "Solo se permiten archivos PDF." })
+      return
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      toast({ variant: "destructive", title: "Archivo Pesado", description: "El PDF supera el límite de 10MB." })
+      return
+    }
+
+    setPdfFileName(file.name)
+    const reader = new FileReader()
+    reader.onload = (event) => {
+      setPdfDataUri(event.target?.result as string)
+    }
+    reader.readAsDataURL(file)
+  }
+
   const handleAnalyze = async (mode: 'fast' | 'deep') => {
     if (!bid || !bidRef || !profileRef) return
     setLoadingAI(true)
     if (mode === 'deep') setIsDialogOpen(false)
 
     try {
-      toast({ title: "Motor IA Iniciado" })
+      toast({ title: "Motor IA Iniciado", description: mode === 'deep' ? "Procesando documentos adjuntos..." : "Analizando datos del portal..." })
+      
       const contextText = mode === 'deep' ? manualText : (bid.description || bid.title)
-      const result = await extractAndSummarizeBidDetails({ bidId: bid.id, bidDocumentText: contextText, useLivePortal: true })
+      const pdfToProcess = mode === 'deep' ? pdfDataUri : null
+
+      const result = await extractAndSummarizeBidDetails({ 
+        bidId: bid.id, 
+        bidDocumentText: contextText, 
+        pdfDataUri: pdfToProcess || undefined,
+        useLivePortal: true 
+      })
       
       await updateDoc(bidRef, { aiAnalysis: result, lastAnalyzedAt: new Date().toISOString() })
       if (bookmarkRef && bookmark) await updateDoc(bookmarkRef, { aiAnalysis: result })
@@ -108,6 +145,10 @@ export default function BidDetailPage() {
 
       setActiveTab("ai-advisor")
       toast({ title: "Análisis Completado" })
+      // Limpiar estados de archivo tras éxito
+      setPdfDataUri(null)
+      setPdfFileName(null)
+      setManualText("")
     } catch (error: any) {
       toast({ variant: "destructive", title: "Error IA", description: error.message })
     } finally {
@@ -125,8 +166,8 @@ export default function BidDetailPage() {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <Link href="/bids"><Button variant="ghost" size="sm" className="text-muted-foreground"><ChevronLeft className="h-4 w-4 mr-1" /> Volver</Button></Link>
         <div className="flex gap-2">
-          {bookmark && <Link href={`/bids/${bidId}/apply`}><Button className="bg-emerald-600 hover:bg-emerald-700 font-bold gap-2 uppercase italic text-xs"><SendHorizontal className="h-4 w-4" /> Preparar Oferta</Button></Link>}
-          <Button variant={bookmark ? "default" : "outline"} size="sm" onClick={handleToggleFollow} className={cn("gap-2 uppercase font-black italic", bookmark ? "bg-accent" : "border-accent text-accent")}>
+          {bookmark && <Link href={`/bids/${bidId}/apply`}><Button className="bg-emerald-600 hover:bg-emerald-700 font-bold gap-2 uppercase italic text-xs shadow-lg"><SendHorizontal className="h-4 w-4" /> Preparar Oferta</Button></Link>}
+          <Button variant={bookmark ? "default" : "outline"} size="sm" onClick={handleToggleFollow} className={cn("gap-2 uppercase font-black italic shadow-md", bookmark ? "bg-accent" : "border-accent text-accent")}>
             {bookmark ? <BookmarkCheck className="h-4 w-4" /> : <Bookmark className="h-4 w-4" />}{bookmark ? "En Cartera" : "Seguir"}
           </Button>
         </div>
@@ -209,13 +250,24 @@ export default function BidDetailPage() {
             <TabsContent value="ai-advisor" className="space-y-8 animate-in slide-in-from-bottom-4">
               {analysis && (
                 <div className="space-y-6">
-                  <Card className="bg-primary text-white border-none shadow-2xl overflow-hidden">
-                    <CardHeader className="bg-white/10 p-8"><CardTitle className="text-xl font-black italic uppercase text-accent flex items-center gap-2"><Sparkles className="h-5 w-5" /> Consejo Estratégico</CardTitle><p className="text-xl font-medium italic mt-2">"{analysis.strategicAdvice}"</p></CardHeader>
-                    <CardContent className="p-8"><p className="text-sm opacity-80">{analysis.reasoning}</p></CardContent>
+                  <Card className="bg-primary text-white border-none shadow-2xl overflow-hidden rounded-[2.5rem]">
+                    <CardHeader className="bg-white/10 p-8">
+                      <CardTitle className="text-2xl font-black italic uppercase text-accent flex items-center gap-2"><Sparkles className="h-6 w-6" /> Consejo Estratégico</CardTitle>
+                      <p className="text-xl font-medium italic mt-4 leading-relaxed">"{analysis.strategicAdvice}"</p>
+                    </CardHeader>
+                    <CardContent className="p-8">
+                      <p className="text-sm opacity-80 italic font-medium">RAZONAMIENTO: {analysis.reasoning}</p>
+                    </CardContent>
                   </Card>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <Card className="bg-red-50/50"><CardHeader><CardTitle className="text-red-700 text-sm font-black uppercase">Riesgos</CardTitle></CardHeader><CardContent className="space-y-2">{analysis.strategicAlerts.map((a, i) => <div key={i} className="p-3 bg-white border-l-4 border-red-600 text-[10px] font-bold uppercase">{a}</div>)}</CardContent></Card>
-                    <Card><CardHeader><CardTitle className="text-primary text-sm font-black uppercase">Documentación</CardTitle></CardHeader><CardContent className="space-y-2">{analysis.formChecklist.map((f, i) => <div key={i} className="p-3 bg-muted/20 border rounded-lg"><p className="font-black text-[10px] uppercase">{f.formName}</p><p className="text-[9px] text-muted-foreground italic">{f.purpose}</p></div>)}</CardContent></Card>
+                    <Card className="bg-red-50/50 border-2 border-red-100 rounded-3xl overflow-hidden">
+                      <CardHeader className="bg-red-100/50"><CardTitle className="text-red-700 text-sm font-black uppercase italic">Alertas de Riesgo</CardTitle></CardHeader>
+                      <CardContent className="space-y-3 p-6">{analysis.strategicAlerts.map((a, i) => <div key={i} className="p-4 bg-white rounded-2xl border-l-4 border-red-600 shadow-sm text-[10px] font-bold uppercase italic">{a}</div>)}</CardContent>
+                    </Card>
+                    <Card className="border-2 border-primary/5 rounded-3xl overflow-hidden">
+                      <CardHeader className="bg-primary/5"><CardTitle className="text-primary text-sm font-black uppercase italic">Carpeta de Documentos</CardTitle></CardHeader>
+                      <CardContent className="space-y-3 p-6">{analysis.formChecklist.map((f, i) => <div key={i} className="p-4 bg-muted/20 border-2 border-white rounded-2xl shadow-sm"><p className="font-black text-[10px] uppercase text-primary mb-1">{f.formName}</p><p className="text-[9px] text-muted-foreground italic font-medium">{f.purpose}</p></div>)}</CardContent>
+                    </Card>
                   </div>
                 </div>
               )}
@@ -224,31 +276,99 @@ export default function BidDetailPage() {
         </div>
 
         <div className="lg:col-span-4">
-          <Card className="border-2 border-primary/20 shadow-2xl sticky top-24">
-            <CardHeader className="bg-primary text-white p-6"><CardTitle className="text-lg font-black uppercase flex items-center gap-2"><Zap className="h-5 w-5 text-accent" /> Motor IA</CardTitle></CardHeader>
-            <CardContent className="p-6 space-y-6 text-center">
-              <div className="h-16 w-16 bg-primary/5 rounded-full flex items-center justify-center mx-auto"><BrainCircuit className="h-8 w-8 text-primary" /></div>
-              <div className="grid gap-3">
+          <Card className="border-2 border-primary/20 shadow-2xl sticky top-24 rounded-[2rem] overflow-hidden">
+            <CardHeader className="bg-primary text-white p-6">
+              <CardTitle className="text-lg font-black uppercase italic tracking-widest flex items-center gap-2">
+                <Zap className="h-5 w-5 text-accent" /> Motor de Análisis
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-8 space-y-6 text-center">
+              <div className="h-20 w-20 bg-primary/5 rounded-[2rem] flex items-center justify-center mx-auto transform -rotate-6 border-2 border-primary/10 shadow-inner">
+                <BrainCircuit className="h-10 w-10 text-primary" />
+              </div>
+              <div className="grid gap-4">
                 <Button 
                   className={cn(
-                    "w-full font-black h-14 uppercase italic shadow-lg transition-all",
+                    "w-full font-black h-14 uppercase italic shadow-lg transition-all rounded-2xl text-md",
                     analysis ? "bg-emerald-600 hover:bg-emerald-700" : "bg-accent hover:bg-accent/90"
                   )} 
                   onClick={() => handleAnalyze('fast')} 
                   disabled={loadingAI || isRefreshingDetail}
                 >
-                  {loadingAI ? <Loader2 className="animate-spin" /> : <Zap className="h-5 w-5 mr-2" />} 
-                  {analysis ? "Refrescar Análisis" : "Ejecutar Análisis"}
+                  {loadingAI ? <Loader2 className="animate-spin mr-2" /> : <Zap className="h-5 w-5 mr-2" />} 
+                  {analysis ? "Refrescar Análisis" : "Ejecutar Motor IA"}
                 </Button>
+                
                 <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-                  <DialogTrigger asChild><Button variant="outline" className="w-full border-accent text-accent font-black h-12 uppercase italic">Análisis Profundo (Bases)</Button></DialogTrigger>
-                  <DialogContent className="max-w-2xl">
-                    <DialogHeader><DialogTitle className="text-2xl font-black uppercase italic">Análisis Profundo</DialogTitle></DialogHeader>
-                    <Textarea placeholder="Pega aquí el texto de las bases..." className="min-h-[300px] text-xs p-4 bg-muted/30" value={manualText} onChange={(e) => setManualText(e.target.value)} />
-                    <DialogFooter><Button className="bg-accent w-full h-14 font-black uppercase italic" onClick={() => handleAnalyze('deep')} disabled={!manualText || loadingAI}>{loadingAI ? <Loader2 className="animate-spin" /> : "Analizar Bases"}</Button></DialogFooter>
+                  <DialogTrigger asChild>
+                    <Button variant="outline" className="w-full border-accent text-accent font-black h-12 uppercase italic rounded-2xl hover:bg-accent/5">
+                      Análisis de Bases (PDF)
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-2xl rounded-3xl border-4 border-primary/5 shadow-2xl">
+                    <DialogHeader>
+                      <DialogTitle className="text-3xl font-black uppercase italic text-primary tracking-tighter">Análisis Multimodal</DialogTitle>
+                      <DialogDescription className="font-medium italic">Sube el PDF de las bases para detectar requisitos ocultos.</DialogDescription>
+                    </DialogHeader>
+                    
+                    <div className="space-y-6 py-6">
+                      <div className="py-16 border-4 border-dashed rounded-[3rem] flex flex-col items-center justify-center gap-6 bg-muted/5 relative">
+                         {pdfFileName ? (
+                           <div className="flex flex-col items-center gap-3 animate-in zoom-in-95">
+                             <div className="h-20 w-20 bg-emerald-50 rounded-3xl shadow-xl flex items-center justify-center text-emerald-600 border-2 border-emerald-100">
+                               <FileCheck className="h-10 w-10" />
+                             </div>
+                             <div className="text-center">
+                               <p className="text-sm font-black text-primary uppercase italic">{pdfFileName}</p>
+                               <button onClick={() => { setPdfDataUri(null); setPdfFileName(null); }} className="text-[10px] font-black text-red-500 uppercase italic hover:underline mt-1 flex items-center gap-1 mx-auto">
+                                 <Trash2 className="h-3 w-3" /> Eliminar y cambiar
+                               </button>
+                             </div>
+                           </div>
+                         ) : (
+                           <>
+                             <div className="h-24 w-24 rounded-[2rem] bg-white shadow-2xl flex items-center justify-center transform -rotate-6 transition-transform hover:rotate-0">
+                               <FileUp className="h-12 w-12 text-accent" />
+                             </div>
+                             <input type="file" accept="application/pdf" className="hidden" ref={fileInputRef} onChange={handleFileChange} />
+                             <Button onClick={() => fileInputRef.current?.click()} className="h-14 px-10 font-black uppercase italic rounded-2xl bg-primary text-lg shadow-xl hover:scale-105 transition-transform">
+                               <Plus className="mr-2 h-5 w-5" /> Seleccionar Bases PDF
+                             </Button>
+                             <p className="text-[10px] font-black uppercase text-muted-foreground italic tracking-widest">Formato PDF • Máx 10MB</p>
+                           </>
+                         )}
+                      </div>
+                      
+                      <div className="relative">
+                        <div className="absolute inset-0 flex items-center"><span className="w-full border-t border-dashed" /></div>
+                        <div className="relative flex justify-center text-[10px] font-black uppercase"><span className="bg-white px-4 text-muted-foreground">Opcional</span></div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black uppercase opacity-60 ml-1">Instrucciones Manuales o Texto</label>
+                        <Textarea 
+                          placeholder="Pega texto de las bases aquí o instrucciones específicas para la IA..." 
+                          className="min-h-[120px] text-xs p-4 bg-muted/20 rounded-2xl border-none font-medium italic" 
+                          value={manualText} 
+                          onChange={(e) => setManualText(e.target.value)} 
+                        />
+                      </div>
+                    </div>
+
+                    <DialogFooter>
+                      <Button 
+                        className="bg-accent w-full h-16 font-black uppercase italic text-xl shadow-2xl rounded-2xl transform active:scale-95 transition-all" 
+                        onClick={() => handleAnalyze('deep')} 
+                        disabled={(!manualText && !pdfDataUri) || loadingAI}
+                      >
+                        {loadingAI ? <Loader2 className="animate-spin mr-3 h-6 w-6" /> : <Sparkles className="mr-3 h-6 w-6 fill-white" />} 
+                        {loadingAI ? "Analizando Documento..." : "Ejecutar Motor Multimodal"}
+                      </Button>
+                    </DialogFooter>
                   </DialogContent>
                 </Dialog>
               </div>
+              <p className="text-[10px] text-muted-foreground italic font-medium">El análisis profundo consume 1 crédito de IA y permite auditoría multimodal.</p>
             </CardContent>
           </Card>
         </div>

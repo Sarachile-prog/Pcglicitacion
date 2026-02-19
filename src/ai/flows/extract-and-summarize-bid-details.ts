@@ -1,7 +1,7 @@
 'use server';
 /**
  * @fileOverview Flujo de Genkit para asesoría experta en licitaciones y detección de leads.
- * Incluye capacidad de scraping en tiempo real del portal de Mercado Público.
+ * Incluye capacidad de scraping en tiempo real y análisis multimodal de archivos PDF.
  */
 
 import {ai} from '@/ai/genkit';
@@ -43,6 +43,7 @@ export type PostulationAdvisorOutput = z.infer<typeof PostulationAdvisorOutputSc
 const ExtractAndSummarizeBidDetailsInputSchema = z.object({
   bidDocumentText: z.string().optional(),
   bidId: z.string(),
+  pdfDataUri: z.string().optional().describe("Archivo PDF de las bases en formato data URI (base64)."),
   useLivePortal: z.boolean().optional().describe('Indica si debe intentar hacer scraping del portal público.'),
 });
 export type ExtractAndSummarizeBidDetailsInput = z.infer<typeof ExtractAndSummarizeBidDetailsInputSchema>;
@@ -110,28 +111,31 @@ export async function extractAndSummarizeBidDetails(
     portalData = await scrapePublicPortal(input.bidId);
   }
 
+  const promptParts: any[] = [
+    { text: `Analiza esta licitación de Mercado Público Chile (Ley 19.886) para detectar riesgos de descalificación y oportunidades estratégicas.
+      
+      ID LICITACIÓN: ${input.bidId}
+      RESUMEN DEL PORTAL: ${portalData || "No disponible vía scraping"}
+      TEXTO ADICIONAL PROPORCIONADO: ${input.bidDocumentText || "No proporcionado manualmente"}
+      
+      INSTRUCCIONES CRÍTICAS:
+      1. Identifica con precisión absoluta hitos como: Visita a terreno (obligatoria/opcional), Foro de consultas, Apertura técnica y adjudicación.
+      2. En el Checklist de Documentos, busca todos los anexos (Administrativos, Técnicos y Económicos).
+      3. Extrae nombres de personas o cargos clave (leads) mencionados en el documento.
+      4. Genera un consejo estratégico basado en los criterios de evaluación si están presentes.` }
+  ];
+
+  if (input.pdfDataUri) {
+    promptParts.push({ media: { url: input.pdfDataUri, contentType: 'application/pdf' } });
+  }
+
   try {
     const { output } = await ai.generate({
       model: 'googleai/gemini-2.5-flash',
-      system: `Eres un Asesor Senior Experto en Licitaciones de Mercado Público Chile (Ley 19.886).
-      Tu misión principal es evitar que el usuario sea descalificado por errores de forma o por saltarse hitos obligatorios.
-      
-      CRÍTICO: Debes identificar con precisión absoluta los siguientes hitos si aparecen:
-      1. Visita a terreno (¿Es obligatoria?).
-      2. Fecha de cierre de consultas (Foro).
-      3. Fecha de publicación de respuestas.
-      4. Fecha de apertura técnica y económica.
-      5. Fecha de adjudicación estimada.`,
-      prompt: `Analiza esta licitación para detectar riesgos de descalificación:
-      
-      ID: ${input.bidId}
-      DATOS DEL PORTAL: ${portalData || "No disponible"}
-      BASES/TEXTO: ${input.bidDocumentText || "No proporcionado"}
-      
-      Instrucciones:
-      - Si existe una "Visita a Terreno", cárgala en el timeline con criticality: 'alta'.
-      - En el Checklist, busca todos los Anexos Administrativos (1, 2, 3...).
-      - Identifica leads si se mencionan nombres de contrapartes técnicas.`,
+      system: `Eres un Asesor Senior Experto en Licitaciones del Estado de Chile.
+      Tu misión es evitar que el usuario pierda una licitación por errores de forma.
+      Debes ser meticuloso, analítico y directo en tus advertencias.`,
+      prompt: promptParts,
       output: {
         schema: PostulationAdvisorOutputSchema,
       },

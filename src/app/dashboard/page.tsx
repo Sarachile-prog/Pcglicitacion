@@ -15,25 +15,19 @@ import {
   Bookmark,
   Loader2,
   TrendingUp,
-  SendHorizontal,
-  RefreshCw,
   Database,
   ShieldCheck,
   Users,
-  Lock,
   LogOut,
   Search,
   BrainCircuit,
-  MessageCircle,
   CheckCircle2,
-  Headset,
-  AlertTriangle,
   AlertCircle,
-  FileWarning,
   Activity,
   CalendarClock,
   Layers,
-  BarChart3
+  BarChart3,
+  FileWarning
 } from "lucide-react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
@@ -42,6 +36,18 @@ import { signOut } from "firebase/auth"
 import { useToast } from "@/hooks/use-toast"
 import { useState, useEffect, useMemo } from "react"
 import { useRouter } from "next/navigation"
+
+// Función maestra de validación unificada para todo el Dashboard
+const isBidEnriched = (bid: any) => {
+  if (!bid.entity) return false;
+  const pendingStrings = [
+    "Pendiente Enriquecimiento", 
+    "Institución no especificada", 
+    "Pendiente Datos...", 
+    "Pendiente"
+  ];
+  return !pendingStrings.some(ps => bid.entity.includes(ps));
+}
 
 export default function DashboardPage() {
   const db = useFirestore()
@@ -69,7 +75,6 @@ export default function DashboardPage() {
   const demoUsage = profile?.demoUsageCount || 0
   const hasRequestedPlan = profile?.planRequested || false
 
-  // Obtener conteo global para SuperAdmin
   useEffect(() => {
     if (db && isSuperAdmin && mounted) {
       const fetchCount = async () => {
@@ -105,20 +110,14 @@ export default function DashboardPage() {
 
   const { data: bookmarks, isLoading: isBookmarksLoading } = useCollection(bookmarksQuery)
 
-  // Lógica de Enriquecimiento y Resumen para SuperAdmin
   const adminStats = useMemo(() => {
     if (!isSuperAdmin || !bids) return null;
     
     const totalInSample = bids.length;
-    const enriched = bids.filter(b => {
-      const entity = b.entity || "";
-      const pendingStrings = ["Pendiente Enriquecimiento", "Institución no especificada", "Pendiente Datos...", "Pendiente"];
-      return entity && !pendingStrings.some(ps => entity.includes(ps));
-    }).length;
+    const enriched = bids.filter(isBidEnriched).length;
 
     const lastSync = bids[0]?.scrapedAt ? new Date(bids[0].scrapedAt.toDate()).toLocaleString('es-CL') : '---';
     
-    // Resumen por mes (últimos meses detectados)
     const monthMap: Record<string, number> = {};
     bids.forEach(b => {
       if (b.scrapedAt) {
@@ -178,7 +177,6 @@ export default function DashboardPage() {
     )
   }
 
-  // VISTA PARA USUARIOS NO VINCULADOS (PROSPECTOS)
   if (user && !isSuperAdmin && !isLinkedToCompany) {
     return (
       <div className="max-w-4xl mx-auto py-10 animate-in zoom-in-95 duration-500 space-y-8">
@@ -232,7 +230,6 @@ export default function DashboardPage() {
     )
   }
 
-  // VISTA PARA SUPERADMIN Y EQUIPO VINCULADO
   return (
     <div className="space-y-8 animate-in fade-in duration-700">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -259,7 +256,6 @@ export default function DashboardPage() {
         </Link>
       </div>
 
-      {/* SECCIÓN ESPECIAL: RESUMEN DE BASE DE DATOS (SOLO SUPERADMIN) */}
       {isSuperAdmin && adminStats && (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 animate-in slide-in-from-top-4 duration-1000">
           <Card className="lg:col-span-8 border-none shadow-2xl rounded-[2.5rem] bg-white overflow-hidden relative border-4 border-primary/5">
@@ -359,7 +355,6 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* SECCIÓN ESTÁNDAR PARA TODOS LOS ROLES */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <Card className="bg-white border-2 border-primary/5 shadow-sm hover:shadow-md transition-shadow">
           <CardContent className="p-6 flex items-center gap-4">
@@ -370,7 +365,7 @@ export default function DashboardPage() {
         <Card className="bg-white border-2 border-primary/5 shadow-sm hover:shadow-md transition-shadow">
           <CardContent className="p-6 flex items-center gap-4">
             <div className="h-12 w-12 rounded-2xl bg-accent/5 flex items-center justify-center shrink-0"><DollarSign className="h-6 w-6 text-accent" /></div>
-            <div><p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Enriquecidos</p><h3 className="text-2xl font-black text-primary italic tracking-tighter">{adminStats?.enriched || bids?.filter(b => b.entity && !b.entity.includes("Pendiente")).length || 0}</h3></div>
+            <div><p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Enriquecidos</p><h3 className="text-2xl font-black text-primary italic tracking-tighter">{adminStats?.enriched || bids?.filter(isBidEnriched).length || 0}</h3></div>
           </CardContent>
         </Card>
         <Card className="bg-white border-2 border-primary/5 shadow-sm hover:shadow-md transition-shadow">
@@ -414,7 +409,7 @@ export default function DashboardPage() {
                     const hasAnnexErrors = errorAnnexesCount > 0;
 
                     return (
-                      <div key={item.id} className="flex items-center justify-between p-6 hover:bg-muted/20 transition-colors group relative">
+                      <div key={item.id} className="flex items-center justify-between p-6 group relative">
                         <Link href={`/bids/${item.bidId}`} className="flex-1 min-w-0 mr-4">
                           <div className="space-y-1.5">
                             <div className="flex flex-wrap items-center gap-2">

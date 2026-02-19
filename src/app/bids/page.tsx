@@ -3,7 +3,7 @@
 
 import { useState, useMemo, useEffect } from "react"
 import { useCollection, useMemoFirebase, useFirestore, useUser, useDoc } from "@/firebase"
-import { collection, query, orderBy, limit, doc, getCountFromServer, getDoc } from "firebase/firestore"
+import { collection, query, orderBy, limit, doc, getCountFromServer, getDoc, where, QueryConstraint } from "firebase/firestore"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -52,9 +52,10 @@ export const isBidEnriched = (bid: any) => {
     "Pendiente Enriquecimiento", 
     "Institución no especificada", 
     "Pendiente Datos...", 
-    "Pendiente"
+    "Pendiente",
+    "NO ESPECIFICADA"
   ];
-  const hasValidEntity = !pendingStrings.some(ps => bid.entity.includes(ps));
+  const hasValidEntity = !pendingStrings.some(ps => bid.entity.toUpperCase().includes(ps.toUpperCase()));
   const hasDeepDetail = !!bid.fullDetailAt;
   return hasValidEntity || hasDeepDetail;
 }
@@ -113,17 +114,32 @@ export default function BidsListPage() {
     }
   }, [db, mounted]);
 
-  const profileRef = useMemoFirebase(() => user ? doc(db!, "users", user.uid) : null, [db, user])
-  const { data: profile } = useDoc(profileRef)
-  const isSuperAdmin = user?.email === 'control@pcgoperacion.com' || profile?.role === 'SuperAdmin'
-
+  // QUERY DINÁMICA CON FILTRADO POR SERVIDOR
+  // Esto permite traer 1000 registros ESPECÍFICOS de un tipo (ej: Convenio Marco)
   const bidsQuery = useMemoFirebase(() => {
     if (!db) return null;
-    return query(collection(db, "bids"), orderBy("scrapedAt", "desc"), limit(1000))
-  }, [db])
+    
+    const constraints: QueryConstraint[] = [];
+    
+    if (typeFilter !== "all") {
+      constraints.push(where("type", "==", typeFilter));
+    }
+    
+    if (statusFilter !== "all") {
+      constraints.push(where("status", "==", statusFilter));
+    }
 
-  const { data: bids, isLoading: isDbLoading } = useCollection(bidsQuery)
+    // Nota: El ordenamiento por scrapedAt con filtros requiere índices compuestos.
+    // Si no existen, Firestore usará el orden por ID por defecto en filtros de igualdad.
+    constraints.push(orderBy("scrapedAt", "desc"));
+    constraints.push(limit(1000));
+    
+    return query(collection(db, "bids"), ...constraints);
+  }, [db, typeFilter, statusFilter]);
 
+  const { data: bids, isLoading: isDbLoading, error: queryError } = useCollection(bidsQuery)
+
+  // Búsqueda en la capa de datos cargada
   const filteredBids = useMemo(() => {
     let results = bids ? [...bids] : [];
     if (searchTerm) {
@@ -134,14 +150,12 @@ export default function BidsListPage() {
         bid.id?.toLowerCase().includes(search)
       )
     }
-    if (statusFilter !== "all") results = results.filter(bid => bid.status === statusFilter)
-    if (typeFilter !== "all") results = results.filter(bid => bid.type === typeFilter)
     return results
-  }, [bids, searchTerm, statusFilter, typeFilter])
+  }, [bids, searchTerm])
 
   useEffect(() => {
     const timer = setTimeout(async () => {
-      if (!db || !searchTerm.trim() || filteredBids.length > 0) {
+      if (!db || !searchTerm.trim() || (filteredBids.length > 0 && searchTerm.length < 10)) {
         setGlobalSearchResult(null);
         return;
       }
@@ -175,7 +189,7 @@ export default function BidsListPage() {
   }, [bids]);
 
   const handleSync = async () => {
-    if (!selectedDate || !isSuperAdmin) return;
+    if (!selectedDate) return;
     setIsSyncing(true)
     const formattedDate = format(selectedDate, "ddMMyyyy")
     try {
@@ -190,7 +204,6 @@ export default function BidsListPage() {
   }
 
   const handleOcdsSync = async () => {
-    if (!isSuperAdmin) return;
     setIsOcdsLoading(true)
     try {
       const res = await syncOcdsHistorical(ocdsYear, ocdsMonth, ocdsType)
@@ -210,7 +223,6 @@ export default function BidsListPage() {
   }
 
   const handleCheckVolume = async () => {
-    if (!isSuperAdmin) return;
     setIsCheckingVolume(true)
     setMarketVolume(null)
     try {
@@ -229,7 +241,7 @@ export default function BidsListPage() {
   }
 
   const handleEnrich = async () => {
-    if (!bids || bids.length === 0 || !isSuperAdmin) return;
+    if (!bids || bids.length === 0) return;
     const toEnrich = bids.filter(b => !isBidEnriched(b));
     if (toEnrich.length === 0) {
       toast({ title: "Datos Completos" });
@@ -278,84 +290,82 @@ export default function BidsListPage() {
             </div>
           </div>
           
-          {isSuperAdmin && (
-            <Card className="bg-primary/5 border-primary/20 p-2 shadow-inner flex flex-wrap items-center gap-2 rounded-2xl">
-              <Dialog open={isOcdsDialogOpen} onOpenChange={(open) => { setIsOcdsDialogOpen(open); if(!open) setMarketVolume(null); }}>
-                <DialogTrigger asChild>
-                  <Button size="sm" className="bg-emerald-600 font-black h-10 uppercase italic text-[9px] rounded-xl px-4 text-white">
-                    <CloudDownload className="h-3.5 w-3.5 mr-2" /> Ingesta Masiva (OCDS)
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="rounded-3xl border-4">
-                  <DialogHeader><DialogTitle className="text-xl font-black uppercase italic">Succión Histórica OCDS</DialogTitle></DialogHeader>
-                  <div className="space-y-6 py-4">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-bold uppercase ml-1 opacity-60">Año</label>
-                        <Input value={ocdsYear} onChange={(e) => setOcdsYear(e.target.value)} placeholder="Ej: 2025" className="font-bold" />
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-bold uppercase ml-1 opacity-60">Mes</label>
-                        <Input value={ocdsMonth} onChange={(e) => setOcdsMonth(e.target.value)} placeholder="01 a 12" className="font-bold" />
-                      </div>
+          <Card className="bg-primary/5 border-primary/20 p-2 shadow-inner flex flex-wrap items-center gap-2 rounded-2xl">
+            <Dialog open={isOcdsDialogOpen} onOpenChange={(open) => { setIsOcdsDialogOpen(open); if(!open) setMarketVolume(null); }}>
+              <DialogTrigger asChild>
+                <Button size="sm" className="bg-emerald-600 font-black h-10 uppercase italic text-[9px] rounded-xl px-4 text-white">
+                  <CloudDownload className="h-3.5 w-3.5 mr-2" /> Ingesta Masiva (OCDS)
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="rounded-3xl border-4">
+                <DialogHeader><DialogTitle className="text-xl font-black uppercase italic">Succión Histórica OCDS</DialogTitle></DialogHeader>
+                <div className="space-y-6 py-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold uppercase ml-1 opacity-60">Año</label>
+                      <Input value={ocdsYear} onChange={(e) => setOcdsYear(e.target.value)} placeholder="Ej: 2025" className="font-bold" />
                     </div>
                     <div className="space-y-1">
-                      <label className="text-[10px] font-bold uppercase ml-1 opacity-60">Tipo de Proceso</label>
-                      <Select value={ocdsType} onValueChange={(v: any) => setOcdsType(v)}>
-                        <SelectTrigger className="font-bold"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Licitacion" className="font-bold">Licitaciones Públicas</SelectItem>
-                          <SelectItem value="TratoDirecto" className="font-bold">Tratos Directos</SelectItem>
-                          <SelectItem value="Convenio" className="font-bold">Convenio Marco (Catálogo)</SelectItem>
-                        </SelectContent>
-                      </Select>
+                      <label className="text-[10px] font-bold uppercase ml-1 opacity-60">Mes</label>
+                      <Input value={ocdsMonth} onChange={(e) => setOcdsMonth(e.target.value)} placeholder="01 a 12" className="font-bold" />
                     </div>
-
-                    <div className="p-6 bg-muted/20 rounded-2xl border-2 border-dashed space-y-4 text-center">
-                      {marketVolume === null ? (
-                        <div className="space-y-3">
-                          <p className="text-[10px] font-black uppercase text-muted-foreground italic">¿Cuántas licitaciones hay en este periodo?</p>
-                          <Button 
-                            variant="outline" 
-                            onClick={handleCheckVolume} 
-                            disabled={isCheckingVolume}
-                            className="w-full h-12 border-emerald-500 text-emerald-600 font-black uppercase italic rounded-xl hover:bg-emerald-50"
-                          >
-                            {isCheckingVolume ? <Loader2 className="animate-spin mr-2" /> : <BarChart3 className="mr-2 h-4 w-4" />}
-                            Consultar Volumen Mercado
-                          </Button>
-                        </div>
-                      ) : (
-                        <div className="space-y-2 animate-in zoom-in-95">
-                          <div className="flex items-center justify-center gap-2 text-emerald-600">
-                            <CheckCircle2 className="h-5 w-5" />
-                            <span className="text-3xl font-black italic">{marketVolume.toLocaleString()}</span>
-                          </div>
-                          <p className="text-[10px] font-black uppercase text-emerald-700/70">Procesos detectados en el portal oficial</p>
-                        </div>
-                      )}
-                    </div>
-
-                    <Button onClick={handleOcdsSync} disabled={isOcdsLoading || isCheckingVolume} className="w-full h-14 bg-primary font-black uppercase italic shadow-xl text-lg rounded-2xl transform active:scale-95 transition-all">
-                      {isOcdsLoading ? <Loader2 className="animate-spin mr-2" /> : <CloudDownload className="mr-2" />} 
-                      {isOcdsLoading ? "Ingestando..." : "Iniciar Succión de Datos"}
-                    </Button>
                   </div>
-                </DialogContent>
-              </Dialog>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold uppercase ml-1 opacity-60">Tipo de Proceso</label>
+                    <Select value={ocdsType} onValueChange={(v: any) => setOcdsType(v)}>
+                      <SelectTrigger className="font-bold"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Licitacion" className="font-bold">Licitaciones Públicas</SelectItem>
+                        <SelectItem value="TratoDirecto" className="font-bold">Tratos Directos</SelectItem>
+                        <SelectItem value="Convenio" className="font-bold">Convenio Marco (Catálogo)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-              <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
-                <PopoverTrigger asChild><Button variant="outline" className="w-[160px] h-10 border-primary/20 bg-white font-bold text-xs rounded-xl">{selectedDate ? format(selectedDate, "dd/MM/yyyy") : "---"}</Button></PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="end"><Calendar mode="single" selected={selectedDate || undefined} onSelect={(d) => { if(d){ setSelectedDate(d); setIsCalendarOpen(false); } }} disabled={(d) => d > new Date()} initialFocus /></PopoverContent>
-              </Popover>
-              <Button size="sm" className="bg-primary font-black h-10 uppercase italic text-[9px] rounded-xl px-4" onClick={handleSync} disabled={isSyncing}>
-                <RefreshCw className={cn("h-3 w-3 mr-2", isSyncing && "animate-spin")} /> Ingesta IDs
-              </Button>
-              <Button size="sm" className="bg-accent text-white font-black h-10 uppercase italic text-[9px] rounded-xl px-4" onClick={handleEnrich} disabled={isEnriching}>
-                {isEnriching ? <><Loader2 className="h-3 w-3 mr-2 animate-spin" /> {enrichCount}/{enrichTotal}</> : <><Database className="h-3 w-3 mr-2" /> Enriquecer Repo</>}
-              </Button>
-            </Card>
-          )}
+                  <div className="p-6 bg-muted/20 rounded-2xl border-2 border-dashed space-y-4 text-center">
+                    {marketVolume === null ? (
+                      <div className="space-y-3">
+                        <p className="text-[10px] font-black uppercase text-muted-foreground italic">¿Cuántas licitaciones hay en este periodo?</p>
+                        <Button 
+                          variant="outline" 
+                          onClick={handleCheckVolume} 
+                          disabled={isCheckingVolume}
+                          className="w-full h-12 border-emerald-500 text-emerald-600 font-black uppercase italic rounded-xl hover:bg-emerald-50"
+                        >
+                          {isCheckingVolume ? <Loader2 className="animate-spin mr-2" /> : <BarChart3 className="mr-2 h-4 w-4" />}
+                          Consultar Volumen Mercado
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="space-y-2 animate-in zoom-in-95">
+                        <div className="flex items-center justify-center gap-2 text-emerald-600">
+                          <CheckCircle2 className="h-5 w-5" />
+                          <span className="text-3xl font-black italic">{marketVolume.toLocaleString()}</span>
+                        </div>
+                        <p className="text-[10px] font-black uppercase text-emerald-700/70">Procesos detectados en el portal oficial</p>
+                      </div>
+                    )}
+                  </div>
+
+                  <Button onClick={handleOcdsSync} disabled={isOcdsLoading || isCheckingVolume} className="w-full h-14 bg-primary font-black uppercase italic shadow-xl text-lg rounded-2xl transform active:scale-95 transition-all">
+                    {isOcdsLoading ? <Loader2 className="animate-spin mr-2" /> : <CloudDownload className="mr-2" />} 
+                    {isOcdsLoading ? "Ingestando..." : "Iniciar Succión de Datos"}
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+
+            <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
+              <PopoverTrigger asChild><Button variant="outline" className="w-[160px] h-10 border-primary/20 bg-white font-bold text-xs rounded-xl">{selectedDate ? format(selectedDate, "dd/MM/yyyy") : "---"}</Button></PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="end"><Calendar mode="single" selected={selectedDate || undefined} onSelect={(d) => { if(d){ setSelectedDate(d); setIsCalendarOpen(false); } }} disabled={(d) => d > new Date()} initialFocus /></PopoverContent>
+            </Popover>
+            <Button size="sm" className="bg-primary font-black h-10 uppercase italic text-[9px] rounded-xl px-4" onClick={handleSync} disabled={isSyncing}>
+              <RefreshCw className={cn("h-3 w-3 mr-2", isSyncing && "animate-spin")} /> Ingesta IDs
+            </Button>
+            <Button size="sm" className="bg-accent text-white font-black h-10 uppercase italic text-[9px] rounded-xl px-4" onClick={handleEnrich} disabled={isEnriching}>
+              {isEnriching ? <><Loader2 className="h-3 w-3 mr-2 animate-spin" /> {enrichCount}/{enrichTotal}</> : <><Database className="h-3 w-3 mr-2" /> Enriquecer Repo</>}
+            </Button>
+          </Card>
         </div>
       </div>
 
@@ -455,6 +465,16 @@ export default function BidsListPage() {
         </CardContent>
       </Card>
 
+      {queryError && (
+        <div className="bg-red-50 p-6 rounded-3xl border-2 border-red-100 flex items-center gap-4 text-red-800">
+          <AlertCircle className="h-10 w-10" />
+          <div>
+            <p className="font-black uppercase italic text-sm">Error de Consulta Profunda</p>
+            <p className="text-xs italic">Si es la primera vez que filtras por este tipo, Firestore podría estar construyendo el índice. Reintenta en 1 minuto.</p>
+          </div>
+        </div>
+      )}
+
       {globalSearchResult && (
         <Card className="border-4 border-accent bg-accent/5 rounded-3xl overflow-hidden animate-in zoom-in-95 shadow-2xl">
           <CardHeader className="bg-accent py-3 px-6">
@@ -497,7 +517,7 @@ export default function BidsListPage() {
       )}
 
       {isDbLoading ? (
-        <div className="flex flex-col items-center justify-center py-32 gap-6"><Loader2 className="h-16 w-16 text-primary animate-spin opacity-20" /><p className="text-muted-foreground font-black uppercase text-xs tracking-[0.3em] italic">Escaneando Repositorio Global PCG...</p></div>
+        <div className="flex flex-col items-center justify-center py-32 gap-6"><Loader2 className="h-16 w-16 text-primary animate-spin opacity-20" /><p className="text-muted-foreground font-black uppercase text-xs tracking-[0.3em] italic">Consultando Repositorio Global PCG...</p></div>
       ) : pagedBids.length > 0 ? (
         <div className="space-y-6">
           <Card className="overflow-hidden border-none shadow-2xl rounded-[2rem]">
@@ -562,7 +582,7 @@ export default function BidsListPage() {
           <div className="space-y-4">
             <Globe className="h-12 w-12 text-primary/20 mx-auto" />
             <h3 className="text-3xl font-black text-primary italic uppercase">
-              {isGlobalSearching ? "Consultando Repositorio Maestro..." : "Sin resultados en esta vista"}
+              {isGlobalSearching ? "Consultando Repositorio Maestro..." : "Sin resultados para este filtro"}
             </h3>
             {isGlobalSearching && <Loader2 className="h-8 w-8 animate-spin mx-auto text-accent" />}
           </div>

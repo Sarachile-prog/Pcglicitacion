@@ -1,3 +1,4 @@
+
 import { onRequest } from "firebase-functions/v2/https";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import * as admin from "firebase-admin";
@@ -5,7 +6,7 @@ import * as admin from "firebase-admin";
 /**
  * SERVICIOS CORE - PCG LICITACIÓN 2026
  * Motor de sincronización oficial con API Mercado Público.
- * Actualizado: 23/02/2026 - Paginación masiva OCDS y Protección de Tratos Directos.
+ * Actualizado: 24/02/2026 - Protección definitiva de etiquetas y Paginación Multi-Página.
  */
 
 if (admin.apps.length === 0) {
@@ -127,6 +128,7 @@ export const syncOcdsHistorical = onRequest({
   const endpointBase = type === 'Licitacion' ? 'listaOCDSAgnoMes' : 
                        type === 'TratoDirecto' ? 'listaOCDSAgnoMesTratoDirecto' : 'listaOCDSAgnoMesConvenio';
   
+  // ETIQUETAS MAESTRAS (Deben coincidir con los filtros de la App)
   const typeLabel = type === 'Convenio' ? 'Convenio Marco' : 
                     type === 'TratoDirecto' ? 'Trato Directo' : 'Licitación';
 
@@ -174,7 +176,7 @@ export const syncOcdsHistorical = onRequest({
             title: release.tender.title || "Proceso OCDS",
             entity: release.buyer?.name || release.tender.procuringEntity?.name || "Institución vía OCDS",
             status: release.tender.status || "Desconocido",
-            type: typeLabel,
+            type: typeLabel, // GUARDADO CON ETIQUETA PROTEGIDA
             amount: release.tender.value?.amount || 0,
             currency: release.tender.value?.currency || 'CLP',
             scrapedAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -185,7 +187,7 @@ export const syncOcdsHistorical = onRequest({
         await batch.commit();
       }
       totalIngested += items.length;
-      if (items.length < pageSize) break; // No hay más datos
+      if (items.length < pageSize) break; 
     }
 
     response.json({ success: true, count: totalIngested, message: `Se han succionado ${totalIngested.toLocaleString()} registros de ${typeLabel}.` });
@@ -222,10 +224,11 @@ export const getBidDetail = onRequest({
                       detail.Comprador?.NombreUnidad ||
                       "Institución no especificada";
 
-      // PROTECCIÓN DE ETIQUETAS: No bajamos de rango a Convenios o Tratos Directos si ya están marcados
+      // PROTECCIÓN DE ETIQUETAS: Blindaje contra degradación de tipo
       let typeLabel = currentData?.type || "Licitación";
-      const typeCode = detail.CodigoTipo;
       
+      // Si ya está marcado como algo especial, no lo sobreescribimos con "Licitación" genérica
+      const typeCode = detail.CodigoTipo;
       if (typeCode === 3) typeLabel = "Convenio Marco";
       else if (typeCode === 2) typeLabel = "Trato Directo";
       else if (!currentData?.type || (currentData.type !== "Convenio Marco" && currentData.type !== "Trato Directo")) {
@@ -251,5 +254,5 @@ export const getBidDetail = onRequest({
 });
 
 export const healthCheck = onRequest({ cors: true }, (req, res) => {
-  res.json({ status: "ok", version: "4.2.0-MULTI-PAGE-SUCTION", timestamp: new Date().toISOString() });
+  res.json({ status: "ok", version: "4.5.0-DEEP-DIAGNOSIS", timestamp: new Date().toISOString() });
 });

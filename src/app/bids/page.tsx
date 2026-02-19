@@ -113,9 +113,7 @@ export default function BidsListPage() {
     }
   }, [db, mounted]);
 
-  // QUERY OPTIMIZADA PARA EVITAR ÍNDICES COMPUESTOS
-  // Si hay filtros, Firestore no permite orderBy por otro campo sin un índice compuesto.
-  // Para prototipos, quitamos el orderBy del servidor cuando hay filtros y ordenamos en memoria.
+  // QUERY OPTIMIZADA PARA FILTRADO POR TIPO
   const bidsQuery = useMemoFirebase(() => {
     if (!db) return null;
     
@@ -129,7 +127,6 @@ export default function BidsListPage() {
       constraints.push(where("status", "==", statusFilter));
     }
 
-    // Solo ordenamos por servidor si NO hay filtros aplicados para evitar error de índice
     if (typeFilter === "all" && statusFilter === "all") {
       constraints.push(orderBy("scrapedAt", "desc"));
     }
@@ -141,11 +138,9 @@ export default function BidsListPage() {
 
   const { data: bids, isLoading: isDbLoading, error: queryError } = useCollection(bidsQuery)
 
-  // Búsqueda y ordenamiento en memoria (Capa de lógica)
   const filteredBids = useMemo(() => {
     let results = bids ? [...bids] : [];
 
-    // Ordenar manualmente si hay filtros (ya que el servidor no pudo hacerlo)
     if (typeFilter !== "all" || statusFilter !== "all") {
       results.sort((a, b) => {
         const dateA = a.scrapedAt?.toDate?.() || new Date(0);
@@ -363,6 +358,7 @@ export default function BidsListPage() {
                     {isOcdsLoading ? <Loader2 className="animate-spin mr-2" /> : <CloudDownload className="mr-2" />} 
                     {isOcdsLoading ? "Ingestando..." : "Iniciar Succión de Datos"}
                   </Button>
+                  <p className="text-[9px] text-center text-muted-foreground italic uppercase">Esta pasada succionará hasta 5,000 registros del mercado.</p>
                 </div>
               </DialogContent>
             </Dialog>
@@ -563,7 +559,9 @@ export default function BidsListPage() {
                             {bid.type && (
                               <Badge variant="outline" className={cn(
                                 "text-[8px] font-black uppercase h-4 px-1.5 shadow-sm bg-white",
-                                bid.type === 'Convenio Marco' ? "border-indigo-500 text-indigo-600" : "border-primary/20 text-muted-foreground"
+                                bid.type === 'Convenio Marco' ? "border-indigo-500 text-indigo-600" : 
+                                bid.type === 'Trato Directo' ? "border-orange-500 text-orange-600" :
+                                "border-primary/20 text-muted-foreground"
                               )}>
                                 {bid.type}
                               </Badge>

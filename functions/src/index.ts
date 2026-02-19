@@ -5,7 +5,7 @@ import * as admin from "firebase-admin";
 /**
  * SERVICIOS CORE - PCG LICITACIÓN 2026
  * Motor de sincronización oficial con API Mercado Público.
- * Actualizado: 22/02/2026 - Protección de etiquetas y robustez OCDS.
+ * Actualizado: 23/02/2026 - Paginación masiva OCDS y Protección de Tratos Directos.
  */
 
 if (admin.apps.length === 0) {
@@ -131,55 +131,64 @@ export const syncOcdsHistorical = onRequest({
                     type === 'TratoDirecto' ? 'Trato Directo' : 'Licitación';
 
   try {
-    const limit = countOnly === 'true' ? '10' : '999';
-    const initialUrl = `https://api.mercadopublico.cl/APISOCDS/OCDS/${endpointBase}/${year}/${month}/0/${limit}`;
-    
-    const res = await fetch(initialUrl);
-    if (!res.ok) return response.status(200).json({ success: false, message: `Error Portal Mercado Público: ${res.status}.` });
-
-    let data = await res.json() as any;
-    const realTotal = data.total || (data.pagination && data.pagination.total) || (data.data ? data.data.length : 0);
-
     if (countOnly === 'true') {
+      const checkUrl = `https://api.mercadopublico.cl/APISOCDS/OCDS/${endpointBase}/${year}/${month}/0/10`;
+      const checkRes = await fetch(checkUrl);
+      const checkData = await checkRes.json() as any;
+      const realTotal = checkData.total || (checkData.pagination && checkData.pagination.total) || (checkData.data ? checkData.data.length : 0);
       return response.json({ 
         success: true, 
         count: realTotal, 
-        message: `Hay ${realTotal.toLocaleString()} procesos disponibles en el mercado para este periodo.` 
+        message: `Hay ${realTotal.toLocaleString()} procesos en el mercado.` 
       });
     }
 
-    if (!data || !data.data || data.data.length === 0) return response.json({ success: false, message: "No hay registros disponibles." });
+    // BUCLE DE CAPTURA MULTI-PÁGINA (Captura hasta 5,000 registros por pasada)
+    let totalIngested = 0;
+    const pagesToFetch = 5; 
+    const pageSize = 1000;
 
-    const items = data.data;
-    
-    for (let i = 0; i < items.length; i += 450) {
-      const batch = db.batch();
-      const chunk = items.slice(i, i + 450);
+    for (let page = 0; page < pagesToFetch; page++) {
+      const offset = page * pageSize;
+      const url = `https://api.mercadopublico.cl/APISOCDS/OCDS/${endpointBase}/${year}/${month}/${offset}/${pageSize}`;
       
-      chunk.forEach((item: any) => {
-        const release = item.releases?.[0];
-        if (!release || !release.tender) return;
-        const bidId = release.tender.id;
-        const bidRef = db.collection("bids").doc(bidId);
-        
-        batch.set(bidRef, {
-          id: bidId,
-          title: release.tender.title || "Proceso OCDS",
-          entity: release.buyer?.name || release.tender.procuringEntity?.name || "Institución vía OCDS",
-          status: release.tender.status || "Desconocido",
-          type: typeLabel,
-          amount: release.tender.value?.amount || 0,
-          currency: release.tender.value?.currency || 'CLP',
-          scrapedAt: admin.firestore.FieldValue.serverTimestamp(),
-          isOcds: true,
-          sourceUrl: `https://www.mercadopublico.cl/Procurement/Modules/RFB/DetailsAcquisition.aspx?idLicitacion=${bidId}`
-        }, { merge: true });
-      });
+      const res = await fetch(url);
+      if (!res.ok) break;
 
-      await batch.commit();
+      const data = await res.json() as any;
+      const items = data.data || [];
+      if (items.length === 0) break;
+
+      for (let i = 0; i < items.length; i += 450) {
+        const batch = db.batch();
+        const chunk = items.slice(i, i + 450);
+        
+        chunk.forEach((item: any) => {
+          const release = item.releases?.[0];
+          if (!release || !release.tender) return;
+          const bidId = release.tender.id;
+          const bidRef = db.collection("bids").doc(bidId);
+          
+          batch.set(bidRef, {
+            id: bidId,
+            title: release.tender.title || "Proceso OCDS",
+            entity: release.buyer?.name || release.tender.procuringEntity?.name || "Institución vía OCDS",
+            status: release.tender.status || "Desconocido",
+            type: typeLabel,
+            amount: release.tender.value?.amount || 0,
+            currency: release.tender.value?.currency || 'CLP',
+            scrapedAt: admin.firestore.FieldValue.serverTimestamp(),
+            isOcds: true,
+            sourceUrl: `https://www.mercadopublico.cl/Procurement/Modules/RFB/DetailsAcquisition.aspx?idLicitacion=${bidId}`
+          }, { merge: true });
+        });
+        await batch.commit();
+      }
+      totalIngested += items.length;
+      if (items.length < pageSize) break; // No hay más datos
     }
 
-    response.json({ success: true, count: items.length, message: `Se han succionado ${items.length} registros.` });
+    response.json({ success: true, count: totalIngested, message: `Se han succionado ${totalIngested.toLocaleString()} registros de ${typeLabel}.` });
 
   } catch (error: any) {
     console.error(`>>> [OCDS_CRASH]: ${error.message}`);
@@ -213,13 +222,15 @@ export const getBidDetail = onRequest({
                       detail.Comprador?.NombreUnidad ||
                       "Institución no especificada";
 
-      // PROTECCIÓN DE ETIQUETA: Si ya es Convenio Marco vía OCDS, no lo bajamos a Licitación
+      // PROTECCIÓN DE ETIQUETAS: No bajamos de rango a Convenios o Tratos Directos si ya están marcados
       let typeLabel = currentData?.type || "Licitación";
       const typeCode = detail.CodigoTipo;
       
       if (typeCode === 3) typeLabel = "Convenio Marco";
       else if (typeCode === 2) typeLabel = "Trato Directo";
-      else if (!currentData?.type || currentData.type === "Licitación") typeLabel = "Licitación";
+      else if (!currentData?.type || (currentData.type !== "Convenio Marco" && currentData.type !== "Trato Directo")) {
+        typeLabel = "Licitación";
+      }
 
       await bidRef.update({
         entity: orgName,
@@ -240,5 +251,5 @@ export const getBidDetail = onRequest({
 });
 
 export const healthCheck = onRequest({ cors: true }, (req, res) => {
-  res.json({ status: "ok", version: "3.9.0-LABEL-PROTECTION", timestamp: new Date().toISOString() });
+  res.json({ status: "ok", version: "4.2.0-MULTI-PAGE-SUCTION", timestamp: new Date().toISOString() });
 });

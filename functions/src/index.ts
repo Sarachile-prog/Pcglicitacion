@@ -5,7 +5,7 @@ import * as admin from "firebase-admin";
 /**
  * SERVICIOS CORE - PCG LICITACIÓN 2026
  * Motor de sincronización oficial con API Mercado Público.
- * Actualizado: 21/02/2026 - Corrección de conteo real OCDS (Pagination Bypass).
+ * Actualizado: 21/02/2026 - Corrección de etiquetas y conteo OCDS.
  */
 
 if (admin.apps.length === 0) {
@@ -80,7 +80,7 @@ async function performSync(date: string) {
         id: bid.CodigoExterno,
         title: bid.Nombre || "Sin título",
         status: bid.Estado || "No definido",
-        type: "Licitacion",
+        type: "Licitación", // Corregido: unificado con acento
         entity: "Pendiente Enriquecimiento",
         amount: 0,
         currency: 'CLP',
@@ -131,18 +131,13 @@ export const syncOcdsHistorical = onRequest({
                     type === 'TratoDirecto' ? 'Trato Directo' : 'Licitación';
 
   try {
-    // Para contar el volumen REAL, consultamos con un límite mínimo pero capturamos el campo total de la paginación
     const limit = countOnly === 'true' ? '10' : '999';
     const initialUrl = `https://api.mercadopublico.cl/APISOCDS/OCDS/${endpointBase}/${year}/${month}/0/${limit}`;
-    
-    console.log(`>>> [OCDS_QUERY] Consultando volumen en: ${initialUrl}`);
     
     const res = await fetch(initialUrl);
     if (!res.ok) return response.status(200).json({ success: false, message: `Error Portal Mercado Público: ${res.status}.` });
 
     let data = await res.json() as any;
-    
-    // Extracción robusta del total real (Bypass del límite de 999 de la respuesta inmediata)
     const realTotal = data.total || (data.pagination && data.pagination.total) || (data.data ? data.data.length : 0);
 
     if (countOnly === 'true') {
@@ -239,5 +234,5 @@ export const getBidDetail = onRequest({
 });
 
 export const healthCheck = onRequest({ cors: true }, (req, res) => {
-  res.json({ status: "ok", version: "3.7.0-REAL-COUNT-FIX", timestamp: new Date().toISOString() });
+  res.json({ status: "ok", version: "3.8.0-LABEL-FIX", timestamp: new Date().toISOString() });
 });

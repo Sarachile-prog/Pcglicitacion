@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useMemo, useEffect } from "react"
@@ -114,8 +113,9 @@ export default function BidsListPage() {
     }
   }, [db, mounted]);
 
-  // QUERY DINÁMICA CON FILTRADO POR SERVIDOR
-  // Esto permite traer 1000 registros ESPECÍFICOS de un tipo (ej: Convenio Marco)
+  // QUERY OPTIMIZADA PARA EVITAR ÍNDICES COMPUESTOS
+  // Si hay filtros, Firestore no permite orderBy por otro campo sin un índice compuesto.
+  // Para prototipos, quitamos el orderBy del servidor cuando hay filtros y ordenamos en memoria.
   const bidsQuery = useMemoFirebase(() => {
     if (!db) return null;
     
@@ -129,9 +129,11 @@ export default function BidsListPage() {
       constraints.push(where("status", "==", statusFilter));
     }
 
-    // Nota: El ordenamiento por scrapedAt con filtros requiere índices compuestos.
-    // Si no existen, Firestore usará el orden por ID por defecto en filtros de igualdad.
-    constraints.push(orderBy("scrapedAt", "desc"));
+    // Solo ordenamos por servidor si NO hay filtros aplicados para evitar error de índice
+    if (typeFilter === "all" && statusFilter === "all") {
+      constraints.push(orderBy("scrapedAt", "desc"));
+    }
+    
     constraints.push(limit(1000));
     
     return query(collection(db, "bids"), ...constraints);
@@ -139,9 +141,19 @@ export default function BidsListPage() {
 
   const { data: bids, isLoading: isDbLoading, error: queryError } = useCollection(bidsQuery)
 
-  // Búsqueda en la capa de datos cargada
+  // Búsqueda y ordenamiento en memoria (Capa de lógica)
   const filteredBids = useMemo(() => {
     let results = bids ? [...bids] : [];
+
+    // Ordenar manualmente si hay filtros (ya que el servidor no pudo hacerlo)
+    if (typeFilter !== "all" || statusFilter !== "all") {
+      results.sort((a, b) => {
+        const dateA = a.scrapedAt?.toDate?.() || new Date(0);
+        const dateB = b.scrapedAt?.toDate?.() || new Date(0);
+        return dateB.getTime() - dateA.getTime();
+      });
+    }
+
     if (searchTerm) {
       const search = searchTerm.toLowerCase()
       results = results.filter(bid => 
@@ -151,7 +163,7 @@ export default function BidsListPage() {
       )
     }
     return results
-  }, [bids, searchTerm])
+  }, [bids, searchTerm, typeFilter, statusFilter])
 
   useEffect(() => {
     const timer = setTimeout(async () => {
@@ -469,8 +481,8 @@ export default function BidsListPage() {
         <div className="bg-red-50 p-6 rounded-3xl border-2 border-red-100 flex items-center gap-4 text-red-800">
           <AlertCircle className="h-10 w-10" />
           <div>
-            <p className="font-black uppercase italic text-sm">Error de Consulta Profunda</p>
-            <p className="text-xs italic">Si es la primera vez que filtras por este tipo, Firestore podría estar construyendo el índice. Reintenta en 1 minuto.</p>
+            <p className="font-black uppercase italic text-sm">Validación de Repositorio</p>
+            <p className="text-xs italic">Si ves pocos resultados al filtrar, asegúrate de haber succionado datos de ese tipo para el periodo deseado.</p>
           </div>
         </div>
       )}

@@ -17,19 +17,20 @@
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Bid",
       "type": "object",
-      "description": "A single tender opportunity scraped from web sources.",
+      "description": "A single tender opportunity enriched with AI analysis and tracking data.",
       "properties": {
-        "id": { "type": "string", "description": "Licitaciones/Listado/Licitacion/CodigoExterno" },
-        "title": { "type": "string", "description": "Licitaciones/Listado/Licitacion/Nombre" },
-        "entity": { "type": "string", "description": "Licitaciones/Listado/Licitacion/Comprador/NombreOrganismo" },
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "entity": { "type": "string" },
         "description": { "type": "string" },
         "status": { "type": "string" },
         "amount": { "type": "number" },
         "currency": { "type": "string" },
-        "typeCode": { "type": "number" },
-        "deadlineDate": { "type": "string", "format": "date-time" },
+        "items": { "type": "array" },
         "aiAnalysis": { "type": "object" },
-        "scrapedAt": { "type": "string", "format": "date-time" }
+        "scrapedAt": { "type": "string", "format": "date-time" },
+        "fullDetailAt": { "type": "string", "format": "date-time" },
+        "isOcds": { "type": "boolean" }
       },
       "required": ["id", "title", "status"]
     },
@@ -37,7 +38,7 @@
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "UserProfile",
       "type": "object",
-      "description": "Extended user information including roles and multi-tenancy links.",
+      "description": "Extended user information including roles, demo usage and terms acceptance.",
       "properties": {
         "uid": { "type": "string" },
         "email": { "type": "string", "format": "email" },
@@ -47,9 +48,22 @@
         "planRequested": { "type": "boolean" },
         "status": { "type": "string", "enum": ["Active", "Suspended"] },
         "termsAccepted": { "type": "boolean" },
-        "demoUsageCount": { "type": "number" }
+        "demoUsageCount": { "type": "number" },
+        "lastLoginAt": { "type": "string", "format": "date-time" }
       },
       "required": ["uid", "role"]
+    },
+    "Bookmark": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Bookmark",
+      "type": "object",
+      "description": "A bid being managed by a company team with digital folder and audits.",
+      "properties": {
+        "bidId": { "type": "string" },
+        "preparationStatus": { "type": "string" },
+        "annexes": { "type": "array" },
+        "savedAt": { "type": "string", "format": "date-time" }
+      }
     },
     "SupportTicket": {
       "$schema": "http://json-schema.org/draft-07/schema#",
@@ -82,28 +96,27 @@
         }
       },
       {
+        "path": "/bids/{bidId}",
+        "definition": {
+          "entityName": "Bid",
+          "schema": { "$ref": "#/backend/entities/Bid" },
+          "description": "Global repository of enriched bids."
+        }
+      },
+      {
+        "path": "/companies/{companyId}/bookmarks/{bidId}",
+        "definition": {
+          "entityName": "Bookmark",
+          "schema": { "$ref": "#/backend/entities/Bookmark" },
+          "description": "Collaborative project management per bid."
+        }
+      },
+      {
         "path": "/support_tickets/{ticketId}",
         "definition": {
           "entityName": "SupportTicket",
           "schema": { "$ref": "#/backend/entities/SupportTicket" },
           "description": "SaaS support ticketing system."
-        }
-      },
-      {
-        "path": "/support_tickets/{ticketId}/messages/{messageId}",
-        "definition": {
-          "entityName": "SupportMessage",
-          "schema": {
-            "type": "object",
-            "properties": {
-              "senderId": { "type": "string" },
-              "senderEmail": { "type": "string" },
-              "senderRole": { "type": "string" },
-              "text": { "type": "string" },
-              "createdAt": { "type": "string", "format": "date-time" }
-            }
-          },
-          "description": "Conversation history within a ticket."
         }
       }
     ]

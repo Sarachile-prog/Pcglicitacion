@@ -39,8 +39,8 @@ import { cn } from "@/lib/utils"
 import { useDoc, useFirestore, useMemoFirebase, useUser } from "@/firebase"
 import { doc, setDoc, deleteDoc, updateDoc, increment } from "firebase/firestore"
 
-// Extender tiempo de respuesta para el análisis multimodal
-export const maxDuration = 60;
+// Extender tiempo de respuesta para el análisis multimodal pesado (120 segundos)
+export const maxDuration = 120;
 
 export default function BidDetailPage() {
   const params = useParams()
@@ -112,9 +112,9 @@ export default function BidDetailPage() {
       return
     }
 
-    // Límite ampliado a 20MB para coincidir con next.config.ts
-    if (file.size > 20 * 1024 * 1024) {
-      toast({ variant: "destructive", title: "Archivo Muy Pesado", description: "El PDF supera el límite de 20MB." })
+    // Límite ampliado a 40MB para permitir PDFs densos considerando Base64 overhead
+    if (file.size > 40 * 1024 * 1024) {
+      toast({ variant: "destructive", title: "Archivo Muy Pesado", description: "El PDF supera el límite de 40MB." })
       return
     }
 
@@ -154,7 +154,16 @@ export default function BidDetailPage() {
       setPdfFileName(null)
       setManualText("")
     } catch (error: any) {
-      toast({ variant: "destructive", title: "Error IA", description: error.message || "Error de tiempo de ejecución o límite de tamaño." })
+      // Manejo de error específico de límite de Next.js
+      if (error.message?.includes("exceeded")) {
+        toast({ 
+          variant: "destructive", 
+          title: "Error de Tamaño", 
+          description: "El archivo es demasiado grande para ser enviado en un solo proceso. Intenta con un PDF más ligero o pega el texto directamente." 
+        })
+      } else {
+        toast({ variant: "destructive", title: "Error IA", description: error.message || "Error de tiempo de ejecución." })
+      }
     } finally {
       setLoadingAI(false)
     }
@@ -312,7 +321,7 @@ export default function BidDetailPage() {
                   <DialogContent className="max-w-2xl rounded-3xl border-4 border-primary/5 shadow-2xl">
                     <DialogHeader>
                       <DialogTitle className="text-3xl font-black uppercase italic text-primary tracking-tighter">Análisis Multimodal</DialogTitle>
-                      <DialogDescription className="font-medium italic">Sube el PDF de las bases para detectar requisitos ocultos (Máx 20MB).</DialogDescription>
+                      <DialogDescription className="font-medium italic">Sube el PDF de las bases para detectar requisitos ocultos (Máx 40MB).</DialogDescription>
                     </DialogHeader>
                     
                     <div className="space-y-6 py-6">
@@ -338,7 +347,7 @@ export default function BidDetailPage() {
                              <Button onClick={() => fileInputRef.current?.click()} className="h-14 px-10 font-black uppercase italic rounded-2xl bg-primary text-lg shadow-xl hover:scale-105 transition-transform">
                                <Plus className="mr-2 h-5 w-5" /> Seleccionar Bases PDF
                              </Button>
-                             <p className="text-[10px] font-black uppercase text-muted-foreground italic tracking-widest">Formato PDF • Máx 20MB</p>
+                             <p className="text-[10px] font-black uppercase text-muted-foreground italic tracking-widest">Formato PDF • Máx 40MB</p>
                            </>
                          )}
                       </div>

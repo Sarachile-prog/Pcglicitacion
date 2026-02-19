@@ -9,9 +9,9 @@ const nextConfig: NextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
-  // Configuración ampliada para permitir archivos pesados y análisis profundos de IA
+  // Configuración de límites de carga para Server Actions (CRÍTICO para PDFs)
   serverActions: {
-    bodySizeLimit: '20mb',
+    bodySizeLimit: '50mb',
   },
   images: {
     remotePatterns: [

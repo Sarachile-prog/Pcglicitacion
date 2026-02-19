@@ -23,9 +23,8 @@ var __importStar = (this && this.__importStar) || function (mod) {
     return result;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.healthCheck = exports.getBidDetail = exports.dailyBidSync = exports.syncOcdsHistorical = exports.getBidsByDate = void 0;
+exports.healthCheck = exports.getBidDetail = exports.syncOcdsHistorical = exports.getBidsByDate = void 0;
 const https_1 = require("firebase-functions/v2/https");
-const scheduler_1 = require("firebase-functions/v2/scheduler");
 const admin = __importStar(require("firebase-admin"));
 if (admin.apps.length === 0) {
     admin.initializeApp();
@@ -86,6 +85,10 @@ async function performSync(date) {
                 id: bid.CodigoExterno,
                 title: bid.Nombre || "Sin título",
                 status: bid.Estado || "No definido",
+                type: "Licitacion",
+                entity: "Pendiente Enriquecimiento",
+                amount: 0,
+                currency: 'CLP',
                 scrapedAt: nowServer,
                 sourceUrl: `https://www.mercadopublico.cl/Procurement/Modules/RFB/DetailsAcquisition.aspx?idLicitacion=${bid.CodigoExterno}`
             }, { merge: true });
@@ -126,15 +129,16 @@ exports.syncOcdsHistorical = (0, https_1.onRequest)({
     const db = admin.firestore();
     const endpointBase = type === 'Licitacion' ? 'listaOCDSAgnoMes' :
         type === 'TratoDirecto' ? 'listaOCDSAgnoMesTratoDirecto' : 'listaOCDSAgnoMesConvenio';
+    const typeLabel = type === 'Convenio' ? 'Convenio Marco' :
+        type === 'TratoDirecto' ? 'Trato Directo' : 'Licitación';
     try {
         const initialUrl = `https://api.mercadopublico.cl/APISOCDS/OCDS/${endpointBase}/${year}/${month}/0/999`;
-        console.log(`>>> [SERVER] Iniciando succión OCDS: ${initialUrl}`);
         const res = await fetch(initialUrl);
         if (!res.ok)
-            return response.status(200).json({ success: false, message: `Error Portal Mercado Público: ${res.status}. Es posible que los datos de ese mes no estén disponibles aún.` });
+            return response.status(200).json({ success: false, message: `Error Portal Mercado Público: ${res.status}.` });
         let data = await res.json();
         if (!data || !data.data || data.data.length === 0)
-            return response.json({ success: false, message: "No hay registros disponibles para el periodo seleccionado." });
+            return response.json({ success: false, message: "No hay registros disponibles." });
         const items = data.data;
         for (let i = 0; i < items.length; i += 450) {
             const batch = db.batch();
@@ -148,8 +152,9 @@ exports.syncOcdsHistorical = (0, https_1.onRequest)({
                 batch.set(bidRef, {
                     id: bidId,
                     title: release.tender.title || "Proceso OCDS",
-                    entity: release.buyer?.name || "Institución vía OCDS",
+                    entity: release.buyer?.name || release.tender.procuringEntity?.name || "Institución vía OCDS",
                     status: release.tender.status || "Desconocido",
+                    type: typeLabel,
                     amount: release.tender.value?.amount || 0,
                     currency: release.tender.value?.currency || 'CLP',
                     scrapedAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -159,25 +164,11 @@ exports.syncOcdsHistorical = (0, https_1.onRequest)({
             });
             await batch.commit();
         }
-        response.json({ success: true, count: items.length, message: `Se han succionado ${items.length} registros del periodo ${month}/${year}.` });
+        response.json({ success: true, count: items.length, message: `Se han succionado ${items.length} registros.` });
     }
     catch (error) {
-        console.error(`>>> [OCDS_CRASH] Error Fatal: ${error.message}`);
+        console.error(`>>> [OCDS_CRASH]: ${error.message}`);
         response.json({ success: false, message: `Fallo Crítico: ${error.message}` });
-    }
-});
-exports.dailyBidSync = (0, scheduler_1.onSchedule)({
-    schedule: "0 8 * * 1-5",
-    timeZone: "America/Santiago",
-    region: "us-central1"
-}, async (event) => {
-    const now = new Date();
-    const formattedDate = `${now.getDate().toString().padStart(2, '0')}${(now.getMonth() + 1).toString().padStart(2, '0')}${now.getFullYear()}`;
-    try {
-        await performSync(formattedDate);
-    }
-    catch (error) {
-        console.error(`>>> [CRON] Error: ${error.message}`);
     }
 });
 exports.getBidDetail = (0, https_1.onRequest)({
@@ -195,10 +186,24 @@ exports.getBidDetail = (0, https_1.onRequest)({
         const apiData = (await apiResponse.json());
         if (apiData.Listado && apiData.Listado.length > 0) {
             const detail = apiData.Listado[0];
+            const orgName = detail.Comprador?.NombreOrganismo ||
+                detail.NombreInstitucion ||
+                detail.OrganismoComprador?.Nombre ||
+                detail.Responsable?.NombreInstitucion ||
+                detail.Comprador?.NombreUnidad ||
+                "Institución no especificada";
+            const typeCode = detail.CodigoTipo;
+            let typeLabel = "Licitación";
+            if (typeCode === 3)
+                typeLabel = "Convenio Marco";
+            if (typeCode === 2)
+                typeLabel = "Trato Directo";
             await admin.firestore().collection("bids").doc(code).update({
+                entity: orgName,
+                type: typeLabel,
                 description: detail.Descripcion || "Sin descripción adicional.",
                 items: detail.Items?.Listado || [],
-                amount: detail.MontoEstimado || 0,
+                amount: detail.MontoEstimado || detail.MontoTotal || 0,
                 currency: detail.Moneda || 'CLP',
                 fullDetailAt: admin.firestore.FieldValue.serverTimestamp()
             });
@@ -213,6 +218,6 @@ exports.getBidDetail = (0, https_1.onRequest)({
     }
 });
 exports.healthCheck = (0, https_1.onRequest)({ cors: true }, (req, res) => {
-    res.json({ status: "ok", version: "3.1.0-BATCH-FIX", timestamp: new Date().toISOString() });
+    res.json({ status: "ok", version: "3.5.0-AGRESSIVE-CAPTURE", timestamp: new Date().toISOString() });
 });
 //# sourceMappingURL=index.js.map

@@ -5,7 +5,7 @@ import * as admin from "firebase-admin";
 /**
  * SERVICIOS CORE - PCG LICITACIÓN 2026
  * Motor de sincronización oficial con API Mercado Público.
- * Actualizado: 18/02/2026 - Captura masiva de Institución y Monto.
+ * Actualizado: 19/02/2026 - Mejora de captura de Institución y Montos.
  */
 
 if (admin.apps.length === 0) {
@@ -67,7 +67,6 @@ async function performSync(date: string) {
 
   const bidsList = apiData.Listado || [];
   
-  // Procesamiento por bloques de 450 para respetar límites de Firestore
   for (let i = 0; i < bidsList.length; i += 450) {
     const batch = db.batch();
     const chunk = bidsList.slice(i, i + 450);
@@ -77,14 +76,14 @@ async function performSync(date: string) {
       if (!bid.CodigoExterno) return;
       const bidRef = db.collection("bids").doc(bid.CodigoExterno);
       
-      // Captura extendida de datos desde el listado (si están disponibles)
       batch.set(bidRef, {
         id: bid.CodigoExterno,
         title: bid.Nombre || "Sin título",
         status: bid.Estado || "No definido",
-        entity: bid.Comprador?.NombreOrganismo || "Institución no especificada",
-        amount: bid.MontoEstimado || 0,
-        currency: bid.Moneda || 'CLP',
+        // En el listado por fecha, estos campos suelen venir vacíos. Se marcan como pendientes.
+        entity: "Pendiente Enriquecimiento",
+        amount: 0,
+        currency: 'CLP',
         scrapedAt: nowServer,
         sourceUrl: `https://www.mercadopublico.cl/Procurement/Modules/RFB/DetailsAcquisition.aspx?idLicitacion=${bid.CodigoExterno}`
       }, { merge: true });
@@ -202,12 +201,17 @@ export const getBidDetail = onRequest({
 
     if (apiData.Listado && apiData.Listado.length > 0) {
       const detail = apiData.Listado[0];
-      // Actualización profunda que incluye la Institución
+      
+      // Captura profunda: Intenta obtener el nombre de la institución desde varias fuentes
+      const orgName = detail.Comprador?.NombreOrganismo || 
+                      detail.NombreInstitucion || 
+                      "Institución no especificada";
+
       await admin.firestore().collection("bids").doc(code).update({
-        entity: detail.Comprador?.NombreOrganismo || "Institución no especificada",
+        entity: orgName,
         description: detail.Descripcion || "Sin descripción adicional.",
         items: detail.Items?.Listado || [],
-        amount: detail.MontoEstimado || 0,
+        amount: detail.MontoEstimado || detail.MontoTotal || 0,
         currency: detail.Moneda || 'CLP',
         fullDetailAt: admin.firestore.FieldValue.serverTimestamp()
       });
@@ -221,5 +225,5 @@ export const getBidDetail = onRequest({
 });
 
 export const healthCheck = onRequest({ cors: true }, (req, res) => {
-  res.json({ status: "ok", version: "3.2.0-DATA-CAPTURE-FIX", timestamp: new Date().toISOString() });
+  res.json({ status: "ok", version: "3.3.0-CAPTURE-DATA-ENHANCED", timestamp: new Date().toISOString() });
 });

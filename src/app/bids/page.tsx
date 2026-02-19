@@ -76,7 +76,12 @@ export default function BidsListPage() {
   const stats = useMemo(() => {
     if (!bids) return { total: 0, enriched: 0, pending: 0 };
     const total = bids.length;
-    const enriched = bids.filter(b => b.entity && b.entity !== "Institución no especificada").length;
+    // Una licitación se considera enriquecida si tiene una institución válida asignada o ya fue procesada profundamente
+    const enriched = bids.filter(b => 
+      b.entity && 
+      b.entity !== "Pendiente Enriquecimiento" && 
+      b.entity !== "Institución no especificada"
+    ).length;
     return { total, enriched, pending: total - enriched };
   }, [bids]);
 
@@ -121,23 +126,31 @@ export default function BidsListPage() {
 
   const handleEnrich = async () => {
     if (!bids || bids.length === 0 || !isSuperAdmin) return;
-    const toEnrich = bids.filter(b => !b.entity || b.entity === "Institución no especificada");
+    const toEnrich = bids.filter(b => 
+      !b.entity || 
+      b.entity === "Pendiente Enriquecimiento" || 
+      b.entity === "Institución no especificada"
+    );
+    
     if (toEnrich.length === 0) {
-      toast({ title: "Datos Completos" });
+      toast({ title: "Datos Completos", description: "Todos los registros ya cuentan con información enriquecida." });
       return;
     }
+    
     setIsEnriching(true);
     setEnrichTotal(toEnrich.length);
     setEnrichCount(0);
+    
     try {
       for (const bid of toEnrich) {
         await getBidDetail(bid.id);
         setEnrichCount(prev => prev + 1);
-        await new Promise(r => setTimeout(r, 1200));
+        // Pequeño delay para no saturar la API de Mercado Público (Rate Limiting)
+        await new Promise(r => setTimeout(r, 1500));
       }
       toast({ title: "Enriquecido Finalizado" });
     } catch (e: any) {
-      toast({ variant: "destructive", title: "Saturación API" });
+      toast({ variant: "destructive", title: "Saturación API", description: "Se ha alcanzado el límite de llamadas. Reintenta en 1 hora." });
     } finally {
       setIsEnriching(false);
     }
@@ -177,7 +190,7 @@ export default function BidsListPage() {
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="space-y-1">
             <h2 className="text-3xl font-extrabold text-primary italic uppercase flex items-center gap-2"><Globe className="h-6 w-6 text-accent" /> Explorador de Mercado</h2>
-            <Badge className="bg-emerald-500 text-white text-[10px] font-black uppercase italic">Repo 2026</Badge>
+            <Badge className="bg-emerald-500 text-white text-[10px] font-black uppercase italic">Repo Oficial 2026</Badge>
           </div>
           
           {isSuperAdmin && (
@@ -237,14 +250,14 @@ export default function BidsListPage() {
       {isEnriching && (
         <Card className="border-accent bg-accent/5 shadow-lg">
           <CardContent className="p-6 space-y-4">
-            <div className="flex justify-between items-center"><div className="flex items-center gap-2"><Activity className="h-4 w-4 text-accent animate-pulse" /><span className="text-xs font-black uppercase text-accent tracking-widest italic">Enriqueciendo datos técnicos...</span></div><span className="text-xs font-black text-primary italic">{Math.round((enrichCount / (enrichTotal || 1)) * 100)}%</span></div>
+            <div className="flex justify-between items-center"><div className="flex items-center gap-2"><Activity className="h-4 w-4 text-accent animate-pulse" /><span className="text-xs font-black uppercase text-accent tracking-widest italic">Capturando datos de instituciones y montos...</span></div><span className="text-xs font-black text-primary italic">{Math.round((enrichCount / (enrichTotal || 1)) * 100)}%</span></div>
             <Progress value={(enrichCount / (enrichTotal || 1)) * 100} className="h-2.5 bg-accent/20" />
           </CardContent>
         </Card>
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card className="bg-white border-none shadow-xl rounded-[2rem]"><CardContent className="p-8 flex items-center gap-6"><div className="h-16 w-16 rounded-3xl bg-primary/5 flex items-center justify-center shrink-0"><Layers className="h-8 w-8 text-primary" /></div><div><p className="text-[10px] font-black text-muted-foreground uppercase mb-1">Total</p><h3 className="text-4xl font-black text-primary italic tracking-tighter">{stats.total}</h3></div></CardContent></Card>
+        <Card className="bg-white border-none shadow-xl rounded-[2rem]"><CardContent className="p-8 flex items-center gap-6"><div className="h-16 w-16 rounded-3xl bg-primary/5 flex items-center justify-center shrink-0"><Layers className="h-8 w-8 text-primary" /></div><div><p className="text-[10px] font-black text-muted-foreground uppercase mb-1">Total en Vista</p><h3 className="text-4xl font-black text-primary italic tracking-tighter">{stats.total}</h3></div></CardContent></Card>
         <Card className="bg-white border-none shadow-xl rounded-[2rem]"><CardContent className="p-8 flex items-center gap-6"><div className="h-16 w-16 rounded-3xl bg-emerald-50 flex items-center justify-center shrink-0"><CheckCircle2 className="h-8 w-8 text-emerald-600" /></div><div><p className="text-[10px] font-black text-muted-foreground uppercase mb-1">Enriquecidos</p><h3 className="text-4xl font-black text-emerald-600 italic tracking-tighter">{stats.enriched}</h3></div></CardContent></Card>
         <Card className="bg-white border-none shadow-xl rounded-[2rem]"><CardContent className="p-8 flex items-center gap-6"><div className="h-16 w-16 rounded-3xl bg-amber-50 flex items-center justify-center shrink-0"><CloudDownload className="h-8 w-8 text-amber-600" /></div><div><p className="text-[10px] font-black text-muted-foreground uppercase mb-1">Pendientes</p><h3 className="text-4xl font-black text-amber-600 italic tracking-tighter">{stats.pending}</h3></div></CardContent></Card>
       </div>
@@ -288,7 +301,9 @@ export default function BidsListPage() {
               </TableHeader>
               <TableBody>
                 {pagedBids.map((bid) => {
-                  const isEnriched = bid.entity && bid.entity !== "Institución no especificada";
+                  const isEnriched = bid.entity && 
+                                     bid.entity !== "Pendiente Enriquecimiento" && 
+                                     bid.entity !== "Institución no especificada";
                   return (
                     <TableRow key={bid.id} className="group hover:bg-primary/5 transition-colors cursor-pointer border-b last:border-0">
                       <TableCell className="font-mono text-xs font-bold text-primary py-6 px-6">
@@ -305,7 +320,7 @@ export default function BidsListPage() {
                           </p>
                         </Link>
                       </TableCell>
-                      <TableCell className={cn("text-right font-black italic py-6 px-6 text-xl tracking-tighter", !isEnriched ? "text-amber-600/30" : "text-primary")}>
+                      <TableCell className={cn("text-right font-black italic py-6 px-6 text-xl tracking-tighter", (!bid.amount || bid.amount === 0) ? "text-amber-600/30" : "text-primary")}>
                         {formatCurrency(bid.amount, bid.currency)}
                       </TableCell>
                       <TableCell className="py-6 pr-6"><Link href={`/bids/${bid.id}`}><div className="h-10 w-10 rounded-full bg-primary/5 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-white transition-all shadow-sm"><ChevronRight className="h-5 w-5" /></div></Link></TableCell>

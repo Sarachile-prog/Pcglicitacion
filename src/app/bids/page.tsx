@@ -28,7 +28,7 @@ import {
   SearchCode,
   Tag
 } from "lucide-react"
-import Link from "next/link"
+import Link from "link"
 import { getBidsByDate, getBidDetail, syncOcdsHistorical } from "@/services/mercado-publico"
 import { useToast } from "@/hooks/use-toast"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -41,7 +41,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 const ITEMS_PER_PAGE = 50;
 
 // FUNCIÓN MAESTRA DE PERSISTENCIA
-const isBidEnriched = (bid: any) => {
+// Define si una licitación tiene datos útiles para el negocio.
+export const isBidEnriched = (bid: any) => {
   if (!bid.entity) return false;
   const pendingStrings = [
     "Pendiente Enriquecimiento", 

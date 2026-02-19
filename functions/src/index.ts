@@ -5,7 +5,7 @@ import * as admin from "firebase-admin";
 /**
  * SERVICIOS CORE - PCG LICITACIÓN 2026
  * Motor de sincronización oficial con API Mercado Público.
- * Actualizado: 19/02/2026 - Soporte para Convenio Marco y Tipos de Proceso.
+ * Actualizado: 19/02/2026 - Captura agresiva de Institución y Responsable.
  */
 
 if (admin.apps.length === 0) {
@@ -80,7 +80,7 @@ async function performSync(date: string) {
         id: bid.CodigoExterno,
         title: bid.Nombre || "Sin título",
         status: bid.Estado || "No definido",
-        type: "Licitacion", // Por defecto en sync por fecha
+        type: "Licitacion",
         entity: "Pendiente Enriquecimiento",
         amount: 0,
         currency: 'CLP',
@@ -154,7 +154,7 @@ export const syncOcdsHistorical = onRequest({
         batch.set(bidRef, {
           id: bidId,
           title: release.tender.title || "Proceso OCDS",
-          entity: release.buyer?.name || "Institución vía OCDS",
+          entity: release.buyer?.name || release.tender.procuringEntity?.name || "Institución vía OCDS",
           status: release.tender.status || "Desconocido",
           type: typeLabel,
           amount: release.tender.value?.amount || 0,
@@ -176,20 +176,6 @@ export const syncOcdsHistorical = onRequest({
   }
 });
 
-export const dailyBidSync = onSchedule({
-  schedule: "0 8 * * 1-5",
-  timeZone: "America/Santiago",
-  region: "us-central1"
-}, async (event) => {
-  const now = new Date();
-  const formattedDate = `${now.getDate().toString().padStart(2, '0')}${(now.getMonth() + 1).toString().padStart(2, '0')}${now.getFullYear()}`;
-  try {
-    await performSync(formattedDate);
-  } catch (error: any) {
-    console.error(`>>> [CRON] Error: ${error.message}`);
-  }
-});
-
 export const getBidDetail = onRequest({
   cors: true,
   region: "us-central1",
@@ -206,11 +192,14 @@ export const getBidDetail = onRequest({
     if (apiData.Listado && apiData.Listado.length > 0) {
       const detail = apiData.Listado[0];
       
+      // CAPTURA MULTI-CAMPO AGRESIVA (Resolviendo la duda del usuario)
       const orgName = detail.Comprador?.NombreOrganismo || 
                       detail.NombreInstitucion || 
+                      detail.OrganismoComprador?.Nombre ||
+                      detail.Responsable?.NombreInstitucion ||
+                      detail.Comprador?.NombreUnidad ||
                       "Institución no especificada";
 
-      // Intentar detectar el tipo desde el detalle si no existe
       const typeCode = detail.CodigoTipo;
       let typeLabel = "Licitación";
       if (typeCode === 3) typeLabel = "Convenio Marco";
@@ -235,5 +224,5 @@ export const getBidDetail = onRequest({
 });
 
 export const healthCheck = onRequest({ cors: true }, (req, res) => {
-  res.json({ status: "ok", version: "3.4.0-CM-SUPPORT", timestamp: new Date().toISOString() });
+  res.json({ status: "ok", version: "3.5.0-AGRESSIVE-CAPTURE", timestamp: new Date().toISOString() });
 });

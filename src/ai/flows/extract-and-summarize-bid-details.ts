@@ -2,6 +2,7 @@
 /**
  * @fileOverview Flujo de Genkit para asesoría experta en licitaciones y detección de leads.
  * Incluye capacidad de scraping en tiempo real y análisis multimodal de archivos PDF.
+ * Actualizado: Lógica de extracción de Institución y Monto para curación de datos.
  */
 
 import {ai} from '@/ai/genkit';
@@ -27,9 +28,11 @@ const PotentialLeadSchema = z.object({
 });
 
 const PostulationAdvisorOutputSchema = z.object({
+  identifiedInstitution: z.string().describe('Nombre exacto de la institución que licita (ej: I. Municipalidad de...).'),
   summary: z.string().describe('Resumen ejecutivo de la licitación.'),
   deadline: z.string().describe('Fecha límite de postulación.'),
-  monetaryAmount: z.string().describe('Monto estimado o presupuesto.'),
+  monetaryAmount: z.string().describe('Monto estimado o presupuesto identificado.'),
+  numericAmount: z.number().optional().describe('Valor numérico aproximado del monto (solo números).'),
   strategicAlerts: z.array(z.string()).describe('Alertas sobre multas, garantías o requisitos difíciles.'),
   timeline: z.array(TimelineEventSchema).describe('Cronograma de hitos críticos (Visita a terreno, foro de preguntas, etc).'),
   formChecklist: z.array(FormRequirementSchema).describe('Lista de documentos administrativos requeridos.'),
@@ -119,10 +122,11 @@ export async function extractAndSummarizeBidDetails(
       TEXTO ADICIONAL PROPORCIONADO: ${input.bidDocumentText || "No proporcionado manualmente"}
       
       INSTRUCCIONES CRÍTICAS:
-      1. Identifica con precisión absoluta hitos como: Visita a terreno (obligatoria/opcional), Foro de consultas, Apertura técnica y adjudicación.
-      2. En el Checklist de Documentos, busca todos los anexos (Administrativos, Técnicos y Económicos).
-      3. Extrae nombres de personas o cargos clave (leads) mencionados en el documento.
-      4. Genera un consejo estratégico basado en los criterios de evaluación si están presentes.` }
+      1. IDENTIFICACIÓN DE INSTITUCIÓN: Es obligatorio que identifiques el nombre del organismo que licita (ej: Municipalidad de Coinco). Búscalo en los encabezados, firmas o timbres.
+      2. MONTO: Busca el presupuesto estimado o monto total. Si está en UTM, UF o Pesos, indícalo.
+      3. HITOS: Identifica con precisión absoluta hitos como: Visita a terreno (obligatoria/opcional), Foro de consultas, Apertura técnica y adjudicación.
+      4. CHECKLIST: Busca todos los anexos (Administrativos, Técnicos y Económicos).
+      5. ESTRATEGIA: Genera un consejo estratégico basado en los criterios de evaluación si están presentes.` }
   ];
 
   if (input.pdfDataUri) {
@@ -133,7 +137,7 @@ export async function extractAndSummarizeBidDetails(
     const { output } = await ai.generate({
       model: 'googleai/gemini-2.5-flash',
       system: `Eres un Asesor Senior Experto en Licitaciones del Estado de Chile.
-      Tu misión es evitar que el usuario pierda una licitación por errores de forma.
+      Tu misión es evitar que el usuario pierda una licitación por errores de forma y asegurar que la base de datos tenga la información completa.
       Debes ser meticuloso, analítico y directo en tus advertencias.`,
       prompt: promptParts,
       output: {

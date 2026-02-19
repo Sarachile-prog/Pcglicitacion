@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useParams } from "next/navigation"
@@ -41,6 +40,19 @@ import { doc, setDoc, deleteDoc, updateDoc, increment } from "firebase/firestore
 
 // Extender tiempo de respuesta para el análisis multimodal pesado (120 segundos)
 export const maxDuration = 120;
+
+// FUNCIÓN DE PERSISTENCIA PARA DATA HEALING
+const isEntityMissing = (entity: string | undefined) => {
+  if (!entity) return true;
+  const pendingStrings = [
+    "Pendiente Enriquecimiento", 
+    "Institución no especificada", 
+    "Pendiente Datos...", 
+    "Pendiente",
+    "NO ESPECIFICADA"
+  ];
+  return pendingStrings.some(ps => entity.toUpperCase().includes(ps.toUpperCase()));
+}
 
 export default function BidDetailPage() {
   const params = useParams()
@@ -112,7 +124,6 @@ export default function BidDetailPage() {
       return
     }
 
-    // Límite ampliado a 40MB para permitir PDFs densos considerando Base64 overhead
     if (file.size > 40 * 1024 * 1024) {
       toast({ variant: "destructive", title: "Archivo Muy Pesado", description: "El PDF supera el límite de 40MB." })
       return
@@ -132,7 +143,7 @@ export default function BidDetailPage() {
     if (mode === 'deep') setIsDialogOpen(false)
 
     try {
-      toast({ title: "Motor IA Iniciado", description: mode === 'deep' ? "Procesando documentos adjuntos (esto puede tardar)..." : "Analizando datos del portal..." })
+      toast({ title: "Motor IA Iniciado", description: mode === 'deep' ? "Extrayendo datos y analizando PDF..." : "Analizando portal oficial..." })
       
       const contextText = mode === 'deep' ? manualText : (bid.description || bid.title)
       const pdfToProcess = mode === 'deep' ? pdfDataUri : null
@@ -144,22 +155,43 @@ export default function BidDetailPage() {
         useLivePortal: true 
       })
       
-      await updateDoc(bidRef, { aiAnalysis: result, lastAnalyzedAt: new Date().toISOString() })
-      if (bookmarkRef && bookmark) await updateDoc(bookmarkRef, { aiAnalysis: result })
+      // LOGICA DE AUTO-CURACIÓN (DATA HEALING)
+      const updatePayload: any = { 
+        aiAnalysis: result, 
+        lastAnalyzedAt: new Date().toISOString() 
+      }
+
+      // Si la institución falta, la IA la cura
+      if (isEntityMissing(bid.entity) && result.identifiedInstitution) {
+        updatePayload.entity = result.identifiedInstitution;
+      }
+
+      // Si el monto es 0, intentamos usar el numérico de la IA
+      if ((!bid.amount || bid.amount === 0) && result.numericAmount) {
+        updatePayload.amount = result.numericAmount;
+      }
+
+      await updateDoc(bidRef, updatePayload)
+      if (bookmarkRef && bookmark) {
+        await updateDoc(bookmarkRef, { 
+          aiAnalysis: result,
+          entity: updatePayload.entity || bookmark.entity
+        })
+      }
+      
       if (!profile?.companyId) await updateDoc(profileRef, { demoUsageCount: increment(1) })
 
       setActiveTab("ai-advisor")
-      toast({ title: "Análisis Completado" })
+      toast({ title: "Análisis y Curación Completa", description: "La IA ha reparado los datos faltantes del proceso." })
       setPdfDataUri(null)
       setPdfFileName(null)
       setManualText("")
     } catch (error: any) {
-      // Manejo de error específico de límite de Next.js
       if (error.message?.includes("exceeded")) {
         toast({ 
           variant: "destructive", 
           title: "Error de Tamaño", 
-          description: "El archivo es demasiado grande para ser enviado en un solo proceso. Intenta con un PDF más ligero o pega el texto directamente." 
+          description: "Archivo demasiado grande. Prueba con un PDF más ligero." 
         })
       } else {
         toast({ variant: "destructive", title: "Error IA", description: error.message || "Error de tiempo de ejecución." })
@@ -212,8 +244,22 @@ export default function BidDetailPage() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t">
-          <div className="flex items-center gap-4"><Building2 className="h-5 w-5 text-primary" /><div><p className="text-[10px] uppercase font-black opacity-60">Institución</p><p className="text-sm font-bold uppercase">{bid.entity || "No especificada"}</p></div></div>
-          <div className="flex items-center gap-4"><Calendar className="h-5 w-5 text-primary" /><div><p className="text-[10px] uppercase font-black opacity-60">Cierre</p><p className="text-sm font-bold">{bid.deadlineDate ? new Date(bid.deadlineDate).toLocaleDateString('es-CL') : '---'}</p></div></div>
+          <div className="flex items-center gap-4">
+            <div className={cn("h-12 w-12 rounded-xl flex items-center justify-center shrink-0", isEntityMissing(bid.entity) ? "bg-red-50 text-red-500" : "bg-primary/5 text-primary")}>
+              <Building2 className="h-6 w-6" />
+            </div>
+            <div>
+              <p className="text-[10px] uppercase font-black opacity-60">Institución Responsable</p>
+              <p className={cn("text-sm font-bold uppercase", isEntityMissing(bid.entity) && "text-red-600 animate-pulse")}>
+                {bid.entity || "NO ESPECIFICADA"}
+              </p>
+              {isEntityMissing(bid.entity) && <p className="text-[8px] font-black text-red-400 uppercase mt-0.5 tracking-widest">Ejecuta Motor IA para Auto-Curar este dato</p>}
+            </div>
+          </div>
+          <div className="flex items-center gap-4">
+            <div className="h-12 w-12 rounded-xl bg-primary/5 flex items-center justify-center text-primary shrink-0"><Calendar className="h-6 w-6" /></div>
+            <div><p className="text-[10px] uppercase font-black opacity-60">Cierre de Ofertas</p><p className="text-sm font-bold">{bid.deadlineDate ? new Date(bid.deadlineDate).toLocaleDateString('es-CL') : '---'}</p></div>
+          </div>
         </div>
       </div>
 
@@ -269,6 +315,16 @@ export default function BidDetailPage() {
                       <p className="text-xl font-medium italic mt-4 leading-relaxed">"{analysis.strategicAdvice}"</p>
                     </CardHeader>
                     <CardContent className="p-8">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                        <div className="p-4 bg-white/5 rounded-2xl border border-white/10">
+                          <p className="text-[10px] font-black uppercase text-accent mb-1">Institución Detectada</p>
+                          <p className="text-lg font-black italic">{analysis.identifiedInstitution}</p>
+                        </div>
+                        <div className="p-4 bg-white/5 rounded-2xl border border-white/10">
+                          <p className="text-[10px] font-black uppercase text-accent mb-1">Monto Presupuestado</p>
+                          <p className="text-lg font-black italic">{analysis.monetaryAmount}</p>
+                        </div>
+                      </div>
                       <p className="text-sm opacity-80 italic font-medium">RAZONAMIENTO: {analysis.reasoning}</p>
                     </CardContent>
                   </Card>
@@ -321,7 +377,7 @@ export default function BidDetailPage() {
                   <DialogContent className="max-w-2xl rounded-3xl border-4 border-primary/5 shadow-2xl">
                     <DialogHeader>
                       <DialogTitle className="text-3xl font-black uppercase italic text-primary tracking-tighter">Análisis Multimodal</DialogTitle>
-                      <DialogDescription className="font-medium italic">Sube el PDF de las bases para detectar requisitos ocultos (Máx 40MB).</DialogDescription>
+                      <DialogDescription className="font-medium italic">Sube el PDF de las bases para detectar requisitos ocultos y auto-curar datos (Máx 40MB).</DialogDescription>
                     </DialogHeader>
                     
                     <div className="space-y-6 py-6">
@@ -381,7 +437,7 @@ export default function BidDetailPage() {
                   </DialogContent>
                 </Dialog>
               </div>
-              <p className="text-[10px] text-muted-foreground italic font-medium">El análisis profundo con PDF permite detectar requisitos críticos de las bases.</p>
+              <p className="text-[10px] text-muted-foreground italic font-medium">El análisis profundo con PDF permite detectar requisitos críticos y reparar la ficha técnica.</p>
             </CardContent>
           </Card>
         </div>

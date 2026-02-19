@@ -1,4 +1,3 @@
-
 {
   "entities": {
     "Category": {
@@ -24,6 +23,7 @@
         "entity": { "type": "string" },
         "description": { "type": "string" },
         "status": { "type": "string" },
+        "type": { "type": "string", "enum": ["Licitación", "Trato Directo", "Convenio Marco"] },
         "amount": { "type": "number" },
         "currency": { "type": "string" },
         "items": { "type": "array" },

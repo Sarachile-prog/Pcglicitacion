@@ -25,7 +25,8 @@ import {
   SendHorizontal,
   BrainCircuit,
   MessageCircle,
-  Package
+  Package,
+  Info
 } from "lucide-react"
 import Link from "next/link"
 import { useToast } from "@/hooks/use-toast"
@@ -79,6 +80,7 @@ export default function BidDetailPage() {
           title: bid.title,
           entity: bid.entity || "No especificada",
           status: bid.status,
+          type: bid.type || "Licitación",
           preparationStatus: "En Estudio",
           savedAt: new Date().toISOString(),
           aiAnalysis: bid.aiAnalysis || null
@@ -136,6 +138,11 @@ export default function BidDetailPage() {
             <div className="flex flex-wrap items-center gap-3">
               <Badge variant="outline" className="text-xs font-black uppercase border-primary/20">ID: {bid.id}</Badge>
               <Badge className="text-xs font-black uppercase bg-primary text-white py-1 px-4">{bid.status || 'NO DEFINIDO'}</Badge>
+              {bid.type && (
+                <Badge className="bg-indigo-600 text-white gap-1 px-3 py-1 text-[10px] font-black uppercase italic shadow-md">
+                  <Info className="h-3 w-3" /> {bid.type}
+                </Badge>
+              )}
               {analysis && (
                 <Badge className="bg-accent text-white gap-1 px-3 py-1 text-[10px] font-black uppercase italic shadow-[0_0_15px_rgba(38,166,154,0.4)] animate-pulse">
                   <Sparkles className="h-3 w-3 fill-white" /> Inteligencia IA Activa

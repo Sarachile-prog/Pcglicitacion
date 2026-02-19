@@ -5,7 +5,7 @@ import * as admin from "firebase-admin";
 /**
  * SERVICIOS CORE - PCG LICITACIÓN 2026
  * Motor de sincronización oficial con API Mercado Público.
- * Actualizado: 19/02/2026 - Mejora de captura de Institución y Montos.
+ * Actualizado: 19/02/2026 - Soporte para Convenio Marco y Tipos de Proceso.
  */
 
 if (admin.apps.length === 0) {
@@ -80,7 +80,7 @@ async function performSync(date: string) {
         id: bid.CodigoExterno,
         title: bid.Nombre || "Sin título",
         status: bid.Estado || "No definido",
-        // En el listado por fecha, estos campos suelen venir vacíos. Se marcan como pendientes.
+        type: "Licitacion", // Por defecto en sync por fecha
         entity: "Pendiente Enriquecimiento",
         amount: 0,
         currency: 'CLP',
@@ -127,6 +127,9 @@ export const syncOcdsHistorical = onRequest({
   const endpointBase = type === 'Licitacion' ? 'listaOCDSAgnoMes' : 
                        type === 'TratoDirecto' ? 'listaOCDSAgnoMesTratoDirecto' : 'listaOCDSAgnoMesConvenio';
   
+  const typeLabel = type === 'Convenio' ? 'Convenio Marco' : 
+                    type === 'TratoDirecto' ? 'Trato Directo' : 'Licitación';
+
   try {
     const initialUrl = `https://api.mercadopublico.cl/APISOCDS/OCDS/${endpointBase}/${year}/${month}/0/999`;
     
@@ -153,6 +156,7 @@ export const syncOcdsHistorical = onRequest({
           title: release.tender.title || "Proceso OCDS",
           entity: release.buyer?.name || "Institución vía OCDS",
           status: release.tender.status || "Desconocido",
+          type: typeLabel,
           amount: release.tender.value?.amount || 0,
           currency: release.tender.value?.currency || 'CLP',
           scrapedAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -202,13 +206,19 @@ export const getBidDetail = onRequest({
     if (apiData.Listado && apiData.Listado.length > 0) {
       const detail = apiData.Listado[0];
       
-      // Captura profunda: Intenta obtener el nombre de la institución desde varias fuentes
       const orgName = detail.Comprador?.NombreOrganismo || 
                       detail.NombreInstitucion || 
                       "Institución no especificada";
 
+      // Intentar detectar el tipo desde el detalle si no existe
+      const typeCode = detail.CodigoTipo;
+      let typeLabel = "Licitación";
+      if (typeCode === 3) typeLabel = "Convenio Marco";
+      if (typeCode === 2) typeLabel = "Trato Directo";
+
       await admin.firestore().collection("bids").doc(code).update({
         entity: orgName,
+        type: typeLabel,
         description: detail.Descripcion || "Sin descripción adicional.",
         items: detail.Items?.Listado || [],
         amount: detail.MontoEstimado || detail.MontoTotal || 0,
@@ -225,5 +235,5 @@ export const getBidDetail = onRequest({
 });
 
 export const healthCheck = onRequest({ cors: true }, (req, res) => {
-  res.json({ status: "ok", version: "3.3.0-CAPTURE-DATA-ENHANCED", timestamp: new Date().toISOString() });
+  res.json({ status: "ok", version: "3.4.0-CM-SUPPORT", timestamp: new Date().toISOString() });
 });

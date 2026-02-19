@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useMemo, useEffect } from "react"
@@ -26,7 +25,8 @@ import {
   Activity,
   Server,
   AlertCircle,
-  SearchCode
+  SearchCode,
+  Tag
 } from "lucide-react"
 import Link from "next/link"
 import { getBidsByDate, getBidDetail, syncOcdsHistorical } from "@/services/mercado-publico"
@@ -40,7 +40,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 
 const ITEMS_PER_PAGE = 50;
 
-// FUNCIÓN MAESTRA DE PERSISTENCIA: Asegura que el conteo de enriquecidos sea consistente
+// FUNCIÓN MAESTRA DE PERSISTENCIA
 const isBidEnriched = (bid: any) => {
   if (!bid.entity) return false;
   const pendingStrings = [
@@ -75,8 +75,6 @@ export default function BidsListPage() {
   const [isOcdsLoading, setIsOcdsLoading] = useState(false)
   const [mounted, setMounted] = useState(false);
   const [globalDbCount, setGlobalDbCount] = useState<number | null>(null);
-  
-  // Estado para búsqueda global por ID
   const [isGlobalSearching, setIsGlobalSearching] = useState(false);
   const [globalSearchResult, setGlobalSearchResult] = useState<any>(null);
 
@@ -120,22 +118,19 @@ export default function BidsListPage() {
 
   const handleGlobalIdSearch = async () => {
     if (!db || !searchTerm.trim()) return;
-    
     setIsGlobalSearching(true);
     setGlobalSearchResult(null);
-    
     try {
       const bidId = searchTerm.trim();
       const bidSnap = await getDoc(doc(db, "bids", bidId));
-      
       if (bidSnap.exists()) {
         setGlobalSearchResult({ ...bidSnap.data(), id: bidSnap.id });
-        toast({ title: "Registro Encontrado", description: "El proceso existe en el repositorio histórico." });
+        toast({ title: "Registro Encontrado" });
       } else {
-        toast({ variant: "destructive", title: "No Encontrado", description: "El ID no existe en nuestra base de datos." });
+        toast({ variant: "destructive", title: "No Encontrado" });
       }
     } catch (e: any) {
-      toast({ variant: "destructive", title: "Error de Búsqueda", description: e.message });
+      toast({ variant: "destructive", title: "Error", description: e.message });
     } finally {
       setIsGlobalSearching(false);
     }
@@ -157,11 +152,6 @@ export default function BidsListPage() {
 
   const handleOcdsSync = async () => {
     if (!isSuperAdmin) return;
-    const now = new Date();
-    if (parseInt(ocdsYear) > now.getFullYear() || (parseInt(ocdsYear) === now.getFullYear() && parseInt(ocdsMonth) > (now.getMonth() + 1))) {
-      toast({ variant: "destructive", title: "Fecha Futura", description: "No puedes seleccionar meses que aún no han ocurrido." });
-      return;
-    }
     setIsOcdsLoading(true)
     try {
       const res = await syncOcdsHistorical(ocdsYear, ocdsMonth, ocdsType)
@@ -182,7 +172,7 @@ export default function BidsListPage() {
     if (!bids || bids.length === 0 || !isSuperAdmin) return;
     const toEnrich = bids.filter(b => !isBidEnriched(b));
     if (toEnrich.length === 0) {
-      toast({ title: "Datos Completos", description: "Todos los registros en vista ya cuentan con información enriquecida." });
+      toast({ title: "Datos Completos" });
       return;
     }
     setIsEnriching(true);
@@ -192,11 +182,11 @@ export default function BidsListPage() {
       for (const bid of toEnrich) {
         await getBidDetail(bid.id);
         setEnrichCount(prev => prev + 1);
-        await new Promise(r => setTimeout(r, 1500));
+        await new Promise(r => setTimeout(r, 1200));
       }
       toast({ title: "Enriquecido Finalizado" });
     } catch (e: any) {
-      toast({ variant: "destructive", title: "Saturación API", description: "Límite alcanzado. Reintenta en 1 hora." });
+      toast({ variant: "destructive", title: "Error", description: "Límite de API alcanzado temporalmente." });
     } finally {
       setIsEnriching(false);
     }
@@ -223,7 +213,7 @@ export default function BidsListPage() {
   }, [filteredBids, currentPage]);
 
   const formatCurrency = (amount: number, currency: string) => {
-    if (!amount || amount <= 0) return 'Por Definir';
+    if (!amount || amount <= 0) return '---';
     return new Intl.NumberFormat('es-CL', { style: 'currency', currency: currency || 'CLP', maximumFractionDigits: 0 }).format(amount);
   }
 
@@ -236,7 +226,10 @@ export default function BidsListPage() {
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="space-y-1">
             <h2 className="text-3xl font-extrabold text-primary italic uppercase flex items-center gap-2"><Globe className="h-6 w-6 text-accent" /> Explorador de Mercado</h2>
-            <Badge className="bg-emerald-500 text-white text-[10px] font-black uppercase italic">Repo Oficial 2026</Badge>
+            <div className="flex gap-2">
+              <Badge className="bg-emerald-500 text-white text-[10px] font-black uppercase italic">Repo Oficial 2026</Badge>
+              <Badge variant="outline" className="text-[10px] font-black uppercase border-primary/20">Soporte Convenio Marco</Badge>
+            </div>
           </div>
           
           {isSuperAdmin && (
@@ -244,11 +237,11 @@ export default function BidsListPage() {
               <Dialog open={isOcdsDialogOpen} onOpenChange={setIsOcdsDialogOpen}>
                 <DialogTrigger asChild>
                   <Button size="sm" className="bg-emerald-600 font-black h-10 uppercase italic text-[9px] rounded-xl px-4 text-white">
-                    <AppHistoryIcon className="h-3.5 w-3.5 mr-2" /> Ingesta OCDS (Masiva)
+                    <CloudDownload className="h-3.5 w-3.5 mr-2" /> Ingesta Masiva (OCDS)
                   </Button>
                 </DialogTrigger>
                 <DialogContent>
-                  <DialogHeader><DialogTitle className="text-xl font-black uppercase italic">Carga Histórica OCDS</DialogTitle></DialogHeader>
+                  <DialogHeader><DialogTitle className="text-xl font-black uppercase italic">Succión Histórica OCDS</DialogTitle></DialogHeader>
                   <div className="space-y-4 py-4">
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-1">
@@ -267,7 +260,7 @@ export default function BidsListPage() {
                         <SelectContent>
                           <SelectItem value="Licitacion" className="font-bold">Licitaciones Públicas</SelectItem>
                           <SelectItem value="TratoDirecto" className="font-bold">Tratos Directos</SelectItem>
-                          <SelectItem value="Convenio" className="font-bold">Convenio Marco</SelectItem>
+                          <SelectItem value="Convenio" className="font-bold">Convenio Marco (Catálogo)</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -286,7 +279,7 @@ export default function BidsListPage() {
                 <RefreshCw className={cn("h-3 w-3 mr-2", isSyncing && "animate-spin")} /> Ingesta IDs
               </Button>
               <Button size="sm" className="bg-accent text-white font-black h-10 uppercase italic text-[9px] rounded-xl px-4" onClick={handleEnrich} disabled={isEnriching}>
-                {isEnriching ? <><Loader2 className="h-3 w-3 mr-2 animate-spin" /> Procesando...</> : <><Database className="h-3 w-3 mr-2" /> Enriquecer Repo</>}
+                {isEnriching ? <><Loader2 className="h-3 w-3 mr-2 animate-spin" /> {enrichCount}/{enrichTotal}</> : <><Database className="h-3 w-3 mr-2" /> Enriquecer Repo</>}
               </Button>
             </Card>
           )}
@@ -301,7 +294,7 @@ export default function BidsListPage() {
             <div>
               <p className="text-[10px] font-black text-muted-foreground uppercase mb-1">Total en Base de Datos</p>
               <h3 className="text-4xl font-black text-primary italic tracking-tighter">
-                {globalDbCount !== null ? globalDbCount.toLocaleString() : <Loader2 className="h-6 w-6 animate-spin opacity-20" />}
+                {globalDbCount !== null ? globalDbCount.toLocaleString() : "---"}
               </h3>
             </div>
           </CardContent>
@@ -362,7 +355,6 @@ export default function BidsListPage() {
         </CardContent>
       </Card>
 
-      {/* RESULTADO DE BÚSQUEDA GLOBAL (SI EXISTE) */}
       {globalSearchResult && (
         <Card className="border-2 border-accent bg-accent/5 rounded-3xl overflow-hidden animate-in zoom-in-95">
           <CardHeader className="bg-accent/10 py-3 px-6 border-b border-accent/20">
@@ -382,9 +374,16 @@ export default function BidsListPage() {
                 <TableCell className="py-6">
                   <Link href={`/bids/${globalSearchResult.id}`} className="space-y-2 block">
                     <p className="font-black text-lg uppercase italic text-primary leading-tight">{globalSearchResult.title}</p>
-                    <p className="text-[10px] flex items-center gap-1.5 uppercase font-bold text-muted-foreground">
-                      <Building2 className="h-3.5 w-3.5" /> {isBidEnriched(globalSearchResult) ? globalSearchResult.entity : "Pendiente Datos..."}
-                    </p>
+                    <div className="flex items-center gap-3">
+                      <p className="text-[10px] flex items-center gap-1.5 uppercase font-bold text-muted-foreground">
+                        <Building2 className="h-3.5 w-3.5" /> {isBidEnriched(globalSearchResult) ? globalSearchResult.entity : "Pendiente Datos..."}
+                      </p>
+                      {globalSearchResult.type && (
+                        <Badge variant="outline" className="text-[8px] font-black uppercase h-4 px-1.5 border-accent text-accent">
+                          {globalSearchResult.type}
+                        </Badge>
+                      )}
+                    </div>
                   </Link>
                 </TableCell>
                 <TableCell className="text-right font-black italic py-6 px-6 text-xl tracking-tighter">
@@ -425,9 +424,16 @@ export default function BidsListPage() {
                       <TableCell className="py-6">
                         <Link href={`/bids/${bid.id}`} className="space-y-2 block">
                           <p className="font-black text-lg line-clamp-1 group-hover:text-accent uppercase italic text-primary leading-tight">{bid.title}</p>
-                          <p className={cn("text-[10px] flex items-center gap-1.5 uppercase font-bold tracking-tight", !enriched ? "text-amber-600 italic" : "text-muted-foreground")}>
-                            <Building2 className="h-3.5 w-3.5" /> {!enriched ? "Pendiente Datos..." : bid.entity}
-                          </p>
+                          <div className="flex items-center gap-3">
+                            <p className={cn("text-[10px] flex items-center gap-1.5 uppercase font-bold tracking-tight", !enriched ? "text-amber-600 italic" : "text-muted-foreground")}>
+                              <Building2 className="h-3.5 w-3.5" /> {!enriched ? "Pendiente Datos..." : bid.entity}
+                            </p>
+                            {bid.type && (
+                              <Badge variant="outline" className="text-[8px] font-black uppercase h-4 px-1.5 border-primary/20 text-muted-foreground bg-white shadow-sm">
+                                {bid.type}
+                              </Badge>
+                            )}
+                          </div>
                         </Link>
                       </TableCell>
                       <TableCell className={cn("text-right font-black italic py-6 px-6 text-xl tracking-tighter", (!bid.amount || bid.amount === 0) ? "text-amber-600/30" : "text-primary")}>
@@ -441,7 +447,7 @@ export default function BidsListPage() {
             </Table>
           </Card>
           <div className="flex justify-between items-center px-4 bg-white/50 p-4 rounded-3xl border">
-            <p className="text-[10px] font-black text-muted-foreground uppercase italic">Página {currentPage} de {totalPages} • Mostrando {stats.totalInView} registros recientes</p>
+            <p className="text-[10px] font-black text-muted-foreground uppercase italic">Página {currentPage} de {totalPages}</p>
             <div className="flex gap-3">
               <Button variant="outline" size="sm" onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))} disabled={currentPage === 1} className="h-10 w-10 p-0 rounded-xl"><ChevronLeft className="h-5 w-5" /></Button>
               <Button variant="outline" size="sm" onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))} disabled={currentPage === totalPages} className="h-10 w-10 p-0 rounded-xl"><ChevronRight className="h-5 w-5" /></Button>
@@ -453,16 +459,9 @@ export default function BidsListPage() {
           <div className="space-y-4">
             <Globe className="h-12 w-12 text-primary/20 mx-auto" />
             <h3 className="text-3xl font-black text-primary italic uppercase">Sin resultados en vista</h3>
-            <p className="text-muted-foreground italic font-medium max-w-sm mx-auto">
-              Si estás buscando un ID específico, prueba la búsqueda profunda en todo el repositorio histórico.
-            </p>
           </div>
           <div className="flex flex-col sm:flex-row justify-center gap-4">
-            <Button 
-              className="bg-accent font-black uppercase italic h-14 px-10 rounded-2xl shadow-lg gap-2"
-              onClick={handleGlobalIdSearch}
-              disabled={isGlobalSearching || !searchTerm}
-            >
+            <Button className="bg-accent font-black uppercase italic h-14 px-10 rounded-2xl shadow-lg gap-2" onClick={handleGlobalIdSearch} disabled={isGlobalSearching || !searchTerm}>
               {isGlobalSearching ? <Loader2 className="animate-spin" /> : <SearchCode className="h-5 w-5" />}
               Búsqueda Global por ID
             </Button>
@@ -472,25 +471,4 @@ export default function BidsListPage() {
       )}
     </div>
   )
-}
-
-function AppHistoryIcon({className}: {className?: string}) {
-  return (
-    <svg
-      className={className}
-      xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
-      <path d="M3 3v5h5" />
-      <path d="M12 7v5l4 2" />
-    </svg>
-  );
 }

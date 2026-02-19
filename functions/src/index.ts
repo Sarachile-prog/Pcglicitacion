@@ -5,7 +5,7 @@ import * as admin from "firebase-admin";
 /**
  * SERVICIOS CORE - PCG LICITACIÓN 2026
  * Motor de sincronización oficial con API Mercado Público.
- * Actualizado: 20/02/2026 - Consulta de volumen OCDS para planificación.
+ * Actualizado: 21/02/2026 - Corrección de conteo real OCDS (Pagination Bypass).
  */
 
 if (admin.apps.length === 0) {
@@ -131,20 +131,26 @@ export const syncOcdsHistorical = onRequest({
                     type === 'TratoDirecto' ? 'Trato Directo' : 'Licitación';
 
   try {
-    // Si solo queremos el conteo, pedimos un rango pequeño para obtener el total
-    const limit = countOnly === 'true' ? '1' : '999';
+    // Para contar el volumen REAL, consultamos con un límite mínimo pero capturamos el campo total de la paginación
+    const limit = countOnly === 'true' ? '10' : '999';
     const initialUrl = `https://api.mercadopublico.cl/APISOCDS/OCDS/${endpointBase}/${year}/${month}/0/${limit}`;
+    
+    console.log(`>>> [OCDS_QUERY] Consultando volumen en: ${initialUrl}`);
     
     const res = await fetch(initialUrl);
     if (!res.ok) return response.status(200).json({ success: false, message: `Error Portal Mercado Público: ${res.status}.` });
 
     let data = await res.json() as any;
     
-    // Si la API no retorna explícitamente un total, usamos la longitud de los datos
-    const totalCount = data.total || (data.data ? data.data.length : 0);
+    // Extracción robusta del total real (Bypass del límite de 999 de la respuesta inmediata)
+    const realTotal = data.total || (data.pagination && data.pagination.total) || (data.data ? data.data.length : 0);
 
     if (countOnly === 'true') {
-      return response.json({ success: true, count: totalCount, message: `Hay ${totalCount} procesos disponibles en el mercado.` });
+      return response.json({ 
+        success: true, 
+        count: realTotal, 
+        message: `Hay ${realTotal.toLocaleString()} procesos disponibles en el mercado para este periodo.` 
+      });
     }
 
     if (!data || !data.data || data.data.length === 0) return response.json({ success: false, message: "No hay registros disponibles." });
@@ -233,5 +239,5 @@ export const getBidDetail = onRequest({
 });
 
 export const healthCheck = onRequest({ cors: true }, (req, res) => {
-  res.json({ status: "ok", version: "3.6.0-OCDS-PLANNING", timestamp: new Date().toISOString() });
+  res.json({ status: "ok", version: "3.7.0-REAL-COUNT-FIX", timestamp: new Date().toISOString() });
 });

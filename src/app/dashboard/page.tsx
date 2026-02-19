@@ -40,19 +40,17 @@ import { useRouter } from "next/navigation"
 
 // FUNCIÓN MAESTRA DE PERSISTENCIA: Define qué es un registro enriquecido
 const isBidEnriched = (bid: any) => {
-  // Un registro es enriquecido si tiene una institución válida que NO sea de marcador de posición
   if (!bid.entity) return false;
   
   const pendingStrings = [
     "Pendiente Enriquecimiento", 
     "Institución no especificada", 
     "Pendiente Datos...", 
-    "Pendiente"
+    "Pendiente",
+    "NO ESPECIFICADA"
   ];
   
-  const hasValidEntity = !pendingStrings.some(ps => bid.entity.includes(ps));
-  
-  // También es enriquecido si ya tiene un timestamp de detalle profundo
+  const hasValidEntity = !pendingStrings.some(ps => bid.entity.toUpperCase().includes(ps.toUpperCase()));
   const hasDeepDetail = !!bid.fullDetailAt;
   
   return hasValidEntity || hasDeepDetail;
@@ -122,8 +120,8 @@ export default function DashboardPage() {
   const adminStats = useMemo(() => {
     if (!isSuperAdmin || !bids) return null;
     
-    const totalInSample = bids.length;
     const enriched = bids.filter(isBidEnriched).length;
+    const totalInSample = bids.length;
 
     const lastSync = bids[0]?.scrapedAt ? new Date(bids[0].scrapedAt.toDate()).toLocaleString('es-CL') : '---';
     
@@ -229,8 +227,8 @@ export default function DashboardPage() {
               <div className="absolute top-0 right-0 p-4 opacity-10"><BrainCircuit className="h-20 w-20" /></div>
               <CardHeader><CardTitle className="text-xs uppercase font-black tracking-widest text-accent italic">Créditos IA</CardTitle></CardHeader>
               <CardContent className="space-y-4">
-                <div className="text-center py-4"><span className="text-6xl font-black italic">{3 - demoUsage}</span><p className="text-[10px] uppercase font-bold opacity-60 tracking-widest mt-2">Análisis Disponibles</p></div>
-                <div className="h-2 w-full bg-white/10 rounded-full overflow-hidden"><div className="h-full bg-accent transition-all duration-1000" style={{ width: `${((3 - demoUsage) / 3) * 100}%` }} /></div>
+                <div className="text-center py-4"><span className="text-6xl font-black italic">{Math.max(0, 3 - demoUsage)}</span><p className="text-[10px] uppercase font-bold opacity-60 tracking-widest mt-2">Análisis Disponibles</p></div>
+                <div className="h-2 w-full bg-white/10 rounded-full overflow-hidden"><div className="h-full bg-accent transition-all duration-1000" style={{ width: `${(Math.max(0, 3 - demoUsage) / 3) * 100}%` }} /></div>
               </CardContent>
             </Card>
           </div>

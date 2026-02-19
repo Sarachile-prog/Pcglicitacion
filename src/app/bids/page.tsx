@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useMemo, useEffect } from "react"
@@ -8,7 +9,6 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Progress } from "@/components/ui/progress"
 import { 
   Search, 
   Building2, 
@@ -41,7 +41,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 const ITEMS_PER_PAGE = 50;
 
 // FUNCIÓN MAESTRA DE PERSISTENCIA
-// Define si una licitación tiene datos útiles para el negocio.
 export const isBidEnriched = (bid: any) => {
   if (!bid.entity) return false;
   const pendingStrings = [
@@ -76,6 +75,8 @@ export default function BidsListPage() {
   const [isOcdsLoading, setIsOcdsLoading] = useState(false)
   const [mounted, setMounted] = useState(false);
   const [globalDbCount, setGlobalDbCount] = useState<number | null>(null);
+  
+  // Estados para búsqueda automática global
   const [isGlobalSearching, setIsGlobalSearching] = useState(false);
   const [globalSearchResult, setGlobalSearchResult] = useState<any>(null);
 
@@ -110,32 +111,59 @@ export default function BidsListPage() {
 
   const { data: bids, isLoading: isDbLoading } = useCollection(bidsQuery)
 
+  // LOGICA DE BÚSQUEDA LOCAL
+  const filteredBids = useMemo(() => {
+    let results = bids ? [...bids] : [];
+    if (searchTerm) {
+      const search = searchTerm.toLowerCase()
+      results = results.filter(bid => 
+        bid.title?.toLowerCase().includes(search) || 
+        bid.entity?.toLowerCase().includes(search) ||
+        bid.id?.toLowerCase().includes(search)
+      )
+    }
+    if (statusFilter !== "all") results = results.filter(bid => bid.status === statusFilter)
+    return results
+  }, [bids, searchTerm, statusFilter])
+
+  // AUTOMATIZACIÓN DE BÚSQUEDA GLOBAL
+  // Si la búsqueda local no devuelve nada y el término parece un ID, buscamos en toda la DB
+  useEffect(() => {
+    const timer = setTimeout(async () => {
+      if (!db || !searchTerm.trim() || filteredBids.length > 0) {
+        setGlobalSearchResult(null);
+        return;
+      }
+
+      // Solo disparamos búsqueda global si el término tiene formato de ID (letras, números, guiones)
+      // y no hay resultados en la capa local.
+      if (searchTerm.length > 5) {
+        setIsGlobalSearching(true);
+        try {
+          const bidId = searchTerm.trim();
+          const bidSnap = await getDoc(doc(db, "bids", bidId));
+          if (bidSnap.exists()) {
+            setGlobalSearchResult({ ...bidSnap.data(), id: bidSnap.id });
+          } else {
+            setGlobalSearchResult(null);
+          }
+        } catch (e) {
+          console.error("Error en búsqueda global automática:", e);
+        } finally {
+          setIsGlobalSearching(false);
+        }
+      }
+    }, 600); // Debounce de 600ms para no saturar Firestore mientras escribe
+
+    return () => clearTimeout(timer);
+  }, [searchTerm, filteredBids.length, db]);
+
   const stats = useMemo(() => {
     if (!bids) return { totalInView: 0, enriched: 0, pending: 0 };
     const totalInView = bids.length;
     const enriched = bids.filter(isBidEnriched).length;
     return { totalInView, enriched, pending: totalInView - enriched };
   }, [bids]);
-
-  const handleGlobalIdSearch = async () => {
-    if (!db || !searchTerm.trim()) return;
-    setIsGlobalSearching(true);
-    setGlobalSearchResult(null);
-    try {
-      const bidId = searchTerm.trim();
-      const bidSnap = await getDoc(doc(db, "bids", bidId));
-      if (bidSnap.exists()) {
-        setGlobalSearchResult({ ...bidSnap.data(), id: bidSnap.id });
-        toast({ title: "Registro Encontrado" });
-      } else {
-        toast({ variant: "destructive", title: "No Encontrado" });
-      }
-    } catch (e: any) {
-      toast({ variant: "destructive", title: "Error", description: e.message });
-    } finally {
-      setIsGlobalSearching(false);
-    }
-  }
 
   const handleSync = async () => {
     if (!selectedDate || !isSuperAdmin) return;
@@ -192,20 +220,6 @@ export default function BidsListPage() {
       setIsEnriching(false);
     }
   }
-
-  const filteredBids = useMemo(() => {
-    let results = bids ? [...bids] : [];
-    if (searchTerm) {
-      const search = searchTerm.toLowerCase()
-      results = results.filter(bid => 
-        bid.title?.toLowerCase().includes(search) || 
-        bid.entity?.toLowerCase().includes(search) ||
-        bid.id?.toLowerCase().includes(search)
-      )
-    }
-    if (statusFilter !== "all") results = results.filter(bid => bid.status === statusFilter)
-    return results
-  }, [bids, searchTerm, statusFilter])
 
   const totalPages = Math.ceil(filteredBids.length / ITEMS_PER_PAGE);
   const pagedBids = useMemo(() => {
@@ -329,7 +343,11 @@ export default function BidsListPage() {
           <div className="flex flex-col lg:flex-row gap-4 items-end">
             <div className="flex-1 w-full">
               <div className="relative">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground opacity-40" />
+                {isGlobalSearching ? (
+                  <Loader2 className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-accent animate-spin" />
+                ) : (
+                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground opacity-40" />
+                )}
                 <Input 
                   placeholder="Buscar por ID, Título o Institución..." 
                   className="pl-12 h-14 bg-white border-2 border-primary/5 rounded-2xl shadow-sm font-bold italic" 
@@ -356,11 +374,12 @@ export default function BidsListPage() {
         </CardContent>
       </Card>
 
+      {/* RESULTADO DE BÚSQUEDA GLOBAL AUTOMÁTICA */}
       {globalSearchResult && (
-        <Card className="border-2 border-accent bg-accent/5 rounded-3xl overflow-hidden animate-in zoom-in-95">
-          <CardHeader className="bg-accent/10 py-3 px-6 border-b border-accent/20">
-            <CardTitle className="text-xs font-black uppercase text-accent flex items-center gap-2">
-              <SearchCode className="h-4 w-4" /> Registro Encontrado vía Búsqueda Global
+        <Card className="border-4 border-accent bg-accent/5 rounded-3xl overflow-hidden animate-in zoom-in-95 shadow-2xl">
+          <CardHeader className="bg-accent py-3 px-6">
+            <CardTitle className="text-xs font-black uppercase text-white flex items-center gap-2">
+              <SearchCode className="h-4 w-4" /> Registro recuperado del repositorio histórico
             </CardTitle>
           </CardHeader>
           <Table>
@@ -459,13 +478,12 @@ export default function BidsListPage() {
         <Card className="bg-primary/5 border-dashed border-4 border-primary/10 py-32 text-center space-y-6 rounded-[4rem]">
           <div className="space-y-4">
             <Globe className="h-12 w-12 text-primary/20 mx-auto" />
-            <h3 className="text-3xl font-black text-primary italic uppercase">Sin resultados en vista</h3>
+            <h3 className="text-3xl font-black text-primary italic uppercase">
+              {isGlobalSearching ? "Consultando Repositorio Maestro..." : "Sin resultados en esta vista"}
+            </h3>
+            {isGlobalSearching && <Loader2 className="h-8 w-8 animate-spin mx-auto text-accent" />}
           </div>
           <div className="flex flex-col sm:flex-row justify-center gap-4">
-            <Button className="bg-accent font-black uppercase italic h-14 px-10 rounded-2xl shadow-lg gap-2" onClick={handleGlobalIdSearch} disabled={isGlobalSearching || !searchTerm}>
-              {isGlobalSearching ? <Loader2 className="animate-spin" /> : <SearchCode className="h-5 w-5" />}
-              Búsqueda Global por ID
-            </Button>
             <Button variant="outline" onClick={() => { setSearchTerm(""); setStatusFilter("all"); setGlobalSearchResult(null); }} className="font-black uppercase italic h-14 px-10 border-primary text-primary rounded-2xl">Reiniciar Explorador</Button>
           </div>
         </Card>

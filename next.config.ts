@@ -1,3 +1,4 @@
+
 import type {NextConfig} from 'next';
 
 const nextConfig: NextConfig = {
@@ -8,9 +9,9 @@ const nextConfig: NextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
-  // Configuración para permitir archivos más grandes en Server Actions (Análisis de PDF)
+  // Configuración ampliada para permitir archivos pesados y análisis profundos de IA
   serverActions: {
-    bodySizeLimit: '10mb',
+    bodySizeLimit: '20mb',
   },
   images: {
     remotePatterns: [

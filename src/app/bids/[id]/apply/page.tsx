@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useParams, useRouter } from "next/navigation"
@@ -46,6 +47,9 @@ import {
 import { auditBidProposal, AuditOutput } from "@/ai/flows/audit-bid-proposal"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
+
+// Extender tiempo de respuesta para auditoría de PDF pesado
+export const maxDuration = 60;
 
 interface AnnexDocument {
   name: string;
@@ -130,6 +134,12 @@ export default function BidApplyPage() {
     const file = e.target.files?.[0]
     if (!file || !selectedAnnex || !bookmarkRef) return
     
+    // Validación de tamaño consistente (20MB)
+    if (file.size > 20 * 1024 * 1024) {
+      toast({ variant: "destructive", title: "Archivo Muy Pesado", description: "El anexo supera el límite de 20MB." })
+      return
+    }
+
     setIsUploading(true)
     setIsSyncing(true)
     
@@ -178,7 +188,7 @@ export default function BidApplyPage() {
       await updateDoc(bookmarkRef, { annexes: updatedAnnexes })
       toast({ title: result?.isReady ? "Validación Exitosa" : "Hallazgos Detectados" })
     } catch (error: any) {
-      toast({ variant: "destructive", title: "Error IA", description: error.message })
+      toast({ variant: "destructive", title: "Error IA", description: error.message || "Error en el procesamiento del anexo." })
     } finally {
       setIsAuditing(false)
       setIsSyncing(false)
@@ -292,7 +302,6 @@ export default function BidApplyPage() {
                       </div>
                     )}
 
-                    {/* RESUMEN DE AUDITORÍA IA (SOLO SI FUE ANALIZADO) */}
                     {annex.auditResult && (
                       <div className="p-4 rounded-2xl bg-white border-2 border-primary/5 space-y-3 animate-in fade-in slide-in-from-top-2 shadow-sm">
                         <div className="flex justify-between items-center border-b pb-2">
@@ -355,7 +364,7 @@ export default function BidApplyPage() {
                                {isUploading ? <Loader2 className="animate-spin mr-2" /> : <Plus className="mr-2 h-5 w-5" />} 
                                Seleccionar Archivo
                              </Button>
-                             <p className="text-[10px] font-black uppercase text-muted-foreground">Formato permitido: PDF Máx 10MB</p>
+                             <p className="text-[10px] font-black uppercase text-muted-foreground">Formato permitido: PDF Máx 20MB</p>
                           </div>
                         </DialogContent>
                       </Dialog>

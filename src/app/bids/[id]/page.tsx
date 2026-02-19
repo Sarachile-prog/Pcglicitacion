@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useParams } from "next/navigation"
@@ -37,6 +38,9 @@ import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import { useDoc, useFirestore, useMemoFirebase, useUser } from "@/firebase"
 import { doc, setDoc, deleteDoc, updateDoc, increment } from "firebase/firestore"
+
+// Extender tiempo de respuesta para el análisis multimodal
+export const maxDuration = 60;
 
 export default function BidDetailPage() {
   const params = useParams()
@@ -108,8 +112,9 @@ export default function BidDetailPage() {
       return
     }
 
-    if (file.size > 10 * 1024 * 1024) {
-      toast({ variant: "destructive", title: "Archivo Pesado", description: "El PDF supera el límite de 10MB." })
+    // Límite ampliado a 20MB para coincidir con next.config.ts
+    if (file.size > 20 * 1024 * 1024) {
+      toast({ variant: "destructive", title: "Archivo Muy Pesado", description: "El PDF supera el límite de 20MB." })
       return
     }
 
@@ -127,7 +132,7 @@ export default function BidDetailPage() {
     if (mode === 'deep') setIsDialogOpen(false)
 
     try {
-      toast({ title: "Motor IA Iniciado", description: mode === 'deep' ? "Procesando documentos adjuntos..." : "Analizando datos del portal..." })
+      toast({ title: "Motor IA Iniciado", description: mode === 'deep' ? "Procesando documentos adjuntos (esto puede tardar)..." : "Analizando datos del portal..." })
       
       const contextText = mode === 'deep' ? manualText : (bid.description || bid.title)
       const pdfToProcess = mode === 'deep' ? pdfDataUri : null
@@ -145,12 +150,11 @@ export default function BidDetailPage() {
 
       setActiveTab("ai-advisor")
       toast({ title: "Análisis Completado" })
-      // Limpiar estados de archivo tras éxito
       setPdfDataUri(null)
       setPdfFileName(null)
       setManualText("")
     } catch (error: any) {
-      toast({ variant: "destructive", title: "Error IA", description: error.message })
+      toast({ variant: "destructive", title: "Error IA", description: error.message || "Error de tiempo de ejecución o límite de tamaño." })
     } finally {
       setLoadingAI(false)
     }
@@ -308,7 +312,7 @@ export default function BidDetailPage() {
                   <DialogContent className="max-w-2xl rounded-3xl border-4 border-primary/5 shadow-2xl">
                     <DialogHeader>
                       <DialogTitle className="text-3xl font-black uppercase italic text-primary tracking-tighter">Análisis Multimodal</DialogTitle>
-                      <DialogDescription className="font-medium italic">Sube el PDF de las bases para detectar requisitos ocultos.</DialogDescription>
+                      <DialogDescription className="font-medium italic">Sube el PDF de las bases para detectar requisitos ocultos (Máx 20MB).</DialogDescription>
                     </DialogHeader>
                     
                     <div className="space-y-6 py-6">
@@ -334,7 +338,7 @@ export default function BidDetailPage() {
                              <Button onClick={() => fileInputRef.current?.click()} className="h-14 px-10 font-black uppercase italic rounded-2xl bg-primary text-lg shadow-xl hover:scale-105 transition-transform">
                                <Plus className="mr-2 h-5 w-5" /> Seleccionar Bases PDF
                              </Button>
-                             <p className="text-[10px] font-black uppercase text-muted-foreground italic tracking-widest">Formato PDF • Máx 10MB</p>
+                             <p className="text-[10px] font-black uppercase text-muted-foreground italic tracking-widest">Formato PDF • Máx 20MB</p>
                            </>
                          )}
                       </div>
@@ -368,7 +372,7 @@ export default function BidDetailPage() {
                   </DialogContent>
                 </Dialog>
               </div>
-              <p className="text-[10px] text-muted-foreground italic font-medium">El análisis profundo consume 1 crédito de IA y permite auditoría multimodal.</p>
+              <p className="text-[10px] text-muted-foreground italic font-medium">El análisis profundo con PDF permite detectar requisitos críticos de las bases.</p>
             </CardContent>
           </Card>
         </div>

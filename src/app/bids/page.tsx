@@ -28,7 +28,7 @@ import {
   SearchCode,
   Tag
 } from "lucide-react"
-import Link from "link"
+import Link from "next/link"
 import { getBidsByDate, getBidDetail, syncOcdsHistorical } from "@/services/mercado-publico"
 import { useToast } from "@/hooks/use-toast"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"

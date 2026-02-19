@@ -38,14 +38,10 @@ export interface MercadoPublicoBid {
   };
 }
 
-// URL base detectada desde el despliegue de 2ª generación
-const BASE_DOMAIN = 'https://uusj753vka-uc.a.run.app';
-
 /**
  * Llama a la función de ingesta masiva (Sincronización por Fecha - API Ticket).
  */
 export async function getBidsByDate(date: string): Promise<{ success: boolean; count: number; message: string }> {
-  // Las funciones de 2ª gen tienen subdominios específicos o rutas mapeadas
   const url = `https://getbidsbydate-uusj753vka-uc.a.run.app?date=${date}`;
 
   try {
@@ -87,9 +83,15 @@ export async function getBidDetail(code: string): Promise<MercadoPublicoBid | nu
 
 /**
  * Dispara la ingesta masiva histórica usando el estándar OCDS.
+ * Soporta modo 'countOnly' para previsualizar volumen.
  */
-export async function syncOcdsHistorical(year: string, month: string, type: 'Licitacion' | 'TratoDirecto' | 'Convenio'): Promise<{ success: boolean; count: number; message: string }> {
-  const url = `https://syncocdshistorical-uusj753vka-uc.a.run.app?year=${year}&month=${month}&type=${type}`;
+export async function syncOcdsHistorical(
+  year: string, 
+  month: string, 
+  type: 'Licitacion' | 'TratoDirecto' | 'Convenio',
+  countOnly: boolean = false
+): Promise<{ success: boolean; count: number; message: string }> {
+  const url = `https://syncocdshistorical-uusj753vka-uc.a.run.app?year=${year}&month=${month}&type=${type}${countOnly ? '&countOnly=true' : ''}`;
 
   try {
     const response = await fetch(url, { cache: 'no-store' });

@@ -5,7 +5,7 @@ import * as admin from "firebase-admin";
 /**
  * SERVICIOS CORE - PCG LICITACIÓN 2026
  * Motor de sincronización oficial con API Mercado Público.
- * Actualizado: 19/02/2026 - Captura agresiva de Institución y Responsable.
+ * Actualizado: 20/02/2026 - Consulta de volumen OCDS para planificación.
  */
 
 if (admin.apps.length === 0) {
@@ -120,7 +120,7 @@ export const syncOcdsHistorical = onRequest({
   timeoutSeconds: 300,
   memory: "1GiB"
 }, async (request: any, response: any) => {
-  const { year, month, type } = request.query;
+  const { year, month, type, countOnly } = request.query;
   if (!year || !month || !type) return response.status(400).json({ error: "Faltan parámetros" });
 
   const db = admin.firestore();
@@ -131,12 +131,22 @@ export const syncOcdsHistorical = onRequest({
                     type === 'TratoDirecto' ? 'Trato Directo' : 'Licitación';
 
   try {
-    const initialUrl = `https://api.mercadopublico.cl/APISOCDS/OCDS/${endpointBase}/${year}/${month}/0/999`;
+    // Si solo queremos el conteo, pedimos un rango pequeño para obtener el total
+    const limit = countOnly === 'true' ? '1' : '999';
+    const initialUrl = `https://api.mercadopublico.cl/APISOCDS/OCDS/${endpointBase}/${year}/${month}/0/${limit}`;
     
     const res = await fetch(initialUrl);
     if (!res.ok) return response.status(200).json({ success: false, message: `Error Portal Mercado Público: ${res.status}.` });
 
     let data = await res.json() as any;
+    
+    // Si la API no retorna explícitamente un total, usamos la longitud de los datos
+    const totalCount = data.total || (data.data ? data.data.length : 0);
+
+    if (countOnly === 'true') {
+      return response.json({ success: true, count: totalCount, message: `Hay ${totalCount} procesos disponibles en el mercado.` });
+    }
+
     if (!data || !data.data || data.data.length === 0) return response.json({ success: false, message: "No hay registros disponibles." });
 
     const items = data.data;
@@ -192,7 +202,6 @@ export const getBidDetail = onRequest({
     if (apiData.Listado && apiData.Listado.length > 0) {
       const detail = apiData.Listado[0];
       
-      // CAPTURA MULTI-CAMPO AGRESIVA (Resolviendo la duda del usuario)
       const orgName = detail.Comprador?.NombreOrganismo || 
                       detail.NombreInstitucion || 
                       detail.OrganismoComprador?.Nombre ||
@@ -224,5 +233,5 @@ export const getBidDetail = onRequest({
 });
 
 export const healthCheck = onRequest({ cors: true }, (req, res) => {
-  res.json({ status: "ok", version: "3.5.0-AGRESSIVE-CAPTURE", timestamp: new Date().toISOString() });
+  res.json({ status: "ok", version: "3.6.0-OCDS-PLANNING", timestamp: new Date().toISOString() });
 });

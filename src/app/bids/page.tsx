@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useMemo, useEffect } from "react"
@@ -27,7 +26,9 @@ import {
   AlertCircle,
   SearchCode,
   Tag,
-  Info
+  Info,
+  BarChart3,
+  CalendarDays
 } from "lucide-react"
 import Link from "next/link"
 import { getBidsByDate, getBidDetail, syncOcdsHistorical } from "@/services/mercado-publico"
@@ -37,7 +38,7 @@ import { Calendar } from "@/components/ui/calendar"
 import { format } from "date-fns"
 import { cn } from "@/lib/utils"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog"
 
 const ITEMS_PER_PAGE = 50;
 
@@ -70,10 +71,12 @@ export default function BidsListPage() {
   const [currentPage, setCurrentPage] = useState(1)
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
   const [isOcdsDialogOpen, setIsOcdsDialogOpen] = useState(false)
-  const [ocdsYear, setOcdsYear] = useState("2026")
-  const [ocdsMonth, setOcdsMonth] = useState("02")
+  const [ocdsYear, setOcdsYear] = useState("2025")
+  const [ocdsMonth, setOcdsMonth] = useState("08")
   const [ocdsType, setOcdsType] = useState<'Licitacion' | 'TratoDirecto' | 'Convenio'>('Licitacion')
   const [isOcdsLoading, setIsOcdsLoading] = useState(false)
+  const [isCheckingVolume, setIsCheckingVolume] = useState(false)
+  const [marketVolume, setMarketVolume] = useState<number | null>(null)
   const [mounted, setMounted] = useState(false);
   const [globalDbCount, setGlobalDbCount] = useState<number | null>(null);
   
@@ -182,6 +185,7 @@ export default function BidsListPage() {
       if (res.success) {
         toast({ title: "Éxito OCDS", description: res.message })
         setIsOcdsDialogOpen(false)
+        setMarketVolume(null)
       } else {
         toast({ variant: "destructive", title: "Incompleto", description: res.message })
       }
@@ -189,6 +193,25 @@ export default function BidsListPage() {
       toast({ variant: "destructive", title: "Error", description: e.message })
     } finally {
       setIsOcdsLoading(false)
+    }
+  }
+
+  const handleCheckVolume = async () => {
+    if (!isSuperAdmin) return;
+    setIsCheckingVolume(true)
+    setMarketVolume(null)
+    try {
+      const res = await syncOcdsHistorical(ocdsYear, ocdsMonth, ocdsType, true)
+      if (res.success) {
+        setMarketVolume(res.count)
+        toast({ title: "Volumen Detectado", description: `Hay ${res.count} procesos para este periodo.` })
+      } else {
+        toast({ variant: "destructive", title: "Error", description: "No se pudo obtener el volumen." })
+      }
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Error", description: e.message })
+    } finally {
+      setIsCheckingVolume(false)
     }
   }
 
@@ -244,29 +267,29 @@ export default function BidsListPage() {
           
           {isSuperAdmin && (
             <Card className="bg-primary/5 border-primary/20 p-2 shadow-inner flex flex-wrap items-center gap-2 rounded-2xl">
-              <Dialog open={isOcdsDialogOpen} onOpenChange={setIsOcdsDialogOpen}>
+              <Dialog open={isOcdsDialogOpen} onOpenChange={(open) => { setIsOcdsDialogOpen(open); if(!open) setMarketVolume(null); }}>
                 <DialogTrigger asChild>
                   <Button size="sm" className="bg-emerald-600 font-black h-10 uppercase italic text-[9px] rounded-xl px-4 text-white">
                     <CloudDownload className="h-3.5 w-3.5 mr-2" /> Ingesta Masiva (OCDS)
                   </Button>
                 </DialogTrigger>
-                <DialogContent>
+                <DialogContent className="rounded-3xl border-4">
                   <DialogHeader><DialogTitle className="text-xl font-black uppercase italic">Succión Histórica OCDS</DialogTitle></DialogHeader>
-                  <div className="space-y-4 py-4">
+                  <div className="space-y-6 py-4">
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-1">
                         <label className="text-[10px] font-bold uppercase ml-1 opacity-60">Año</label>
-                        <Input value={ocdsYear} onChange={(e) => setOcdsYear(e.target.value)} placeholder="Ej: 2026" />
+                        <Input value={ocdsYear} onChange={(e) => setOcdsYear(e.target.value)} placeholder="Ej: 2025" className="font-bold" />
                       </div>
                       <div className="space-y-1">
                         <label className="text-[10px] font-bold uppercase ml-1 opacity-60">Mes</label>
-                        <Input value={ocdsMonth} onChange={(e) => setOcdsMonth(e.target.value)} placeholder="01 a 12" />
+                        <Input value={ocdsMonth} onChange={(e) => setOcdsMonth(e.target.value)} placeholder="01 a 12" className="font-bold" />
                       </div>
                     </div>
                     <div className="space-y-1">
                       <label className="text-[10px] font-bold uppercase ml-1 opacity-60">Tipo de Proceso</label>
                       <Select value={ocdsType} onValueChange={(v: any) => setOcdsType(v)}>
-                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectTrigger className="font-bold"><SelectValue /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="Licitacion" className="font-bold">Licitaciones Públicas</SelectItem>
                           <SelectItem value="TratoDirecto" className="font-bold">Tratos Directos</SelectItem>
@@ -274,8 +297,39 @@ export default function BidsListPage() {
                         </SelectContent>
                       </Select>
                     </div>
-                    <Button onClick={handleOcdsSync} disabled={isOcdsLoading} className="w-full h-12 bg-primary font-black uppercase italic shadow-lg">
-                      {isOcdsLoading ? <Loader2 className="animate-spin mr-2" /> : <CloudDownload className="mr-2" />} Iniciar Succión de Datos
+
+                    <div className="p-6 bg-muted/20 rounded-2xl border-2 border-dashed space-y-4 text-center">
+                      {marketVolume === null ? (
+                        <div className="space-y-3">
+                          <p className="text-[10px] font-black uppercase text-muted-foreground italic">¿Cuántas licitaciones hay en este periodo?</p>
+                          <Button 
+                            variant="outline" 
+                            onClick={handleCheckVolume} 
+                            disabled={isCheckingVolume}
+                            className="w-full h-12 border-emerald-500 text-emerald-600 font-black uppercase italic rounded-xl hover:bg-emerald-50"
+                          >
+                            {isCheckingVolume ? <Loader2 className="animate-spin mr-2" /> : <BarChart3 className="mr-2 h-4 w-4" />}
+                            Consultar Volumen Mercado
+                          </Button>
+                        </div>
+                      ) : (
+                        <div className="space-y-2 animate-in zoom-in-95">
+                          <div className="flex items-center justify-center gap-2 text-emerald-600">
+                            <CheckCircle2 className="h-5 w-5" />
+                            <span className="text-3xl font-black italic">{marketVolume.toLocaleString()}</span>
+                          </div>
+                          <p className="text-[10px] font-black uppercase text-emerald-700/70">Procesos detectados en el portal oficial</p>
+                          <p className="text-[9px] font-bold text-muted-foreground leading-tight px-4">
+                            Sugerencia: Cada succión captura hasta 1,000 registros. 
+                            {marketVolume > 1000 ? ` Necesitarás aproximadamente ${Math.ceil(marketVolume / 1000)} pasadas para este mes.` : " Con una sola succión cubrirás todo el mes."}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+
+                    <Button onClick={handleOcdsSync} disabled={isOcdsLoading || isCheckingVolume} className="w-full h-14 bg-primary font-black uppercase italic shadow-xl text-lg rounded-2xl transform active:scale-95 transition-all">
+                      {isOcdsLoading ? <Loader2 className="animate-spin mr-2" /> : <CloudDownload className="mr-2" />} 
+                      {isOcdsLoading ? "Ingestando..." : "Iniciar Succión de Datos"}
                     </Button>
                   </div>
                 </DialogContent>

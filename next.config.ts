@@ -9,9 +9,11 @@ const nextConfig: NextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
-  // Configuración de límites de carga para Server Actions (CRÍTICO para PDFs)
-  serverActions: {
-    bodySizeLimit: '50mb',
+  // En Next.js 15, la configuración de límites de carga se encuentra en experimental
+  experimental: {
+    serverActions: {
+      bodySizeLimit: '50mb',
+    },
   },
   images: {
     remotePatterns: [

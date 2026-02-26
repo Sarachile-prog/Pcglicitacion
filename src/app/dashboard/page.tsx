@@ -17,7 +17,20 @@ import {
   RefreshCw,
   Clock,
   ShieldAlert,
-  AlertCircle
+  AlertCircle,
+  Activity,
+  BarChart3,
+  Briefcase,
+  DollarSign,
+  TrendingUp,
+  Database,
+  ShieldCheck,
+  Users,
+  LogOut,
+  Search,
+  BrainCircuit,
+  CheckCircle2,
+  CalendarClock
 } from "lucide-react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"

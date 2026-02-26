@@ -6,7 +6,7 @@ import * as admin from "firebase-admin";
 /**
  * SERVICIOS CORE - PCG LICITACIÓN 2026
  * Motor de sincronización oficial con API Mercado Público.
- * Versión: 6.0.0 - Blindaje Total de Etiquetas y Limpieza de IDs OCDS.
+ * Versión: 6.1.0 - Blindaje total contra sobre-escritura y limpieza agresiva de IDs.
  */
 
 if (admin.apps.length === 0) {
@@ -31,7 +31,7 @@ async function getActiveTicket(): Promise<{ ticket: string, source: string }> {
 
 /**
  * INGESTA DIARIA (Sincronización por Fecha)
- * Se ha modificado para NO sobreescribir el tipo si ya existe uno especializado.
+ * Se ha modificado para NO enviar el campo 'type' y evitar borrar categorizaciones históricas.
  */
 async function performSync(date: string) {
   const db = admin.firestore();
@@ -81,8 +81,9 @@ async function performSync(date: string) {
       if (!bid.CodigoExterno) return;
       const bidRef = db.collection("bids").doc(bid.CodigoExterno);
       
-      // BLINDAJE DE TIPO: No enviamos 'type' en la ingesta diaria si el documento ya existe
-      // para evitar borrar 'Convenio Marco' o 'Trato Directo'.
+      // BLINDAJE DE TIPO: No enviamos 'type' en la ingesta diaria.
+      // Esto evita que si un proceso es 'Convenio Marco' (vía OCDS), 
+      // la ingesta diaria lo degrade a 'Licitación' por omisión.
       const payload: any = {
         id: bid.CodigoExterno,
         title: bid.Nombre || "Sin título",
@@ -120,7 +121,7 @@ export const getBidsByDate = onRequest({
 
 /**
  * INGESTA HISTÓRICA OCDS
- * Se ha añadido limpieza de ID para evitar duplicados con prefijos 'ocds-'.
+ * Se ha mejorado la limpieza de IDs y el bucle de páginas para asegurar volumen real.
  */
 export const syncOcdsHistorical = onRequest({
   cors: true,
@@ -153,7 +154,7 @@ export const syncOcdsHistorical = onRequest({
     }
 
     let totalIngested = 0;
-    const pagesToFetch = 5; 
+    const pagesToFetch = 10; // Aumentado a 10,000 registros por pasada
     const pageSize = 1000;
 
     for (let page = 0; page < pagesToFetch; page++) {
@@ -176,7 +177,7 @@ export const syncOcdsHistorical = onRequest({
           if (!release || !release.tender) return;
           
           let bidId = release.tender.id;
-          // LIMPIEZA DE ID: ocds-70d2nz-1234-56-LP24 -> 1234-56-LP24
+          // LIMPIEZA DE ID AGRESIVA: ocds-70d2nz-XXXX-YY-ZZ -> XXXX-YY-ZZ
           if (bidId.startsWith('ocds-')) {
             const parts = bidId.split('-');
             if (parts.length > 2) {
@@ -188,7 +189,7 @@ export const syncOcdsHistorical = onRequest({
           
           batch.set(bidRef, {
             id: bidId,
-            title: release.tender.title || "Proceso OCDS",
+            title: (release.tender.title || "Proceso OCDS").trim(),
             entity: release.buyer?.name || release.tender.procuringEntity?.name || "Institución vía OCDS",
             status: release.tender.status || "Desconocido",
             type: typeLabel, 
@@ -269,5 +270,5 @@ export const getBidDetail = onRequest({
 });
 
 export const healthCheck = onRequest({ cors: true }, (req, res) => {
-  res.json({ status: "ok", version: "6.0.0-FIXED-IDs", timestamp: new Date().toISOString() });
+  res.json({ status: "ok", version: "6.1.0-FIXED-IDs-LABELS", timestamp: new Date().toISOString() });
 });

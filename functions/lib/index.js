@@ -81,17 +81,14 @@ async function performSync(date) {
             if (!bid.CodigoExterno)
                 return;
             const bidRef = db.collection("bids").doc(bid.CodigoExterno);
-            batch.set(bidRef, {
+            const payload = {
                 id: bid.CodigoExterno,
                 title: bid.Nombre || "Sin título",
                 status: bid.Estado || "No definido",
-                type: "Licitación",
-                entity: "Pendiente Enriquecimiento",
-                amount: 0,
-                currency: 'CLP',
                 scrapedAt: nowServer,
                 sourceUrl: `https://www.mercadopublico.cl/Procurement/Modules/RFB/DetailsAcquisition.aspx?idLicitacion=${bid.CodigoExterno}`
-            }, { merge: true });
+            };
+            batch.set(bidRef, payload, { merge: true });
         });
         await batch.commit();
     }
@@ -153,7 +150,7 @@ exports.syncOcdsHistorical = (0, https_1.onRequest)({
             if (!res.ok)
                 break;
             const data = await res.json();
-            const items = data.data || [];
+            const items = data.data || data.Listado || [];
             if (items.length === 0)
                 break;
             for (let i = 0; i < items.length; i += 450) {
@@ -163,7 +160,13 @@ exports.syncOcdsHistorical = (0, https_1.onRequest)({
                     const release = item.releases?.[0];
                     if (!release || !release.tender)
                         return;
-                    const bidId = release.tender.id;
+                    let bidId = release.tender.id;
+                    if (bidId.startsWith('ocds-')) {
+                        const parts = bidId.split('-');
+                        if (parts.length > 2) {
+                            bidId = parts.slice(2).join('-');
+                        }
+                    }
                     const bidRef = db.collection("bids").doc(bidId);
                     batch.set(bidRef, {
                         id: bidId,
@@ -184,7 +187,7 @@ exports.syncOcdsHistorical = (0, https_1.onRequest)({
             if (items.length < pageSize)
                 break;
         }
-        response.json({ success: true, count: totalIngested, message: `Se han succionado ${totalIngested.toLocaleString()} registros de ${typeLabel}.` });
+        response.json({ success: true, count: totalIngested, message: `Éxito: Se han procesado ${totalIngested.toLocaleString()} registros como '${typeLabel}'.` });
     }
     catch (error) {
         console.error(`>>> [OCDS_CRASH]: ${error.message}`);
@@ -221,7 +224,10 @@ exports.getBidDetail = (0, https_1.onRequest)({
                 typeLabel = "Convenio Marco";
             else if (typeCode === 2)
                 typeLabel = "Trato Directo";
-            else if (!currentData?.type || (currentData.type !== "Convenio Marco" && currentData.type !== "Trato Directo")) {
+            else if (currentData?.type === "Convenio Marco" || currentData?.type === "Trato Directo") {
+                typeLabel = currentData.type;
+            }
+            else {
                 typeLabel = "Licitación";
             }
             await bidRef.update({
@@ -244,6 +250,6 @@ exports.getBidDetail = (0, https_1.onRequest)({
     }
 });
 exports.healthCheck = (0, https_1.onRequest)({ cors: true }, (req, res) => {
-    res.json({ status: "ok", version: "4.5.0-DEEP-DIAGNOSIS", timestamp: new Date().toISOString() });
+    res.json({ status: "ok", version: "6.0.0-FIXED-IDs", timestamp: new Date().toISOString() });
 });
 //# sourceMappingURL=index.js.map
